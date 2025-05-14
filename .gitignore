@@ -172,3 +172,31 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+# others 
+
+# Pytest testmon
+.testmondata
+/.testmondata
+
+# Logs
+logs/
+*/logs/*
+
+# Compiled Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Coverage output
+.coverage
+coverage.xml
+htmlcov/
+
+
+# VSCode / IDE
+.vscode/
+.idea/
+
