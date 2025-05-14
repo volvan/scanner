@@ -1,6 +1,6 @@
 # The Scanner
 
-Purpose ...
+The Scanner is Völva’s core component for mapping Iceland’s internet-facing systems. It performs continuous host discovery and port scanning to reveal exposed services, track changes, and support proactive cybersecurity. Built for reliability and minimal network impact, it helps visualize national digital exposure—transparently and ethically.
 
 ## Völva: Scan Iceland 
 
