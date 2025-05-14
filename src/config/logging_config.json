@@ -1,0 +1,5 @@
+{
+    "debug": false,
+    "service_tag": "ip_scan",
+    "log_to_file": true
+  }
