@@ -1,0 +1,66 @@
+name: Run Tests
+
+on:
+  pull_request:
+    branches:
+      - dev
+  push:
+    branches:
+      - dev
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y nmap
+
+      - name: Set up venv manually and activate
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install pytest pytest-testmon coverage coverage-badge pyparsing pika requests ipwhois psycopg2-binary cryptography psutil python-dotenv pyffx
+
+      - name: Inject FPE config from GitHub Secrets
+        run: |
+          echo "FPE_KEY=${{ secrets.FPE_KEY }}" >> $GITHUB_ENV
+          echo "FPE_ALPHABET=${{ secrets.FPE_ALPHABET }}" >> $GITHUB_ENV
+          echo "FPE_LENGTH=${{ secrets.FPE_LENGTH }}" >> $GITHUB_ENV
+
+      - name: Run all tests with coverage and generate badge
+        run: |
+          source venv/bin/activate
+          coverage run -m pytest -v
+          coverage report
+          coverage html
+          coverage xml
+          mkdir -p .github/img
+          if [ -f .coverage ]; then
+            coverage-badge -o .github/img/coverage.svg -f
+          else
+            echo "No coverage file found, skipping badge generation."
+          fi
+
+      - name: Run custom test logic (relevant test files only)
+        run: |
+          bash .github/hooks/custom_tests.sh
+
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: htmlcov/
+
+      - name: Upload coverage badge
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-badge
+          path: .github/img/coverage.svg
