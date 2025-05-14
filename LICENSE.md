@@ -26,7 +26,21 @@ All publications, software, derivative works, presentations, or other publicly a
 
 Redistribution of the System, whether original or modified, is permitted only under the terms of this exact license. Redistributions must retain this license file, all associated copyright notices and attribution conditions, and explicit mention that redistribution remains strictly non-commercial.
     
+## Contributions
 
+By submitting any contributions (including code, documentation, or ideas) to this project, you agree that:
+
+- You have the legal right to submit the work.
+- Your contributions will be governed by the same license terms as the rest of the System (non-commercial, attribution-required).
+- All contributions may be modified, redistributed, or incorporated into derivative works by the maintainers or others under this license.
+
+You retain the copyright to your contributions. However, by submitting a contribution, you grant FrostByte Research Laboratory, Reykjavík University (RU), and project maintainers an irrevocable, royalty-free, non-exclusive license to use, reproduce, adapt, and distribute your contributions as part of the System.
+
+For transparency and clarity, contributors are encouraged to:
+- Review the [Code of Conduct](./CODE_OF_CONDUCT.md) and [Contributing Guide](./.github/CONTRIBUTING.md) before submitting.
+- Include clear commit messages and link to related issues or pull requests.
+
+All contributions are welcome, provided they align with the non-commercial and ethical use of the System.
 
 ## No Warranty and Liability:
 
