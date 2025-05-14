@@ -7,10 +7,10 @@ Purpose ...
 The core component responsible for conducting the network scans. It spans in three phases in the scanning pipeline (prepare, host discovery and port scanning)
 
 ![Coverage](.github/img/coverage.svg)
-![Version](https://img.shields.io/github/v/tag/marteinnlundi/ScanICE?label=version)
-![License](https://img.shields.io/github/license/marteinnlundi/ScanICE)
+![Version](https://img.shields.io/github/v/tag/volvan/scanner?label=version)
+![License](https://img.shields.io/github/license/volvan/scanner)
 ![Tests](https://img.shields.io/github/actions/workflow/status/marteinnlundi/ScanICE/tests.yml?branch=dev&label=tests)
-![Code Style](https://img.shields.io/github/actions/workflow/status/marteinnlundi/ScanICE/formatting.yml?branch=dev&label=pep8)
+![Code Style](https://img.shields.io/github/actions/workflow/status/volvan/scanner/formatting.yml?branch=dev&label=pep8)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 
 ---
