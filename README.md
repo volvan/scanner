@@ -32,126 +32,173 @@ The core component responsible for conducting the network scans. It spans in thr
 
 ```t
 ~/scanner/
-├── CODE_OF_CONDUCT.md             # Contributor guidelines and community expectations
-├── LICENSE.md                     # Project license (e.g., MIT, GPL)
-├── README.md                      # Main documentation file
-├── requirements.txt               # Python dependencies
+├── CODE_OF_CONDUCT.md
+├── LICENSE.md
+├── README.md
+├── requirements.txt
 │
-├── _tests/                        # Unit and integration tests
+├── _tests/
 │   ├── config/
-│   │   └── test_logging_config.py        # Tests logging configuration logic
+│   │   └── test_logging_config.py
+│   ├── conftest.py
 │   ├── database/
-│   │   └── test_db_manager.py            # Tests for database interactions
+│   │   └── test_db_manager.py
 │   ├── rmq/
-│   │   └── test_rmq_manager.py           # Tests for RabbitMQ functionality
+│   │   └── test_rmq_manager.py
 │   ├── scanner/
 │   │   ├── discovery_scan/
-│   │   │   ├── test_ip_manager.py        # Tests for IP batching and handling
-│   │   │   └── test_ip_scanner.py        # Tests for the discovery scanning logic
+│   │   │   ├── test_ip_manager.py
+│   │   │   └── test_ip_scanner.py
 │   │   └── port_scan/
-│   │       ├── test_port_manager.py      # Tests for port batching and grouping
-│   │       └── test_port_scanner.py      # Tests for Nmap-based port scanning
-│   ├── test_initialize_ip_scan.py        # Tests for the IP scan entrypoint
-│   ├── test_initialize_port_scan.py      # Tests for the port scan entrypoint
+│   │       ├── test_port_manager.py
+│   │       └── test_port_scanner.py
+│   ├── test_initialize_ip_scan.py
+│   ├── test_initialize_port_scan.py
 │   └── utils/
-│       ├── test_batch_handler.py         # Tests for task batching logic
-│       ├── test_block_handler.py         # Tests for block/target list parsing
-│       ├── test_crypto_handler.py        # Tests for encryption utilities
-│       ├── test_ping_handler.py          # Tests ICMP ping logic
-│       ├── test_ports_handler.py         # Tests for port range/selection handling
-│       ├── test_probe_handler.py         # Tests for probe (Nmap) execution/response
-│       ├── test_queue_initializer.py     # Tests queue initialization
-│       ├── test_randomize_handler.py     # Tests for input shuffling/randomization
-│       ├── test_timestamp.py             # Tests for time-based logic
-│       └── test_worker_handler.py        # Tests for task processing logic
+│       ├── test_batch_handler.py
+│       ├── test_block_handler.py
+│       ├── test_crypto_handler.py
+│       ├── test_ping_handler.py
+│       ├── test_ports_handler.py
+│       ├── test_probe_handler.py
+│       ├── test_queue_initializer.py
+│       ├── test_randomize_handler.py
+│       ├── test_timestamp.py
+│       └── test_worker_handler.py
 │
 └── src/
-    ├── config/                            # Central configuration files
-    │   ├── crypto_config.py               # Config for encryption/decryption (e.g. keys)
-    │   ├── database_config.py             # PostgreSQL connection setup
-    │   ├── logging_config.json            # Logging settings in JSON format
-    │   ├── logging_config.py              # Python logger initializer
-    │   ├── rmq_config.py                  # RabbitMQ settings (queue names, host, etc.)
-    │   └── scan_config.py                 # Parameters for scan behavior (timeouts, retries)
+    ├── __init__.py
+    ├── config/
+    │   ├── __init__.py
+    │   ├── crypto_config.py
+    │   ├── database_config.py
+    │   ├── logging_config.json
+    │   ├── logging_config.py
+    │   ├── rmq_config.py
+    │   └── scan_config.py
     │
     ├── database/
-    │   └── db_manager.py                  # PostgreSQL abstraction layer for inserts/queries
+    │   ├── __init__.py
+    │   └── db_manager.py
     │
     ├── rmq/
-    │   └── rmq_manager.py                 # Handles RabbitMQ connections, queue publish/consume
+    │   ├── __init__.py
+    │   └── rmq_manager.py
     │
     ├── scanners/
+    │   ├── __init__.py
     │   ├── discovery_scan/
-    │   │   ├── ip_manager.py              # Prepares and batches IPs for scanning
-    │   │   └── ip_scanner.py              # Executes ping-based host discovery
+    │   │   ├── __init__.py
+    │   │   ├── ip_manager.py
+    │   │   └── ip_scanner.py
     │   └── port_scan/
-    │       ├── port_manager.py            # Prepares port scan jobs and manages groupings
-    │       └── port_scanner.py            # Executes port scans using Nmap
+    │       ├── __init__.py
+    │       ├── port_manager.py
+    │       └── port_scanner.py
     │
-    ├── utils/                             # Reusable helper functions and shared logic
-    │   ├── batch_handler.py               # Batches IPs/ports/tasks into scanable units
-    │   ├── block_handler.py               # Loads and parses target IP blocks
-    │   ├── crypto.py                      # Handles encryption/decryption routines
-    │   ├── ping_handler.py                # Performs ICMP pings (host alive check)
-    │   ├── ports_handler.py               # Reads and parses ports file
-    │   ├── probe_handler.py               # Probes hosts using Nmap and extracts results
-    │   ├── queue_initializer.py           # Sets up RabbitMQ queues and seeds jobs
-    │   ├── randomize_handler.py           # Randomizes input order (IPs, ports)
-    │   ├── timestamp.py                   # Adds timestamps and formatting utilities
-    │   └── worker_handler.py              # Core scanning loop for handling tasks from queue
+    ├── utils/
+    │   ├── __init__.py
+    │   ├── batch_handler.py
+    │   ├── block_handler.py
+    │   ├── crypto.py
+    │   ├── ping_handler.py
+    │   ├── ports_handler.py
+    │   ├── probe_handler.py
+    │   ├── queue_initializer.py
+    │   ├── randomize_handler.py
+    │   ├── timestamp.py
+    │   └── worker_handler.py
     │
-    ├── initialize_fail_queue.py           # Requeues failed tasks for retry
-    ├── initialize_ip_scan.py              # Entrypoint script to start discovery scans
-    ├── initialize_port_scan.py            # Entrypoint script to start port scans
+    ├── report_generator/
+    │   ├── __init__.py
+    │   ├── db_handler.py
+    │   ├── email_handler.py
+    │   ├── generate_report.py
+    │   ├── latex_utils.py
+    │   ├── main.py
+    │   ├── queries.py
+    │   ├── README.md
+    │   ├── report_config.py
+    │   └── templates/
+    │       ├── admin.tex
+    │       └── supervisor.tex
+    │
+    ├── initialize_fail_queue.py
+    ├── initialize_ip_scan.py
+    ├── initialize_port_scan.py
+    └── README.md
+
 ```
-
-
-
-
 ## How to Run
 
-1. Clone the repository 
+This project uses Python 3 and a virtual environment. Below are the minimal steps to get started.
 
-1.1 Install git: 
+### 1. Clone the Repository
 
 ```bash
 sudo apt install -y git
-```
-
-
-2. Create the ENV
-
-(?)
-
-```bash
-export RMQ_USER="user"
-export RMQ_PASS="<password>" 
-```
-
-
-3. Install Requirements 
-
-
-```bash
+git clone https://github.com/marteinnlundi/ScanICE.git
 cd scanner/
-requirements.txt
 ```
 
-4. Now you should be able to run 
+### 2. Set Up Python Environment
 
-    4.1 Manually with venv : 
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-    ```bash
-    # Activate venv
-    source venv/bin/activate
-    ...
+To deactivate:
 
-    # Deact venv
-    deactivate
-    ```
+```bash
+deactivate
+```
 
-    4.2 With Visual Studio Code 
+### 3. Environment Variables
 
-    1. Select interpreter as the Python Venv installed already in src 
-    2. Run any file within VSCode
+Create a `.env` file in the root of the project and set required values:
 
+```bash
+# RabbitMQ
+export RMQ_HOST=...
+export RMQ_PORT=...
+export RMQ_USER=...
+export RMQ_PASS=...
+
+# PostgreSQL
+export DB_HOST=...
+export DB_PORT=...
+export DB_USER=...
+export DB_PASS=...
+export DB_NAME=...
+
+# Format-Preserving Encryption
+export FPE_KEY=...
+export FPE_ALPHABET=...
+export FPE_LENGTH=...
+
+# Email + Report Generator
+export SMTP_SERVER=...
+export SMTP_PORT=...
+export SMTP_USER=...
+export SMTP_PASS=...
+export EMAIL_FROM=...
+export EMAIL_TO=...
+export NATION=...
+```
+
+Then load them:
+
+```bash
+source .env
+```
+
+### Full Usage Documentation
+
+For full instructions on running scans, generating reports, sending emails, and handling retries, refer to the component-specific guides:
+
+- **Scanner**: `src/README.md`
+    
+- **Report Generator & Email Handler**: `src/report_generator/README.md`
+    
