@@ -8,9 +8,9 @@ The core component responsible for conducting the network scans. It spans in thr
 
 ![Coverage](.github/img/coverage.svg)
 ![Version](https://img.shields.io/github/v/tag/volvan/scanner?label=version)
-![License](https://img.shields.io/github/license/volvan/scanner)
-![Tests](https://img.shields.io/github/actions/workflow/status/volvan/scanner/tests.yml?branch=dev&label=tests)
-![Code Style](https://img.shields.io/github/actions/workflow/status/volvan/scanner/formatting.yml?branch=dev&label=pep8)
+![License](https://img.shields.io/badge/license-Custom--Academic--Use-blue)
+![Tests](https://img.shields.io/github/actions/workflow/status/volvan/scanner/tests.yml?branch=main&label=tests)
+![Code Style](https://img.shields.io/github/actions/workflow/status/volvan/scanner/formatting.yml?branch=main&label=pep8)
 ![Python](https://img.shields.io/badge/python-3.11-blue)
 
 ---
