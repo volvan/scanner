@@ -32,76 +32,77 @@ The core component responsible for conducting the network scans. It spans in thr
 
 ```t
 ~/scanner/
-├── .github/
-│   ├── CONTRIBUTE
+├── CODE_OF_CONDUCT.md             # Contributor guidelines and community expectations
+├── LICENSE.md                     # Project license (e.g., MIT, GPL)
+├── README.md                      # Main documentation file
+├── requirements.txt               # Python dependencies
 │
-├── docs/                       # Additional setups (optional)
-│   ├── vm_setup.md/            # Specs and setup instructions
-│   └── prometheus.md/
-│
-├── _tests/                     # py tests
+├── _tests/                        # Unit and integration tests
+│   ├── config/
+│   │   └── test_logging_config.py        # Tests logging configuration logic
 │   ├── database/
-│   │   └── ...
-│   ├── rmq/ 
-│   │   └── ...
-│   ├── scanner/ 
-│   │   └── discovery_scan/
-│   │   │   ...
-│   │   │   ...
+│   │   └── test_db_manager.py            # Tests for database interactions
+│   ├── rmq/
+│   │   └── test_rmq_manager.py           # Tests for RabbitMQ functionality
+│   ├── scanner/
+│   │   ├── discovery_scan/
+│   │   │   ├── test_ip_manager.py        # Tests for IP batching and handling
+│   │   │   └── test_ip_scanner.py        # Tests for the discovery scanning logic
 │   │   └── port_scan/
-│   │   │   ...
-│   │   │  ....
-│   └── utils/ 
+│   │       ├── test_port_manager.py      # Tests for port batching and grouping
+│   │       └── test_port_scanner.py      # Tests for Nmap-based port scanning
+│   ├── test_initialize_ip_scan.py        # Tests for the IP scan entrypoint
+│   ├── test_initialize_port_scan.py      # Tests for the port scan entrypoint
+│   └── utils/
+│       ├── test_batch_handler.py         # Tests for task batching logic
+│       ├── test_block_handler.py         # Tests for block/target list parsing
+│       ├── test_crypto_handler.py        # Tests for encryption utilities
+│       ├── test_ping_handler.py          # Tests ICMP ping logic
+│       ├── test_ports_handler.py         # Tests for port range/selection handling
+│       ├── test_probe_handler.py         # Tests for probe (Nmap) execution/response
+│       ├── test_queue_initializer.py     # Tests queue initialization
+│       ├── test_randomize_handler.py     # Tests for input shuffling/randomization
+│       ├── test_timestamp.py             # Tests for time-based logic
+│       └── test_worker_handler.py        # Tests for task processing logic
 │
-└── README.md
-│ 
-│ 
-└── src/                        # Source Code
-    ├── venv/                   # Virtual environment
+└── src/
+    ├── config/                            # Central configuration files
+    │   ├── crypto_config.py               # Config for encryption/decryption (e.g. keys)
+    │   ├── database_config.py             # PostgreSQL connection setup
+    │   ├── logging_config.json            # Logging settings in JSON format
+    │   ├── logging_config.py              # Python logger initializer
+    │   ├── rmq_config.py                  # RabbitMQ settings (queue names, host, etc.)
+    │   └── scan_config.py                 # Parameters for scan behavior (timeouts, retries)
     │
-    ├── config/                 # Global configuration files
-    │   └── database_config.py  # PostgreSQL connection details
-    │   └── rmq_config.py       # RabbitMQ-specific settings
-    │   └── scan_config.py      # Scanner settings
-    │   └── database_config.py  # PostgreSQL connection details
-    │   └── targets_config.py   # Targets configurations, target = who to scan
+    ├── database/
+    │   └── db_manager.py                  # PostgreSQL abstraction layer for inserts/queries
     │
+    ├── rmq/
+    │   └── rmq_manager.py                 # Handles RabbitMQ connections, queue publish/consume
     │
-    ├── database/               # Database-specific modules 
-    │   └── database_manager.py
-    │   └── initialize_tables.py
+    ├── scanners/
+    │   ├── discovery_scan/
+    │   │   ├── ip_manager.py              # Prepares and batches IPs for scanning
+    │   │   └── ip_scanner.py              # Executes ping-based host discovery
+    │   └── port_scan/
+    │       ├── port_manager.py            # Prepares port scan jobs and manages groupings
+    │       └── port_scanner.py            # Executes port scans using Nmap
     │
+    ├── utils/                             # Reusable helper functions and shared logic
+    │   ├── batch_handler.py               # Batches IPs/ports/tasks into scanable units
+    │   ├── block_handler.py               # Loads and parses target IP blocks
+    │   ├── crypto.py                      # Handles encryption/decryption routines
+    │   ├── ping_handler.py                # Performs ICMP pings (host alive check)
+    │   ├── ports_handler.py               # Reads and parses ports file
+    │   ├── probe_handler.py               # Probes hosts using Nmap and extracts results
+    │   ├── queue_initializer.py           # Sets up RabbitMQ queues and seeds jobs
+    │   ├── randomize_handler.py           # Randomizes input order (IPs, ports)
+    │   ├── timestamp.py                   # Adds timestamps and formatting utilities
+    │   └── worker_handler.py              # Core scanning loop for handling tasks from queue
     │
-    ├── rmq/                    # RabbitMQ-specific modules
-    │   └── initialize_queues.py
-    │   └── rmq_manager.py 
-    │
-    │
-    ├── scanners/               # Host discovery module     
-    │   ├── ip_scan/            # IP address scanning module
-    │   │   ├── ip_scanner.py
-    │   │   └── ip_manager.py
-    │   └── port_scan/          # Port scanning module
-    │       ├── port_scanner.py
-    │       └── port_manager.py
-    │
-    ├── targets/                # Targets to scan
-    │   ├── blocks.txt 
-    │   └── ports.txt 
-    │
-    ├── utils/                  # Utility functions used across modules
-    │   ├── logger.py           # logger for debugging
-    │   ├── block_handler.py
-    │   ├── ping_handler.py     # handles pings with only alive or dead responses
-    │   ├── ports_handler.py
-    │   └── probe_handler.py    # handles probes (nmap) with data responses
-    │
-    ├── initialize_port_scan.py # "main" for port scanning
-    ├── initialize_ip_scan.py   # "main" for ip scanning
-    │
-    │
-    └── report_generator/       # Report Generator
-        └── main.py
+    ├── initialize_fail_queue.py           # Requeues failed tasks for retry
+    ├── initialize_ip_scan.py              # Entrypoint script to start discovery scans
+    ├── initialize_port_scan.py            # Entrypoint script to start port scans
 ```
 
 
