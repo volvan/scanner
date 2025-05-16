@@ -2,7 +2,11 @@
 import pyffx  # type: ignore
 
 # Configuration
-from ..config import crypto_config
+try:
+    from config import crypto_config
+except ImportError:
+    from ..config import crypto_config
+
 
 if crypto_config.FPE_KEY is None:
     raise ValueError("FPE_KEY not found in environment variables")
