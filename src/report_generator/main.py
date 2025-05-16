@@ -39,7 +39,7 @@ if __name__ == "__main__":
         report.render_admin(compile_pdf=COMPILE_PDF)  # Admin report
 
         # 3. Send the report in mail
-        #send_report()
+        # send_report()
 
         # 4. backup the report
         # backup_report()
