@@ -4,8 +4,7 @@ import ast
 import os
 import subprocess
 from collections import defaultdict
-from report_generator.report_config import TOP_ITEMS
-
+from .report_config import TOP_ITEMS
 
 def latex_escape(s) -> str:
     """Escape special characters for safe use in LaTeX documents."""

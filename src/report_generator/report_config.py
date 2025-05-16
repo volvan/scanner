@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv  # type:ignore
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Load the env
 load_dotenv()
 
@@ -44,4 +46,4 @@ GPG_ENC_KEY = os.getenv("GPG_ENC_KEY")
 GPG_SIGN_KEY = os.getenv("GPG_SIGN_KEY")
 
 # Email
-EMAIL_SCRIPT = "./report_generator/email_handler.py"
+EMAIL_SCRIPT = os.path.join(BASE_DIR, "email_handler.py")

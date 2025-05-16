@@ -107,6 +107,13 @@ Then load them:
 source .env
 ```
 
+## Run the Report Generator
+
+In the root folder scanner/
+```bash
+python -m src.report_generator.main
+```
+
 ---
 
 ## Customization

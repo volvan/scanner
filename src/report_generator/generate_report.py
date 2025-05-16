@@ -1,6 +1,6 @@
 from string import Template
 from .report_config import TEMPLATES_DIR_PATH, DIR_REPORT_PATH
-from latex_utils import latex_table, latex_escape, write_latex, format_details
+from .latex_utils import latex_table, latex_escape, write_latex, format_details
 import os
 
 

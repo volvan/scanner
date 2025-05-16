@@ -1,10 +1,10 @@
 import psycopg2
-from src.utils.crypto import decrypt_ip
-from report_generator.report_config import NATION
+from ..utils.crypto import decrypt_ip
+from .report_config import NATION
 from collections import defaultdict
 
 from src.config.database_config import DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT
-from queries import update_summary_sql, get_ports_for_cidr_sql, get_open_ports_count_sql, update_summary_running_scan_sql, get_latest_summary_sql, get_hosts_for_cidr_sql, get_hosts_for_scan_sql, get_ports_for_scan_sql, get_cidrs_for_nation_sql
+from .queries import update_summary_sql, get_ports_for_cidr_sql, get_open_ports_count_sql, update_summary_running_scan_sql, get_latest_summary_sql, get_hosts_for_cidr_sql, get_hosts_for_scan_sql, get_ports_for_scan_sql, get_cidrs_for_nation_sql
 
 
 class DatabaseManager:
