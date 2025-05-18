@@ -15,24 +15,11 @@ The core component responsible for conducting the network scans. It spans in thr
 
 ---
 
-## Quick links
-
-- **[Website](https://volva.frostbyte.is)**
-
-- **[GitLab Mirror](https://gitlab.frostbyte.is/academic-projects/scan_ice)**
-
-- **[Original Repository](https://github.com/marteinnlundi/ScanICE)**
-
-- **[Presentation Slides for Völva](https://blank.page/)**
-
-
-
 
 ## Hierarcy overview 
 
 ```t
 ~/scanner/
-├── CODE_OF_CONDUCT.md
 ├── LICENSE.md
 ├── README.md
 ├── requirements.txt
@@ -57,15 +44,7 @@ The core component responsible for conducting the network scans. It spans in thr
 │   └── utils/
 │       ├── test_batch_handler.py
 │       ├── test_block_handler.py
-│       ├── test_crypto_handler.py
-│       ├── test_ping_handler.py
-│       ├── test_ports_handler.py
-│       ├── test_probe_handler.py
-│       ├── test_queue_initializer.py
-│       ├── test_randomize_handler.py
-│       ├── test_timestamp.py
-│       └── test_worker_handler.py
-│
+│       ....
 └── src/
     ├── __init__.py
     ├── config/
