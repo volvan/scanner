@@ -13,7 +13,6 @@ CPU_LIMIT = int(os.getenv("SCAN_CPU_LIMIT", 70))
 # ─── RabbitMQ queue names (centralized for easy updates) ─────────────────────
 
 # Manual override using environment variables for flexibility during testing/multi-country runs
-ALL_ADDR_QUEUE = os.getenv("ALL_ADDR_QUEUE", "all_addr")
 ALIVE_ADDR_QUEUE = os.getenv("ALIVE_ADDR_QUEUE", "alive_addr")
 DEAD_ADDR_QUEUE = os.getenv("DEAD_ADDR_QUEUE", "dead_addr")
 FAIL_QUEUE = os.getenv("FAIL_QUEUE", "fail_queue")
@@ -31,8 +30,8 @@ PRIORITY_PORTS_QUEUE = os.getenv("PRIORITY_PORTS_QUEUE", "priority_ports")
 # PRIORITY_PORTS_QUEUE  = f"{NAMESPACE}.priority_ports"
 
 # ─── Discovery scan phase specific ─────────────────────────────────────────
-FETCH_RIX = os.getenv("FETCH_RIX", "false").lower() == "true"         # If True, fetch IPs from RIX.is
-QUEUE_NAME = ALL_ADDR_QUEUE                                           # The queue used for IP discovery
+FETCH_RIX = False                                                     # If True, fetch IPs from RIX.is
+QUEUE_NAME = "all_addr"                                               # The queue used for IP discovery
 ADDR_FILE = os.getenv("ADDR_FILE", "blocks.txt")                      # File containing IP/CIDR blocks
 SCAN_METHOD = os.getenv("SCAN_METHOD", "default")                     # Discovery method (e.g., tcp_syn_ping)
 SINGLE_CIDR = os.getenv("SINGLE_CIDR", "8.8.8.0/28")                  # Single CIDR example
