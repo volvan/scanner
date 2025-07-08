@@ -1,5 +1,5 @@
 # Standard library
-import ipaddress
+import ipaddress, os
 import threading
 from multiprocessing import JoinableQueue
 import time
@@ -33,6 +33,8 @@ class DatabaseManager:
 
     _pool = None
     _pool_lock = threading.Lock()
+    _pool_pid = None
+
 
     @classmethod
     def initialize_pool(cls, minconn: int = 1, maxconn: int = 50) -> None:
@@ -58,30 +60,37 @@ class DatabaseManager:
             raise ValueError("Database credentials not set.")
 
         with cls._pool_lock:
-            if cls._pool is None:
-                try:
-                    cls._pool = ThreadedConnectionPool(
-                        minconn,
-                        maxconn,
-                        dbname=database_config.DB_NAME,
-                        user=database_config.DB_USER,
-                        password=database_config.DB_PASS,
-                        host=database_config.DB_HOST,
-                        port=database_config.DB_PORT,
-                    )
-                    logger.info("[DatabaseManager] Connection pool created.")
-                except Exception as e:
-                    logger.error(f"[DatabaseManager] Pool initialization failed: {e}")
-                    raise
+            # if cls._pool is None:
+            try:
+                cls._pool = ThreadedConnectionPool(
+                    minconn,
+                    maxconn,
+                    dbname=database_config.DB_NAME,
+                    user=database_config.DB_USER,
+                    password=database_config.DB_PASS,
+                    host=database_config.DB_HOST,
+                    port=database_config.DB_PORT,
+                )
+                cls._pool_pid = os.getpid()
+                logger.info("[DatabaseManager] Connection pool created.")
+            except Exception as e:
+                logger.error(f"[DatabaseManager] Pool initialization failed: {e}")
+                raise
 
     def __init__(self) -> None:
         """Acquire a database connection from the pool."""
-        if DatabaseManager._pool is None:
+        if DatabaseManager._pool is None or DatabaseManager._pool_pid != os.getpid():
+            DatabaseManager._pool = None
             DatabaseManager.initialize_pool()
         
         self.connection: connection
-        
+
         try:
+            ### FOR DEBUGGING PURPOSES ###
+            #pid = os.getpid()
+            #logger.debug(f"#1 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+            ##############################
+
             self.connection = DatabaseManager._pool.getconn()
             logger.debug("[DatabaseManager] Acquired DB connection from pool.")
         except Exception as e:
@@ -109,7 +118,7 @@ class DatabaseManager:
             try:
                 # close outright if cannot return to pool
                 self.connection.close()
-                logger.debug("[DatabaseManager] Closed unpooled connection.")
+               #logger.debug("[DatabaseManager] Closed unpooled connection.")
             except Exception as e2:
                 logger.error(f"[DatabaseManager] Failed to close connection outright: {e2}")
 
@@ -186,6 +195,12 @@ class DatabaseManager:
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 logger.warning(f"[DatabaseManager] insert_summary DB error (#{attempt}): {e}")
                 try:
+                    ### FOR DEBUGGING PURPOSES ###
+                    
+                   #pid = os.getpid()
+                   #logger.debug(f"#2 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                    ##############################
+
                     self.connection = DatabaseManager._pool.getconn()
                     logger.info("[DatabaseManager] Reconnected in insert_summary")
                 except Exception as ce:
@@ -262,6 +277,13 @@ class DatabaseManager:
                 return
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 logger.warning(f"[DatabaseManager] update_summary DB error (#{attempt}): {e}")
+                
+                ### FOR DEBUGGING PURPOSES ###
+                
+                #pid = os.getpid()
+                #logger.debug(f"#3 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                ##############################
+
                 self.connection = DatabaseManager._pool.getconn()
             except Exception as e:
                 logger.error(f"[DatabaseManager] update_summary failed: {e}")
@@ -284,7 +306,7 @@ class DatabaseManager:
             logger.error("[DatabaseManager] insert_host_result called with malformed task.")
             return
 
-        logger.debug(f"[DatabaseManager] insert_host_result task: {task}")
+       #logger.debug(f"[DatabaseManager] insert_host_result task: {task}")
         try:
             encrypted_ip = encrypt_ip(task['ip'])
         except Exception as e:
@@ -318,7 +340,14 @@ class DatabaseManager:
         # for attempt in range(1, retry_limit + 1):
         #     try:
         #         if getattr(self.connection, 'closed', False):
-        #             self.connection = DatabaseManager._pool.getconn()
+        #             
+            # ### FOR DEBUGGING PURPOSES ###
+            # 
+            ##pid = os.getpid()
+            ##logger.debug(f"#4 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+            # ##############################
+
+        # self.connection = DatabaseManager._pool.getconn()
         #             logger.info(f"[DatabaseManager] Reconnected for insert_host_result (attempt {attempt})")
 
         #         with self.connection.cursor() as cur:
@@ -335,7 +364,14 @@ class DatabaseManager:
         #         logger.warning(f'[psycopg2.OperationalError] Values: {values}')
 
         #         try:
-        #             self.connection = DatabaseManager._pool.getconn()
+        #             
+            # ### FOR DEBUGGING PURPOSES ###
+            # 
+            ##pid = os.getpid()
+            ##logger.debug(f"#5 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+            # ##############################
+
+            # self.connection = DatabaseManager._pool.getconn()
         #         except Exception as conn_e:
         #             logger.error(f"[DatabaseManager] Failed to reconnect: {conn_e}")
 
@@ -344,7 +380,14 @@ class DatabaseManager:
         #         logger.warning(f'[psycopg2.InterfaceError] Values: {values}')
 
         #         try:
-        #             self.connection = DatabaseManager._pool.getconn()
+        #             
+                    # ### FOR DEBUGGING PURPOSES ###
+                    # 
+                    ##pid = os.getpid()
+                    ##logger.debug(f"#6 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                    # ##############################
+
+                    # self.connection = DatabaseManager._pool.getconn()
         #         except Exception as conn_e:
         #             logger.error(f"[DatabaseManager] Failed to reconnect: {conn_e}")
 
@@ -426,8 +469,8 @@ class DatabaseManager:
                     )
                     if cur.fetchone() is None:
                         logger.debug(
-                            f"[DatabaseManager] Skipping new closed port {task['ip']}:{task['port']}"
-                        )
+                                f"[DatabaseManager] Skipping new closed port {task['ip']}:{task['port']}"
+                            )
                         return
             except Exception as e:
                 logger.warning(f"[DatabaseManager] port_exists check failed: {e}")
@@ -480,6 +523,13 @@ class DatabaseManager:
             try:
                 # If our connection was closed, grab a fresh one
                 if getattr(self.connection, 'closed', False):
+                    
+                    ### FOR DEBUGGING PURPOSES ###
+                    
+                   #pid = os.getpid()
+                   #logger.debug(f"#7 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                    ##############################
+
                     self.connection = DatabaseManager._pool.getconn()
                     logger.info(
                         f"[DatabaseManager] Reconnected DB in insert_port_result (attempt {attempt})"
@@ -500,6 +550,13 @@ class DatabaseManager:
                 )
                 # Force a fresh connection and retry
                 try:
+                    
+                    ### FOR DEBUGGING PURPOSES ###
+                    
+                   #pid = os.getpid()
+                   #logger.debug(f"#8 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                    ##############################
+
                     self.connection = DatabaseManager._pool.getconn()
                     logger.info(
                         "[DatabaseManager] Reconnected DB for insert_port_result"
@@ -643,6 +700,13 @@ class DatabaseManager:
             try:
                 # if connection was closed underneath us, grab a new one
                 if getattr(self.connection, "closed", False):
+                    
+                    ### FOR DEBUGGING PURPOSES ###
+                    
+                    #pid = os.getpid()
+                    #logger.debug(f"#9 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                    ##############################
+
                     self.connection = DatabaseManager._pool.getconn()
                     logger.info(f"[DatabaseManager] Reconnected DB in port_exists (attempt {attempt})")
 
@@ -654,6 +718,13 @@ class DatabaseManager:
                 logger.warning(f"[DatabaseManager] port_exists connection error (attempt {attempt}): {e}")
                 # try to reconnect immediately
                 try:
+                    
+                    ### FOR DEBUGGING PURPOSES ###
+                    
+                    #pid = os.getpid()
+                    #logger.debug(f"#10 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                    ##############################
+
                     self.connection = DatabaseManager._pool.getconn()
                     logger.info("[DatabaseManager] Reconnected DB in port_exists after error")
                 except Exception as conn_e:

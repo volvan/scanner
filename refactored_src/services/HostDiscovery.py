@@ -94,7 +94,7 @@ class HostDiscovery:
                 res = None
 
             if res and res[0] == "alive":
-                print(f'method: {method} for {ip_addr} was successful!!!')
+                print(f'\nmethod: {method} for {ip_addr} was successful!!!')
                 return {
                     "probe_method": method,
                     "probe_protocol": proto,
