@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#
+# ─── CONFIG ────────────────────────────────────────────────────────────────────
+#
+
+# Which file extensions to snapshot? (no leading dot; leave empty for “all”)
+INCLUDE_EXTENSIONS=(py)
+
+# Directories to skip entirely
+IGNORE_DIRS=(snapshots .venv .git)
+
+# Filename-patterns to skip (globs)
+IGNORE_PATTERNS=('*.pyc' '.env*')
+
+# Determine this script’s basename so we can exclude it
+SELF_SCRIPT="$(basename "$0")"
+
+# Combine both so tree drops .pyc, .env* and this script itself
+tree_ignore=("${IGNORE_DIRS[@]}" "${IGNORE_PATTERNS[@]}" "$SELF_SCRIPT")
+
+#
+# ─── PREPARE ───────────────────────────────────────────────────────────────────
+#
+
+mkdir -p snapshots
+
+# Determine the next snapshot number, safely handling “no files yet”
+last=$(
+  { ls snapshots/data-*.md 2>/dev/null || echo ""; } \
+    | sed -E 's|snapshots/data-([0-9]+)\.md|\1|' \
+    | sort -n \
+    | tail -n1
+)
+next=$(( ${last:-0} + 1 ))
+outfile="snapshots/data-$next.md"
+
+#
+# ─── BUILD find ARGS ───────────────────────────────────────────────────────────
+#
+
+# 1) Prune unwanted dirs
+prune_args=()
+for d in "${IGNORE_DIRS[@]}"; do
+  prune_args+=( -path "./$d" -prune -o )
+done
+
+# 2) Only our chosen extensions (or “all files” if empty)
+ext_args=()
+if (( ${#INCLUDE_EXTENSIONS[@]} )); then
+  for ext in "${INCLUDE_EXTENSIONS[@]}"; do
+    ext_args+=( -iname "*.${ext}" -o )
+  done
+  unset 'ext_args[${#ext_args[@]}-1]'  # drop trailing -o
+else
+  ext_args=( -true )
+fi
+
+# 3) Skip extra filename-patterns and this script file
+pattern_args=()
+for pat in "${IGNORE_PATTERNS[@]}"; do
+  pattern_args+=( ! -name "$pat" )
+done
+pattern_args+=( ! -name "$SELF_SCRIPT" )
+
+#
+# ─── DUMP SNAPSHOT ─────────────────────────────────────────────────────────────
+#
+
+{
+  echo '```'
+  tree -I "$(IFS='|'; echo "${tree_ignore[*]}")" 2>/dev/null || true
+  echo '```'
+  echo
+
+  find . \
+    "${prune_args[@]}" \
+    \( "${ext_args[@]}" \) \
+    "${pattern_args[@]}" \
+    -type f -print0 \
+  | while IFS= read -r -d '' file; do
+      echo "## ${file#./}"
+      cat "$file"
+      echo
+    done
+} > "$outfile"
+
+echo "✅ Saved snapshot to $outfile"
+
+#
+# ─── COPY TO CLIPBOARD ───────────────────────────────────────────────────────────
+#
+
+copy_osc52() {
+  local b64
+  b64=$(base64 < "$1" | tr -d '\n')
+  printf "\e]52;c;%s\a" "$b64"
+}
+
+if command -v pbcopy &>/dev/null; then
+  pbcopy < "$outfile" && echo "Copied to clipboard via pbcopy."
+elif command -v xclip &>/dev/null; then
+  if xclip -selection clipboard < "$outfile" 2>/dev/null; then
+    echo "Copied to clipboard via xclip."
+  else
+    echo "xclip failed; falling back to OSC52."
+    copy_osc52 "$outfile" && echo "Copied via OSC52."
+  fi
+elif command -v xsel &>/dev/null; then
+  if xsel --clipboard --input < "$outfile" 2>/dev/null; then
+    echo "Copied to clipboard via xsel."
+  else
+    echo "xsel failed; falling back to OSC52."
+    copy_osc52 "$outfile" && echo "Copied via OSC52."
+  fi
+elif [[ -n "${SSH_CONNECTION:-}" && -t 1 ]]; then
+  copy_osc52 "$outfile" && echo "Copied via OSC52 over SSH."
+else
+  echo "⚠️  No clipboard utility found. Install pbcopy, xclip, or xsel."
+fi
