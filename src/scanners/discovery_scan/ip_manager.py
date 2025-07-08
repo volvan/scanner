@@ -67,7 +67,7 @@ class IPManager:
             ip_addr (str): IP address to probe.
 
         Returns:
-            dict: Dictionary with keys:
+            dict: 
                 - 'probe_method' (str or None)
                 - 'probe_protocol' (str or None)
                 - 'host_status' ("alive" or "dead")
