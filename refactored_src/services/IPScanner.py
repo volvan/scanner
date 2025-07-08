@@ -5,14 +5,16 @@ from config.scan_config import SCAN_NATION, QUEUE_NAME, ADDR_FILE
 from external.ExternalManager import ExternalManager
 from infrastructure.InfrastructureManager import InfrastructureManager
 from logic.LogicManager import LogicManager
+from services.HostDiscovery import HostDiscovery
 
 #----- Util classes imports -----#
-from utils.worker_handler import DBWorker
 from utils.timestamp import get_current_timestamp
 from utils.block_handler import read_block
 
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
+from logic.DBWorkerLogic import DBWorkerLogic
+from logic.WorkerHandlerLogic import WorkerHandlerLogic
 
 
 #----- Logger import -----#
@@ -38,7 +40,7 @@ from utils import block_handler
 from utils.batch_handler import IPBatchHandler
 from utils.queue_initializer import QueueInitializer
 from utils.randomize_handler import reservoir_of_reservoirs
-from utils.worker_handler import WorkerHandler
+# from utils.worker_handler import WorkerHandler
 
 # Configuration
 from config.scan_config import (  # noqa: F401
@@ -56,7 +58,8 @@ from config.logging_config import logger, log_exception
 # Services
 from data.DatabaseManager import DatabaseManager
 from infrastructure.RabbitMQ import RabbitMQ
-from logic.ip_manager import IPManager
+# from logic.ip_manager import HostDiscovery
+from services.HostDiscovery import HostDiscovery
 
 
 sys.excepthook = log_exception
@@ -67,10 +70,12 @@ proc = psutil.Process(os.getpid())
 
 
 class IPScanner:
-    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager, logicManager: LogicManager):
+    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager, logicManager: LogicManager, hostDiscovery: HostDiscovery):
         self.externalManager = externalManager
         self.infraManager = infraManager
         self.logicManager = logicManager
+
+        self.hostDiscovery = hostDiscovery
 
         # From old IPScanner()
         self.batch_id_generator = itertools.count(1)
@@ -78,9 +83,9 @@ class IPScanner:
 
 
     def start_ip_scan(self):
-        db_worker = DBWorker(enable_hosts=True, enable_ports=False)
+        # db_worker = DBWorker(enable_hosts=True, enable_ports=False)
         try:
-            db_worker.start()
+            self.logicManager.dbWorkerLogic.start()
 
             # scanner = IPScanner()
 
@@ -114,7 +119,7 @@ class IPScanner:
         except Exception as e:
             logger.critical(f"[IPScan Init] Fatal error: {e}", exc_info=True)
         finally:
-            db_worker.stop()
+            self.logicManager.dbWorkerLogic.stop()
     
 
     #TODO: To be refactored
@@ -210,12 +215,12 @@ class IPScanner:
             queue_name (str): Name of the RabbitMQ queue to drain.
 
         Notes:
-            A new IPManager instance is created for each process to avoid
+            A new HostDiscovery instance is created for each process to avoid
             sharing DB or RMQ connections across forks.
         """
         rmq = RabbitMQ(queue_name)
         db_manager = DatabaseManager()
-        ip_manager = IPManager(db_manager=db_manager)
+        ip_manager = HostDiscovery(db_manager=db_manager)
 
         while True:
             method_frame, props, body = rmq.channel.basic_get(
@@ -297,9 +302,9 @@ class IPScanner:
 
         if total_tasks < THRESHOLD:
             logger.info("[IPScanner] Direct processing mode (small scan).")
-            WorkerHandler(
+            WorkerHandlerLogic(
                 queue_name=main_queue_name,
-                process_callback=IPManager().process_task
+                process_callback=self.hostDiscovery.process_task
             ).start()
             return
 

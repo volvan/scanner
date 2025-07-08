@@ -9,6 +9,7 @@ from external.ExternalManager import ExternalManager
 from .PortScanner import PortScanner
 from .IPScanner import IPScanner
 from .FailQueue import FailQueue
+from .HostDiscovery import HostDiscovery
 
 
 
@@ -20,7 +21,8 @@ class ServiceManager:
         self.infraManager = InfrastructureManager()
 
         # Service Instances
-        self.ipScanner = IPScanner(self.externalManager, self.infraManager, self.logicManager)
+        self.hostDiscovery = HostDiscovery(self.logicManager.dataManager.databaseManager)
+        self.ipScanner = IPScanner(self.externalManager, self.infraManager, self.logicManager, self.hostDiscovery)
         self.portScanner = PortScanner(self.externalManager, self.infraManager, self.logicManager)
         self.failQueue = FailQueue(self.externalManager, self.infraManager, self.logicManager)
 

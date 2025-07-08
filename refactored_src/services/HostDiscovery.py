@@ -21,11 +21,11 @@ from infrastructure.RabbitMQ import RabbitMQ
 sys.excepthook = log_exception
 
 
-class IPManager:
+class HostDiscovery:
     """Manager for scanning IPs, queueing results, and writing scan data to the database."""
 
     def __init__(self, db_manager: DatabaseManager = None):
-        """Initialize IPManager with optional database connection and RabbitMQ queues.
+        """Initialize HostDiscovery with optional database connection and RabbitMQ queues.
 
         Args:
             db_manager (DatabaseManager, optional): Pre-initialized database manager.
@@ -37,28 +37,28 @@ class IPManager:
         try:
             self.alive_rmq = RabbitMQ(ALIVE_ADDR_QUEUE)
         except Exception as e:
-            logger.error(f"[IPManager] Failed to init {ALIVE_ADDR_QUEUE} queue: {e}")
+            logger.error(f"[HostDiscovery] Failed to init {ALIVE_ADDR_QUEUE} queue: {e}")
             self.alive_rmq = None
 
         # Initialize Dead queue
         try:
             self.dead_rmq = RabbitMQ(DEAD_ADDR_QUEUE)
         except Exception as e:
-            logger.error(f"[IPManager] Failed to init {DEAD_ADDR_QUEUE} queue: {e}")
+            logger.error(f"[HostDiscovery] Failed to init {DEAD_ADDR_QUEUE} queue: {e}")
             self.dead_rmq = None
 
         # Initialize Fail queue
         try:
             self.fail_rmq = RabbitMQ(FAIL_QUEUE)
         except Exception as e:
-            logger.error(f"[IPManager] Failed to init {FAIL_QUEUE} queue: {e}")
+            logger.error(f"[HostDiscovery] Failed to init {FAIL_QUEUE} queue: {e}")
             self.fail_rmq = None
 
         # Database manager
         try:
             self.db_manager = db_manager or DatabaseManager()
         except Exception as e:
-            logger.error(f"[IPManager] Failed to init DatabaseManager: {e}")
+            logger.error(f"[HostDiscovery] Failed to init DatabaseManager: {e}")
             self.db_manager = None
 
     def ping_host(self, ip_addr: str) -> dict:
@@ -88,10 +88,10 @@ class IPManager:
                 if res is None: print(f'method: {method} for {ip_addr} was unsuccessful')
                 ##########################
             except subprocess.TimeoutExpired:
-                logger.warning(f"[IPManager] {method} to {ip_addr} timed out; continuing")
+                logger.warning(f"[HostDiscovery] {method} to {ip_addr} timed out; continuing")
                 res = None
             except Exception as e:
-                logger.warning(f"[IPManager] {method} to {ip_addr} crashed: {e}")
+                logger.warning(f"[HostDiscovery] {method} to {ip_addr} crashed: {e}")
                 res = None
 
             if res and res[0] == "alive":
@@ -105,7 +105,7 @@ class IPManager:
 
             time.sleep(self.delay)
 
-        logger.warning(f"[IPManager] All probes for {ip_addr} failed with exception or timeout.")
+        logger.warning(f"[HostDiscovery] All probes for {ip_addr} failed with exception or timeout.")
         return {
             "probe_method": None,
             "probe_protocol": None,
@@ -127,7 +127,7 @@ class IPManager:
             else:
                 self.dead_rmq.enqueue(data)
         except Exception as e:
-            logger.error(f"[IPManager] Failed to enqueue {host_status} result for {ip_addr}: {e}")
+            logger.error(f"[HostDiscovery] Failed to enqueue {host_status} result for {ip_addr}: {e}")
 
     def handle_scan_process(self, ip_addr: str) -> None:
         """Scan an IP address and enqueue the result to RabbitMQ and database queues.
@@ -139,7 +139,7 @@ class IPManager:
         try:
             ping_res = self.ping_host(ip_addr)
         except Exception as e:
-            logger.error(f"[IPManager] Failed to ping host {ip_addr}: {e}")
+            logger.error(f"[HostDiscovery] Failed to ping host {ip_addr}: {e}")
             ping_res = {
                 "probe_method": None,
                 "probe_protocol": None,
@@ -150,10 +150,10 @@ class IPManager:
         done_ts = get_current_timestamp()
         self.enqueue_results(ip_addr, ping_res["host_status"])
 
-        logger.debug(f"[IPManager] Scan result: {ping_res}")
+        logger.debug(f"[HostDiscovery] Scan result: {ping_res}")
         try:
             if self.db_manager:
-                logger.debug(f"[IPManager] Enqueuing result to db_hosts: {ip_addr} -> {ping_res}")
+                logger.debug(f"[HostDiscovery] Enqueuing result to db_hosts: {ip_addr} -> {ping_res}")
                 db_hosts.put({
                     "ip": ip_addr,
                     "probe_method": ping_res.get("probe_method"),
@@ -164,7 +164,7 @@ class IPManager:
                     "scan_done_ts": done_ts
                 })
         except Exception as e:
-            logger.error(f"[IPManager] Failed to enqueue host result to db_hosts: {e}")
+            logger.error(f"[HostDiscovery] Failed to enqueue host result to db_hosts: {e}")
 
     def process_task(self, ch, method, properties, body) -> None:
         """Process a RabbitMQ task: scan IP, write to database, then acknowledge.
@@ -190,7 +190,7 @@ class IPManager:
                 raise ValueError("Invalid IP format: IP must be a string")
 
             # Log the IP address being processed
-            logger.info(f"[IPManager] Processing IP: {ip_addr}")
+            logger.info(f"[HostDiscovery] Processing IP: {ip_addr}")
 
             # Handle the scanning process for the IP address
             self.handle_scan_process(ip_addr)
@@ -203,12 +203,12 @@ class IPManager:
 
         except json.JSONDecodeError as e:
             # Handle invalid JSON format in the message body
-            logger.warning(f"[IPManager] Failed to decode JSON: {e}")
+            logger.warning(f"[HostDiscovery] Failed to decode JSON: {e}")
             try:
                 # Nack the message, marking it as failed and not requeued
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             except Exception:
-                logger.warning("[IPManager] Failed to nack message")
+                logger.warning("[HostDiscovery] Failed to nack message")
 
             # Enqueue the error to the fail queue for further investigation
             self.fail_rmq.enqueue({
@@ -217,12 +217,12 @@ class IPManager:
             })
         except Exception as e:
             # Catch any other exceptions during task processing
-            logger.error(f"[IPManager] Error processing task: {e}")
+            logger.error(f"[HostDiscovery] Error processing task: {e}")
             try:
                 # Nack the message in case of a failure
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             except Exception:
-                logger.warning("[IPManager] Failed to nack message")
+                logger.warning("[HostDiscovery] Failed to nack message")
 
             # Enqueue the error details into the fail queue
             self.fail_rmq.enqueue({

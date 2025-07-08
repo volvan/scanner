@@ -80,7 +80,6 @@ class DatabaseManager:
 
     def close(self) -> None:
         """Return the database connection back to the pool, or close it if returning fails."""
-        print('Running DataBasemanager.close()')
         if not getattr(self, 'connection', None):
             logger.warning("[DatabaseManager] close() called but no connection to return.")
             return
@@ -604,5 +603,4 @@ class DatabaseManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Support context manager exit by closing the connection."""
-        print('Running DataBasemanager.__exit__()')
         self.close()
