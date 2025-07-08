@@ -51,7 +51,7 @@ class PingHandler:
             logger.warning(f"[PingHandler] Timeout: {' '.join(command)}")
             return ""
         except Exception as e:
-            logger.error(f"[PingHandler] Unexpected error running command: {e}")
+            logger.error(f"[PingHandler] Unexpected error running the command {command}. Error: {e}")
             return ""
 
     def icmp_ping(self) -> tuple[str, float] | None:

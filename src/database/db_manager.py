@@ -182,7 +182,8 @@ class DatabaseManager:
 
     def fetch_latest_summary_id(self, country: str) -> int | None:
         """Return the id of the most‐recent summary row for a given country, or None if none exists."""
-        with self.get_cursor() as cur:
+        # with self.get_cursor() as cur:
+        with self.connection.cursor() as cur:
             cur.execute(
                 """
                 SELECT id
@@ -300,8 +301,15 @@ class DatabaseManager:
                 self.connection.commit()
                 return
 
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                logger.warning(f"[DatabaseManager] insert_host_result connection error (attempt {attempt}): {e}")
+            except (psycopg2.OperationalError) as e:
+                logger.warning(f"[DatabaseManager] (psycopg2.OperationalError) insert_host_result connection error (attempt {attempt}): {e}")
+                try:
+                    self.connection = DatabaseManager._pool.getconn()
+                except Exception as conn_e:
+                    logger.error(f"[DatabaseManager] Failed to reconnect: {conn_e}")
+
+            except (psycopg2.InterfaceError) as e:
+                logger.warning(f"[DatabaseManager] (psycopg2.InterfaceError) insert_host_result connection error (attempt {attempt}): {e}")
                 try:
                     self.connection = DatabaseManager._pool.getconn()
                 except Exception as conn_e:

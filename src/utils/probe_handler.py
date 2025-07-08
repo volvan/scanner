@@ -40,7 +40,7 @@ class ProbeHandler:
             logger.warning(f"[ProbeHandler] Timeout after {PROBE_TIMEOUT}s: {' '.join(command)}")
             return ""
         except Exception as e:
-            logger.error(f"[ProbeHandler] Unexpected error running command: {e}")
+            logger.error(f"[ProbeHandler] Unexpected error running command {command}. With error {e}")
             return ""
 
     def scan(self) -> dict:
