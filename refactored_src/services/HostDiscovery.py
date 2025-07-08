@@ -84,7 +84,6 @@ class HostDiscovery:
             try:
                 res = fn()
                 ## For testing purposes ##
-                print(f'\n\nres: {res}\n\n')
                 if res is None: print(f'method: {method} for {ip_addr} was unsuccessful')
                 ##########################
             except subprocess.TimeoutExpired:
@@ -102,10 +101,14 @@ class HostDiscovery:
                     "host_status": "alive",
                     "probe_duration": float(res[1]) if res and res[1] is not None else None,
                 }
+            elif method is not 'tcp_ack_ping_ttl':
+                print(f'method: {method} did not work for {ip_addr}. But we gonna try something else B)')
+            else:
+                print(f'method: {method} did not work for {ip_addr}. God diggity darn! It\'s a goner!')
 
             time.sleep(self.delay)
 
-        logger.warning(f"[HostDiscovery] All probes for {ip_addr} failed with exception or timeout.")
+        logger.info(f"[HostDiscovery] All probes for {ip_addr} failed with exception or timeout.")
         return {
             "probe_method": None,
             "probe_protocol": None,

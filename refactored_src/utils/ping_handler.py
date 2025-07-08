@@ -43,13 +43,13 @@ class PingHandler:
                 universal_newlines=True,
                 timeout=30
             )
-            logger.info(f"[PingHandler] Ran: {' '.join(command)}")
+            logger.debug(f"[PingHandler] Ran: {' '.join(command)}")
             return output
         except subprocess.CalledProcessError:
-            logger.warning(f"[PingHandler] No response: {' '.join(command)}")
+            logger.debug(f"[PingHandler] No response: {' '.join(command)}")
             return ""
         except subprocess.TimeoutExpired:
-            logger.warning(f"[PingHandler] Timeout: {' '.join(command)}")
+            logger.debug(f"[PingHandler] Timeout: {' '.join(command)}")
             return ""
         except Exception as e:
             logger.error(f"[PingHandler] Unexpected error running the command {command}. Error: {e}")

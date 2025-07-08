@@ -38,6 +38,7 @@ class PortScanWorkerLogic:
             self.manager.handle_scan_process(ip, port, method.routing_key)
 
         except Exception as e:
+            print(f'\n\n[PortScanWorkerLogic.process_task] Currently inserting into fail_queue. Error {e}\n\n')
             # Log and handle any errors encountered during task processing
             logger.exception(f"[PortScanWorkerLogic] Task crash: {e}")
             RabbitMQ(FAIL_QUEUE).enqueue({

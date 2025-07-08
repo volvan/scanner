@@ -18,6 +18,8 @@ from config.logging_config import logger
 
 #----- TEMP OLD IMPORTS -----#
 from data.DatabaseManager import db_ports
+from data.DatabaseManager import DatabaseManager
+
 
 
 class DBWorkerLogic:
@@ -64,12 +66,13 @@ class DBWorkerLogic:
 
                 try:
                     # with DatabaseManager() as db:
-                    with self.dataManager.databaseManager as db:
+                    # with self.dataManager.databaseManager as db:
+                    with DatabaseManager() as db:
                         db.insert_host_result(task)
                     db_hosts.task_done()
                     logger.debug("[DBWorker] Host task committed to DB.")
-                except Exception:
-                    logger.error(f"[DBWorker] Host insert crash:\n{traceback.format_exc()}")
+                except Exception as e:
+                    logger.error(f"[DBWorker] Exception type: {type(e).__name__}. Host insert crash:\n{traceback.format_exc()}")
                     logger.error(f"[DBWorker] Failing host task payload:\n{task}")
 
             except Exception:
@@ -86,8 +89,8 @@ class DBWorkerLogic:
                 logger.debug(f"[DBWorker] Got port task: {task}")
 
                 try:
-                    # with DatabaseManager() as db:
-                    with self.dataManager.databaseManager as db:
+                    with DatabaseManager() as db:
+                    # with self.dataManager.databaseManager as db:
                         # Skip brand-new closed ports to save space
                         if task["port_state"] == "closed":
                             if not db.port_exists(task["ip"], task["port"]):

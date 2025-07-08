@@ -76,7 +76,7 @@ class QueueInitializer:
         QueueInitializer.all_ports()
         QueueInitializer.priority_ports()
         QueueInitializer.all_addr()
-        logger.info("[QueueInitializer] All queues initialized.")
+        logger.debug("[QueueInitializer] All queues initialized.")
 
     # --- Enqueue logic ---
 

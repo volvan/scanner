@@ -46,7 +46,7 @@ def fetch_rix_blocks() -> str:
 
         # Reuse existing file if it exists
         if os.path.exists(filepath):
-            logger.info(f"[block_handler] Reusing existing RIX file: {filepath}")
+            logger.debug(f"[block_handler] Reusing existing RIX file: {filepath}")
             return filepath
 
         # Fetch RIX data
@@ -61,7 +61,7 @@ def fetch_rix_blocks() -> str:
             for cidr in cidr_list:
                 f.write(cidr + '\n')
 
-        logger.info(f"[block_handler] Saved new RIX data to {filepath}")
+        logger.debug(f"[block_handler] Saved new RIX data to {filepath}")
         return filepath
 
     except requests.RequestException as e:
@@ -246,7 +246,7 @@ def whois_block(target: str = None, filename: str = None) -> dict:
                 "state_prov": network.get("state"),
             }
 
-            logger.info(f"[block_handler] WHOIS lookup complete for {cidr}")
+            logger.debug(f"[block_handler] WHOIS lookup complete for {cidr}")
             if filename:
                 time.sleep(WHO_IS_SCAN_DELAY)
 

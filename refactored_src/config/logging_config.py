@@ -1,8 +1,26 @@
 import sys
 import os
 import json
-import logging
+import logging, logging.config
 from logging.handlers import RotatingFileHandler
+
+import subprocess
+
+class WorkerPIDFilter(logging.Filter):
+    def filter(self, record):
+        try:
+            worker_pid = str(os.getpid())
+            if not worker_pid: worker_pid = 'unknown'
+
+            record.worker_pid = worker_pid
+        except Exception:
+            record.worker_pid = 'unknown'
+        return True
+    
+def configure_logging(config_path: str):
+    with open(config_path) as f:
+        logging.config.dictConfig(json.load(f))
+
 
 # --- Load configuration ---
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/logging_config.json")

@@ -1,5 +1,6 @@
 # Standard library
 import ipaddress
+import threading
 from multiprocessing import JoinableQueue
 import time
 from typing import Iterable
@@ -22,11 +23,16 @@ from psycopg2.pool import ThreadedConnectionPool
 db_hosts: JoinableQueue = JoinableQueue()
 db_ports: JoinableQueue = JoinableQueue()
 
+# Type annotations
+from psycopg2.extensions import connection
+
+
 
 class DatabaseManager:
     """Database manager for PostgreSQL with a shared connection pool."""
 
     _pool = None
+    _pool_lock = threading.Lock()
 
     @classmethod
     def initialize_pool(cls, minconn: int = 1, maxconn: int = 50) -> None:
@@ -51,26 +57,30 @@ class DatabaseManager:
         if not all(creds):
             raise ValueError("Database credentials not set.")
 
-        if cls._pool is None:
-            try:
-                cls._pool = ThreadedConnectionPool(
-                    minconn,
-                    maxconn,
-                    dbname=database_config.DB_NAME,
-                    user=database_config.DB_USER,
-                    password=database_config.DB_PASS,
-                    host=database_config.DB_HOST,
-                    port=database_config.DB_PORT,
-                )
-                logger.info("[DatabaseManager] Connection pool created.")
-            except Exception as e:
-                logger.error(f"[DatabaseManager] Pool initialization failed: {e}")
-                raise
+        with cls._pool_lock:
+            if cls._pool is None:
+                try:
+                    cls._pool = ThreadedConnectionPool(
+                        minconn,
+                        maxconn,
+                        dbname=database_config.DB_NAME,
+                        user=database_config.DB_USER,
+                        password=database_config.DB_PASS,
+                        host=database_config.DB_HOST,
+                        port=database_config.DB_PORT,
+                    )
+                    logger.info("[DatabaseManager] Connection pool created.")
+                except Exception as e:
+                    logger.error(f"[DatabaseManager] Pool initialization failed: {e}")
+                    raise
 
     def __init__(self) -> None:
         """Acquire a database connection from the pool."""
         if DatabaseManager._pool is None:
             DatabaseManager.initialize_pool()
+        
+        self.connection: connection
+        
         try:
             self.connection = DatabaseManager._pool.getconn()
             logger.debug("[DatabaseManager] Acquired DB connection from pool.")
@@ -80,17 +90,22 @@ class DatabaseManager:
 
     def close(self) -> None:
         """Return the database connection back to the pool, or close it if returning fails."""
-        if not getattr(self, 'connection', None):
-            logger.warning("[DatabaseManager] close() called but no connection to return.")
-            return
+        # raise AssertionError('YOLO TIME!')
         if DatabaseManager._pool is None:
             logger.warning("[DatabaseManager] close() called but pool not initialized.")
+            raise AssertionError('Issues in [DatabaseManager].close() for `if DatabaseManager._pool is None:`')
             return
+        
+        if not getattr(self, 'connection', None):
+            logger.warning("[DatabaseManager] close() called but no connection to return.")
+            raise AssertionError('Issues in [DatabaseManager].close() for `if not getattr(self, \'connection\', None)`')
+            return
+        
         try:
             DatabaseManager._pool.putconn(self.connection)
             logger.debug("[DatabaseManager] Returned connection to pool.")
         except Exception as e:
-            logger.error(f"[DatabaseManager] Failed to return connection: {e}")
+            logger.error(f"[DatabaseManager] ExceptionType=`{type(e).__name__}` Failed to return connection: Error: {e}")
             try:
                 # close outright if cannot return to pool
                 self.connection.close()
@@ -124,6 +139,11 @@ class DatabaseManager:
 
         Any of the other columns may be passed to populate those fields.
         """
+        #############################################################
+        ### Not using this feature, remove to start using feature ###
+        # return None
+        #############################################################
+
         cols = [
             "country",
             "discovery_scan_start_ts",
@@ -182,6 +202,10 @@ class DatabaseManager:
 
     def fetch_latest_summary_id(self, country: str) -> int | None:
         """Return the id of the most‐recent summary row for a given country, or None if none exists."""
+        #############################################################
+        ### Not using this feature, remove to start using feature ###
+        # return None
+        #############################################################
         # with self.get_cursor() as cur:
         with self.connection.cursor() as cur:
             cur.execute(
@@ -207,6 +231,10 @@ class DatabaseManager:
         retry_limit: int = 2
     ) -> None:
         """Patch the existing summary row with port-scan timestamps and optionally scanned_ports."""
+        #############################################################
+        ### Not using this feature, remove to start using feature ###
+        # return None
+        #############################################################
         if scanned_ports is not None:
             sql_stmt = """
                 UPDATE summary
@@ -286,43 +314,84 @@ class DatabaseManager:
             encrypted_ip,
         )
 
-        for attempt in range(1, retry_limit + 1):
-            try:
-                if getattr(self.connection, 'closed', False):
-                    self.connection = DatabaseManager._pool.getconn()
-                    logger.warning(f"[DatabaseManager] Reconnected for insert_host_result (attempt {attempt})")
 
-                with self.connection.cursor() as cur:
+        # for attempt in range(1, retry_limit + 1):
+        #     try:
+        #         if getattr(self.connection, 'closed', False):
+        #             self.connection = DatabaseManager._pool.getconn()
+        #             logger.info(f"[DatabaseManager] Reconnected for insert_host_result (attempt {attempt})")
+
+        #         with self.connection.cursor() as cur:
+        #             cur.execute(update_sql, values)
+        #             if cur.rowcount == 0:
+        #                 logger.warning(f"[DatabaseManager] No Hosts row for {task['ip']}")
+        #             else:
+        #                 logger.info(f"[DatabaseManager] Updated host {task['ip']} -> {task['host_status']}")
+        #         self.connection.commit()
+        #         return
+
+        #     except (psycopg2.OperationalError) as e:
+        #         logger.warning(f"[DatabaseManager] (psycopg2.OperationalError) insert_host_result connection error (attempt {attempt}): {e}")
+        #         logger.warning(f'[psycopg2.OperationalError] Values: {values}')
+
+        #         try:
+        #             self.connection = DatabaseManager._pool.getconn()
+        #         except Exception as conn_e:
+        #             logger.error(f"[DatabaseManager] Failed to reconnect: {conn_e}")
+
+        #     except (psycopg2.InterfaceError) as e:
+        #         logger.warning(f"[DatabaseManager] (psycopg2.InterfaceError) insert_host_result connection error (attempt {attempt}): {e}")
+        #         logger.warning(f'[psycopg2.InterfaceError] Values: {values}')
+
+        #         try:
+        #             self.connection = DatabaseManager._pool.getconn()
+        #         except Exception as conn_e:
+        #             logger.error(f"[DatabaseManager] Failed to reconnect: {conn_e}")
+
+        #     except Exception as e:
+        #         logger.error(f"[DatabaseManager] insert_host_result failed (attempt {attempt}): {e}")
+        #         try:
+        #             self.connection.rollback()
+        #         except Exception:
+        #             pass
+
+        #     time.sleep(0.5 * attempt)
+        cur = None
+        for attempt in range(1, retry_limit + 1):
+            conn: connection = DatabaseManager._pool.getconn()
+            try:
+                with conn.cursor() as cur:
                     cur.execute(update_sql, values)
                     if cur.rowcount == 0:
                         logger.warning(f"[DatabaseManager] No Hosts row for {task['ip']}")
                     else:
                         logger.info(f"[DatabaseManager] Updated host {task['ip']} -> {task['host_status']}")
-                self.connection.commit()
+                conn.commit()
+                DatabaseManager._pool.putconn(conn)
                 return
-
-            except (psycopg2.OperationalError) as e:
-                logger.warning(f"[DatabaseManager] (psycopg2.OperationalError) insert_host_result connection error (attempt {attempt}): {e}")
+            except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
+                # evict this dead connection
                 try:
-                    self.connection = DatabaseManager._pool.getconn()
-                except Exception as conn_e:
-                    logger.error(f"[DatabaseManager] Failed to reconnect: {conn_e}")
-
-            except (psycopg2.InterfaceError) as e:
-                logger.warning(f"[DatabaseManager] (psycopg2.InterfaceError) insert_host_result connection error (attempt {attempt}): {e}")
-                try:
-                    self.connection = DatabaseManager._pool.getconn()
-                except Exception as conn_e:
-                    logger.error(f"[DatabaseManager] Failed to reconnect: {conn_e}")
-
+                    DatabaseManager._pool.putconn(conn, close=True)
+                except TypeError:
+                    conn.close()
+                logger.warning(f"[DatabaseManager] insert_host_result retry {attempt}: {e}")
+                time.sleep(0.5 * attempt)
             except Exception as e:
-                logger.error(f"[DatabaseManager] insert_host_result failed (attempt {attempt}): {e}")
+                # any other error: evict and abort
                 try:
-                    self.connection.rollback()
-                except Exception:
-                    pass
+                    DatabaseManager._pool.putconn(conn, close=True)
+                except TypeError:
+                    conn.close()
+                logger.error(f"[DatabaseManager] insert_host_result failed: {e}")
+                logger.error(f"[DatabaseManager] conn {conn}")
+                logger.error(f"[DatabaseManager] type(conn) {type(conn)}")
 
-            time.sleep(0.5 * attempt)
+            finally:
+                if cur is not None:
+                    cur.close()
+        # logger.error("[DatabaseManager] insert_host_result gave up after retries")
+
 
         logger.error(f"[DatabaseManager] insert_host_result gave up after {retry_limit} attempts")
 

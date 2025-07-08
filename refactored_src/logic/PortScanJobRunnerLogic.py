@@ -27,7 +27,7 @@ class PortScanJobRunnerLogic:
 
     def worker_loop(self, worker_id):
         try:
-            logger.info(f"Worker {worker_id} starting...")
+            logger.debug(f"Worker {worker_id} starting...")
             worker = PortScanWorkerLogic()
 
             while True:
@@ -36,11 +36,11 @@ class PortScanJobRunnerLogic:
                 )
 
                 if not next_queue:
-                    logger.info(f"Worker {worker_id}: no batches. Sleeping.")
+                    logger.debug(f"Worker {worker_id}: no batches. Sleeping.")
                     sleep(3)
                     continue
 
-                logger.info(f"Worker {worker_id} consuming from {next_queue}")
+                logger.debug(f"Worker {worker_id} consuming from {next_queue}")
                 RabbitMQ.worker_consume(next_queue, worker.process_task)
 
         except KeyboardInterrupt:

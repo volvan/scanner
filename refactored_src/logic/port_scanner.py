@@ -106,7 +106,7 @@ class PortScanner:
             logger.warning("CPU limit reached; shutting down")
             sys.exit(1)
 
-        logger.info(f"[PortScanner] Starting batched port-scan on '{main_queue_name}'")
+        logger.debug(f"[PortScanner] Starting batched port-scan on '{main_queue_name}'")
 
         while True:
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
@@ -125,14 +125,14 @@ class PortScanner:
                 remaining = RabbitMQ(main_queue_name).tasks_in_queue()
                 RabbitMQ(main_queue_name).close()
                 if remaining == 0:
-                    logger.info("[PortScanner] All port batches completed.")
+                    logger.debug("[PortScanner] All port batches completed.")
                     break
 
-                logger.info("[PortScanner] Waiting for a free slot to spawn next batch...")
+                logger.debug("[PortScanner] Waiting for a free slot to spawn next batch...")
                 time.sleep(2)
                 continue
 
-            logger.info(f"[PortScanner] Spawned batch worker for queue: {batch_q}")
+            logger.debug(f"[PortScanner] Spawned batch worker for queue: {batch_q}")
             p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_q,))
             p.start()
             self.active_processes.append(p)

@@ -15,6 +15,7 @@ from utils.block_handler import read_block
 from infrastructure.RabbitMQ import RabbitMQ
 from logic.DBWorkerLogic import DBWorkerLogic
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
+from data.DatabaseManager import db_hosts, db_ports
 
 
 #----- Logger import -----#
@@ -119,6 +120,9 @@ class IPScanner:
         except Exception as e:
             logger.critical(f"[IPScan Init] Fatal error: {e}", exc_info=True)
         finally:
+            # self.logicManager.dbWorkerLogic.stop()
+            db_hosts.join()     # block until every host task_done()
+            db_ports.join()     # same for ports
             self.logicManager.dbWorkerLogic.stop()
     
 
@@ -137,32 +141,33 @@ class IPScanner:
         Default:
             Read from a file.
         """
+
         ## For testing purposes ##
-        all = RabbitMQ('all_addr')
-        all.remove_queue()
-        all.close()
+        if input('Remove queues? (y/n): ').lower() == 'y':
+            all = RabbitMQ('all_addr')
+            all.channel.queue_delete('all_addr')
+            all.close()
 
-        alive = RabbitMQ('alive_addr')
-        alive.remove_queue()
-        alive.close()
+            alive = RabbitMQ('alive_addr')
+            alive.channel.queue_delete('alive_addr')
+            alive.close()
 
-        dead = RabbitMQ('dead_addr')
-        dead.remove_queue()
-        dead.close()
-
-        fail = RabbitMQ('fail_queue')
-        fail.remove_queue()
-        fail.close()
-
-        if input('Remove queues? (y/n)').lower() == 'y':
+            dead = RabbitMQ('dead_addr')
+            dead.channel.queue_delete('dead_addr')
+            dead.close()
+            
             for i in range(1, 100):
                 try:
                     temp_rmq = RabbitMQ(f'batch_{i}')
-                    temp_rmq.remove_queue()
+                    temp_rmq.channel.queue_delete(f'batch_{i}')
                     temp_rmq.close()
                 except Exception as e:
                     print(f'[enqueue_new_targets()] God diggity darn! Something went wrong {e}')
                     break
+
+            fail = RabbitMQ('fail_queue')
+            fail.channel.queue_delete('fail_queue')
+            fail.close()
 
             input('Enter to continue...')
         ##########################
@@ -188,7 +193,7 @@ class IPScanner:
     #TODO: To be refactored
     def run_discovery(self):
         """Run the discovery scan (blocks until complete)."""
-        logger.info("[IPScan Init] Starting host discovery...")
+        logger.debug("[IPScan Init] Starting host discovery...")
         self.start_consuming(QUEUE_NAME)
 
 
@@ -248,6 +253,8 @@ class IPScanner:
                         f"timed out after {BATCH_TIMEOUT_SEC}s; routing to fail_queue."
                     )
                     try:
+                        print(f'\n\n[IPScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
+
                         FAIL = FAIL_QUEUE
                         payload = json.loads(body)
                         RabbitMQ(FAIL).enqueue(payload)
@@ -298,7 +305,7 @@ class IPScanner:
             return
 
         total_tasks = RabbitMQ(main_queue_name).tasks_in_queue()
-        logger.info(f"[IPScanner] {total_tasks} tasks waiting in '{main_queue_name}'")
+        logger.debug(f"[IPScanner] {total_tasks} tasks waiting in '{main_queue_name}'")
 
         if total_tasks < THRESHOLD:
             logger.info("[IPScanner] Direct processing mode (small scan).")
@@ -317,11 +324,11 @@ class IPScanner:
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
 
             if remaining == 0 and not self.active_processes:
-                logger.info("[IPScanner] All batches completed.")
+                logger.debug("[IPScanner] All batches completed.")
                 break
 
             if 0 < remaining < BATCH_SIZE and not self.active_processes:
-                logger.info(f"[IPScanner] Final tail of {remaining} tasks; creating last batch.")
+                logger.debug(f"[IPScanner] Final tail of {remaining} tasks; creating last batch.")
                 batch_id = next(self.batch_id_generator)
                 batch_queue = IPBatchHandler(batch_id, remaining).create_batch(main_queue_name)
                 if batch_queue:

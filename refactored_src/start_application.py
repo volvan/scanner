@@ -5,6 +5,8 @@ from services.ServiceManager import ServiceManager
 #----- Standard libraries -----#
 import sys
 
+#----- Logger import -----#
+from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
 
 
 serviceManager = ServiceManager()
@@ -15,17 +17,23 @@ args_direct = {
     'fail': serviceManager.start_fail_queue,
 }
 
+configure_logging(CONFIG_PATH)
 
+# logger.addFilter(LogicFilter(logicWrapper))
+logger.addFilter(WorkerPIDFilter())
 
 if __name__ == '__main__':
-    
-
     # Validate command line arguments passed in
     args = sys.argv
+    if sys.gettrace() is not None: args.append(input('[ip/port/fail]: '))
+
     command = args[-1]
     if len(args) != 2 or command not in args_direct: 
         print('\nInvalid argument(s).\n\n\tpython3 start_application [ip]scan|[port]scan|[fail]queue\n\n\nPlease try again\n')
         sys.exit(1)
 
     # Call corresponding method based on the comand given
-    args_direct[command]()
+    try:
+        args_direct[command]()
+    except AssertionError as e:
+        print(f'Something went wrong\nErr: {e}')

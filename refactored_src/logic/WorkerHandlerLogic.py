@@ -23,7 +23,7 @@ class WorkerHandlerLogic:
 
     def _safe_worker(self, worker_id: int):
         try:
-            logger.info(f"Worker {worker_id} starting...")
+            logger.debug(f"Worker {worker_id} starting...")
             RabbitMQ.worker_consume(self.queue_name, self.process_callback)
         except KeyboardInterrupt:
             logger.warning(f"Worker {worker_id} received KeyboardInterrupt. Exiting.")
@@ -33,7 +33,7 @@ class WorkerHandlerLogic:
             try:
                 rmq_manager = RabbitMQ(self.queue_name)
                 if rmq_manager.queue_empty(self.queue_name):
-                    logger.info(f"Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
+                    logger.debug(f"Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
                     rmq_manager.remove_queue()
                 else:
                     rmq_manager.close()
@@ -49,7 +49,7 @@ class WorkerHandlerLogic:
                 args=(i,),
             )
             p.start()
-            logger.info(f"Started worker {i} on '{self.queue_name}'")
+            logger.debug(f"Started worker {i} on '{self.queue_name}'")
             workers.append(p)
 
         try:

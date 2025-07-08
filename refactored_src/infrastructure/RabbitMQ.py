@@ -164,7 +164,7 @@ class RabbitMQ:
         try:
             self.channel.basic_qos(prefetch_count=1)
             self.channel.basic_consume(queue=self.queue_name, on_message_callback=callback)
-            logger.info(f"[*] Worker waiting for messages in queue: {self.queue_name}. Press CTRL+C to exit.")
+            logger.debug(f"[*] Worker waiting for messages in queue: {self.queue_name}. Press CTRL+C to exit.")
             self.channel.start_consuming()
         except (pika.exceptions.ConnectionClosedByBroker, pika.exceptions.ChannelClosedByBroker) as e:
             logger.warning(f"[RabbitMQ] Broker closed connection: {e}")
@@ -175,7 +175,7 @@ class RabbitMQ:
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
-        logger.info("[RabbitMQ] Reconnecting to RabbitMQ...")
+        logger.debug("[RabbitMQ] Reconnecting to RabbitMQ...")
         try:
             self.close()
         except Exception as e:
@@ -200,7 +200,7 @@ class RabbitMQ:
         """
         try:
             manager = RabbitMQ(queue_name)
-            logger.info(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
+            logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
             manager.start_consuming(callback)
         except Exception as e:
             logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
@@ -255,7 +255,7 @@ class RabbitMQ:
         """
         try:
             if self.queue_empty(self.queue_name):
-                logger.info(f"[RabbitMQ] {self.queue_name} is empty. Deleting.")
+                logger.debug(f"[RabbitMQ] {self.queue_name} is empty. Deleting.")
                 self.channel.queue_delete(queue=self.queue_name)
                 return
 
@@ -273,12 +273,13 @@ class RabbitMQ:
 
             self.channel.queue_delete(queue=self.queue_name)
             self.close()
-
+            
             fail_rmq = RabbitMQ(FAIL_QUEUE)
             for task in leftovers:
+                # print(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
                 fail_rmq.enqueue(task)
             fail_rmq.close()
 
-            logger.info(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
+            logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")

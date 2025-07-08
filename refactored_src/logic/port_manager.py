@@ -22,7 +22,7 @@ class PortManager:
 
     def __init__(self):
         """Initialize PortManager and prepare for queue management."""
-        logger.info(f"[PortManager] Ready to manage '{ALL_PORTS_QUEUE}' and '{PRIORITY_PORTS_QUEUE}' queues.")
+        logger.debug(f"[PortManager] Ready to manage '{ALL_PORTS_QUEUE}' and '{PRIORITY_PORTS_QUEUE}' queues.")
 
     def enqueue_ports(self, queue_name: str, ports: list[int]):
         """Enqueue a list of ports into the specified RabbitMQ queue.
@@ -89,6 +89,7 @@ class PortManager:
 
             # 2) Unknown → fail queue
             if record["port_state"] == "unknown":
+                print(f'\n\n#1 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
                 logger.warning(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'.")
                 RabbitMQ(FAIL_QUEUE).enqueue({
                     "ip": ip,
@@ -101,6 +102,7 @@ class PortManager:
             db_ports.put(record)
 
         except Exception as e:
+            print(f'\n\n#2 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
             logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}")
             RabbitMQ(FAIL_QUEUE).enqueue({
                 "error": str(e),
