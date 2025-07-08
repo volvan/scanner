@@ -196,6 +196,9 @@ coverage.xml
 htmlcov/
 
 
+src/snapshots/*
+refactored_src/snapshots/*
+
 # VSCode / IDE
 .vscode/
 .idea/

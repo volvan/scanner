@@ -10,7 +10,8 @@ from utils.timestamp import get_current_timestamp
 
 # Configuration
 from config.scan_config import SCAN_DELAY, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE
-from config.logging_config import log_exception, logger
+from config.logging_config import log_exception
+from config.logging_config import logger
 
 # Services
 from database.db_manager import db_hosts
@@ -82,6 +83,10 @@ class IPManager:
         ]:
             try:
                 res = fn()
+                ## For testing purposes ##
+                print(f'\n\nres: {res}\n\n')
+                if res is None: print(f'method: {method} for {ip_addr} was unsuccessful')
+                ##########################
             except subprocess.TimeoutExpired:
                 logger.warning(f"[IPManager] {method} to {ip_addr} timed out; continuing")
                 res = None
@@ -90,6 +95,7 @@ class IPManager:
                 res = None
 
             if res and res[0] == "alive":
+                print(f'method: {method} for {ip_addr} was successful!!!')
                 return {
                     "probe_method": method,
                     "probe_protocol": proto,

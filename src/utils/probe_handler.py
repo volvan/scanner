@@ -7,7 +7,8 @@ from utils.timestamp import get_current_timestamp, duration_timestamp
 
 # Configuration
 from config.scan_config import NMAP_FLAGS, PROBE_TIMEOUT, SCAN_DELAY, UNPRIV_SCAN_FLAGS
-from config.logging_config import log_exception, logger
+from config.logging_config import log_exception
+from config.logging_config import logger
 
 sys.excepthook = log_exception
 
@@ -40,7 +41,7 @@ class ProbeHandler:
             logger.warning(f"[ProbeHandler] Timeout after {PROBE_TIMEOUT}s: {' '.join(command)}")
             return ""
         except Exception as e:
-            logger.error(f"[ProbeHandler] Unexpected error running command: {e}")
+            logger.error(f"[ProbeHandler] Unexpected error running command {command}. With error {e}")
             return ""
 
     def scan(self) -> dict:

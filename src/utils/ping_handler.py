@@ -8,7 +8,8 @@ from utils.timestamp import get_current_timestamp, duration_timestamp
 
 # Configuration
 from config import scan_config
-from config.logging_config import log_exception, logger
+from config.logging_config import log_exception
+from config.logging_config import logger
 
 
 sys.excepthook = log_exception
@@ -51,7 +52,7 @@ class PingHandler:
             logger.warning(f"[PingHandler] Timeout: {' '.join(command)}")
             return ""
         except Exception as e:
-            logger.error(f"[PingHandler] Unexpected error running command: {e}")
+            logger.error(f"[PingHandler] Unexpected error running the command {command}. Error: {e}")
             return ""
 
     def icmp_ping(self) -> tuple[str, float] | None:

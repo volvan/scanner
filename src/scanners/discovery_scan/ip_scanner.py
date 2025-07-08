@@ -108,7 +108,7 @@ class IPScanner:
                     except Exception as e:
                         logger.error(f"[IPScanner] Failed to enqueue timed-out task: {e}")
                     finally:
-                        rmq.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+                        rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag)
 
             except Exception as e:
                 # any unexpected error wrapping the worker

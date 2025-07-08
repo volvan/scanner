@@ -3,7 +3,8 @@ from collections.abc import Iterable
 import sys
 
 # Configuration
-from config.logging_config import log_exception, logger
+from config.logging_config import log_exception
+from config.logging_config import logger
 from config.scan_config import (
     ALL_ADDR_QUEUE,
     ALIVE_ADDR_QUEUE,
