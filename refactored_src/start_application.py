@@ -1,6 +1,6 @@
 
-#----- Wrapper imports -----#
-from .services.ServiceManager import ServiceManager
+#----- Manager imports -----#
+from services.ServiceManager import ServiceManager
 
 #----- Standard libraries -----#
 import sys

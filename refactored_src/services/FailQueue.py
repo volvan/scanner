@@ -1,13 +1,15 @@
 #----- Type annotation imports -----#
-from ..external.ExternalWrapper import ExternalWrapper
-from ..logic.LogicWrapper import LogicWrapper
+from external.ExternalManager import ExternalManager
+from infrastructure.InfrastructureManager import InfrastructureManager
+from logic.LogicManager import LogicManager
 
 
 
 class FailQueue:
-    def __init__(self, externalWrapper: ExternalWrapper, logicWrapper: LogicWrapper):
-        self.externalWrapper = externalWrapper
-        self.logicWrapper = logicWrapper
+    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager ,logicManager: LogicManager):
+        self.externalManager = externalManager
+        self.infraManager = infraManager
+        self.logicManager = logicManager
 
     def start_fail_queue(self):
         pass
