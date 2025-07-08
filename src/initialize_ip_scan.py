@@ -146,10 +146,11 @@ def main():
         # # 0 TESTUNG 
         # db_man = DatabaseManager() 
         # db_man.fetch_latest_summary_id("IS")
-
+        input('Opening DatabaseManager()')
         with DatabaseManager() as db:
             results = db.fetch_latest_summary_id("IS")
             print(f'RESULTS:\n{results}')
+        input('Finished DatabaseManager()')
 
         # 1) enqueue & get filename + blocks
         filename, blocks = enqueue_new_targets(scanner)

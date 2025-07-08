@@ -8,7 +8,8 @@ from utils.timestamp import get_current_timestamp, duration_timestamp
 
 # Configuration
 from config import scan_config
-from config.logging_config import log_exception, logger
+from config.logging_config import log_exception
+from config.logging_config import logger
 
 
 sys.excepthook = log_exception

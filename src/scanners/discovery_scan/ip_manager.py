@@ -10,7 +10,8 @@ from utils.timestamp import get_current_timestamp
 
 # Configuration
 from config.scan_config import SCAN_DELAY, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE
-from config.logging_config import log_exception, logger
+from config.logging_config import log_exception
+from config.logging_config import logger
 
 # Services
 from database.db_manager import db_hosts

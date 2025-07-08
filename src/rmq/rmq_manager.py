@@ -7,7 +7,9 @@ import requests  # type: ignore
 
 # Configuration
 from config import rmq_config
-from config.logging_config import log_exception, logger
+from config.logging_config import log_exception
+from config.logging_config import logger
+
 from config.scan_config import FAIL_QUEUE
 
 
