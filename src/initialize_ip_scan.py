@@ -62,18 +62,6 @@ def enqueue_new_targets(scanner: IPScanner):
     fail.remove_queue()
     fail.close()
 
-    if input('Remove queues? (y/n)').lower() == 'y':
-        for i in range(1, 100):
-            try:
-                temp_rmq = RMQManager(f'batch_{i}')
-                temp_rmq.remove_queue()
-                temp_rmq.close()
-            except Exception as e:
-                print(f'[enqueue_new_targets()] God diggity darn! Something went wrong {e}')
-                break
-
-        input('Enter to continue...')
-    ##########################
     queue_name = QUEUE_NAME
     rmq = RMQManager(queue_name)
     
@@ -94,44 +82,11 @@ def enqueue_new_targets(scanner: IPScanner):
 
 
 
-
-
 def run_discovery(scanner: IPScanner):
     """Run the discovery scan (blocks until complete)."""
     logger.info("[IPScan Init] Starting host discovery...")
     scanner.start_consuming(QUEUE_NAME)
 
-
-def fetch_from_db_hosts():
-    """Fetch host information from the database.
-
-    Modify this function for different use cases.
-    """
-    db_manager = DatabaseManager()
-    result = db_manager.fetch_from_table(
-        table="Hosts",
-        columns=["ip_addr", "probe_method", "host_state"],
-        where="ip_addr = %s",
-        params=("130.208.246.9",)
-    )
-    print(result)
-    db_manager.close()
-
-
-# def fetch_from_db_ports():
-#     """Fetch port information from the database.
-
-#     Modify this function for different use cases.
-#     """
-#     db_manager = DatabaseManager()
-#     result = db_manager.fetch_from_table(
-#         table="Ports",
-#         columns=["ip_addr", "port", "port_state"],
-#         where="ip_addr = %s AND port = %s",
-#         params=("130.208.246.9", 443)
-#     )
-#     print(result)
-#     db_manager.close()
 
 
 def main():
@@ -142,15 +97,6 @@ def main():
         db_worker.start()
 
         scanner = IPScanner()
-
-        # # 0 TESTUNG 
-        # db_man = DatabaseManager() 
-        # db_man.fetch_latest_summary_id("IS")
-        input('Opening DatabaseManager()')
-        with DatabaseManager() as db:
-            results = db.fetch_latest_summary_id("IS")
-            print(f'RESULTS:\n{results}')
-        input('Finished DatabaseManager()')
 
         # 1) enqueue & get filename + blocks
         filename, blocks = enqueue_new_targets(scanner)

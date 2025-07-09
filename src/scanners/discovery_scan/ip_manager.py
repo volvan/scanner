@@ -83,10 +83,6 @@ class IPManager:
         ]:
             try:
                 res = fn()
-                ## For testing purposes ##
-                print(f'\n\nres: {res}\n\n')
-                if res is None: print(f'method: {method} for {ip_addr} was unsuccessful')
-                ##########################
             except subprocess.TimeoutExpired:
                 logger.warning(f"[IPManager] {method} to {ip_addr} timed out; continuing")
                 res = None
