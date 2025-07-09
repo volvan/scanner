@@ -1,3 +1,7 @@
+#----- Temp fix imports -----#
+import os, threading
+
+
 # Standard library
 import ipaddress
 from multiprocessing import JoinableQueue
@@ -27,6 +31,8 @@ class DatabaseManager:
     """Database manager for PostgreSQL with a shared connection pool."""
 
     _pool = None
+    _pool_lock = threading.Lock()   # HOTFIX: added lock for thread-safe init
+    _pool_pid = None                # tracks which OS process created the pool
 
     @classmethod
     def initialize_pool(cls, minconn: int = 1, maxconn: int = 50) -> None:
@@ -51,26 +57,32 @@ class DatabaseManager:
         if not all(creds):
             raise ValueError("Database credentials not set.")
 
-        if cls._pool is None:
-            try:
-                cls._pool = ThreadedConnectionPool(
-                    minconn,
-                    maxconn,
-                    dbname=database_config.DB_NAME,
-                    user=database_config.DB_USER,
-                    password=database_config.DB_PASS,
-                    host=database_config.DB_HOST,
-                    port=database_config.DB_PORT,
-                )
-                logger.info("[DatabaseManager] Connection pool created.")
-            except Exception as e:
-                logger.error(f"[DatabaseManager] Pool initialization failed: {e}")
-                raise
+        # HOTFIX: Only one thread can initialize or reinitialize the pool at a time
+        with cls._pool_lock:
+            # HOTFIX: If no pool yet, or if we've forked into a new process (diff PID) then initialize or reinitialize the pool
+            if cls._pool is None or cls._pool_pid != os.getpid(): 
+                try:
+                    cls._pool = ThreadedConnectionPool(
+                        minconn,
+                        maxconn,
+                        dbname=database_config.DB_NAME,
+                        user=database_config.DB_USER,
+                        password=database_config.DB_PASS,
+                        host=database_config.DB_HOST,
+                        port=database_config.DB_PORT,
+                    )
+                    cls._pool_pid = os.getpid()
+                    logger.info("[DatabaseManager] Connection pool created.")
+                except Exception as e:
+                    logger.error(f"[DatabaseManager] Pool initialization failed: {e}")
+                    raise
 
     def __init__(self) -> None:
         """Acquire a database connection from the pool."""
-        if DatabaseManager._pool is None:
+        if DatabaseManager._pool is None or DatabaseManager._pool_pid != os.getpid():
+            DatabaseManager._pool = None
             DatabaseManager.initialize_pool()
+
         try:
             self.connection = DatabaseManager._pool.getconn()
             logger.debug("[DatabaseManager] Acquired DB connection from pool.")
@@ -78,9 +90,9 @@ class DatabaseManager:
             logger.error(f"[DatabaseManager] Failed to acquire connection: {e}")
             raise
 
+
     def close(self) -> None:
         """Return the database connection back to the pool, or close it if returning fails."""
-        print('Running DataBasemanager.close()')
         if not getattr(self, 'connection', None):
             logger.warning("[DatabaseManager] close() called but no connection to return.")
             return
@@ -604,5 +616,4 @@ class DatabaseManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Support context manager exit by closing the connection."""
-        print('Running DataBasemanager.__exit__()')
         self.close()
