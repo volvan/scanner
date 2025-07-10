@@ -4,7 +4,7 @@ from scanners.discovery_scan.ip_scanner import IPScanner
 from rmq.rmq_manager import RMQManager
 
 # Configuration
-from config.scan_config import (  # noqa: F401
+from config.scan_config import (  # noqa: F401 
     ADDR_FILE,
     QUEUE_NAME,
     FETCH_RIX,
