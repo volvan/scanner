@@ -90,9 +90,16 @@ The core component responsible for conducting the network scans, is named Völva
     └── README.md
 
 ```
-## How to Run
+## Getting Started
 
 This project uses Python3 and runs in a virtual environment. 
+
+## Prerequisites
+
+- Python 3.11 installed on the working machine
+- RabbitMQ setup and accessible from the machine.
+- PostgreSQL database setup and accessible from the machine.
+- Network connectivity for scanning targets (ICMP, TCP).
 
 ### 1. Clone the Repository
 
@@ -116,22 +123,23 @@ Create a `.env` file in the root of the project and set required values:
 
 ```bash
 # RabbitMQ
-export RMQ_HOST=...
-export RMQ_PORT=...
-export RMQ_USER=...
-export RMQ_PASS=...
+export RMQ_HOST=<host>
+export RMQ_PORT=<port>
+export RMQ_USER=<username>
+export RMQ_PASS=<password>
 
 # PostgreSQL
-export DB_HOST=...
-export DB_PORT=...
-export DB_USER=...
-export DB_PASS=...
-export DB_NAME=...
+export DB_NAME=<database>
+export DB_HOST=<host>
+export DB_PORT=<port>
+export DB_USER=<username>
+export DB_PASS=<password>
+
 
 # Format-Preserving Encryption
-export FPE_KEY=...
-export FPE_ALPHABET=...
-export FPE_LENGTH=...
+export FPE_KEY=<byte key>
+export FPE_ALPHABET=<alphabet string>
+export FPE_LENGTH=<integer>
 
 # Email + Report Generator
 export SMTP_SERVER=...
