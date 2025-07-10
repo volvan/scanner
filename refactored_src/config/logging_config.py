@@ -28,7 +28,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/logging_config.
 with open(CONFIG_PATH, "r") as f:
     config = json.load(f)
 
-DEBUG_MODE = config.get("debug", True)
+DEBUG_MODE = config.get("debug", False)
 SERVICE_TAG = config.get("service_tag", "core")
 LOG_TO_FILE = config.get("log_to_file", True)
 

@@ -11,6 +11,7 @@ from data.DataManager import DataManager
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from data.DatabaseManager import db_hosts
+from data.old_DBWorker import DBWorker
 
 #----- Logger import -----#
 from config.logging_config import logger
@@ -65,10 +66,9 @@ class DBWorkerLogic:
                 logger.debug(f"[DBWorker] Got host task: {task}")
 
                 try:
-                    # with DatabaseManager() as db:
-                    # with self.dataManager.databaseManager as db:
                     with DatabaseManager() as db:
                         db.insert_host_result(task)
+                    print(f'Checking if task is done')
                     db_hosts.task_done()
                     logger.debug("[DBWorker] Host task committed to DB.")
                 except Exception as e:
@@ -99,7 +99,9 @@ class DBWorkerLogic:
                                 continue
 
                         db.insert_port_result(task)
-
+                    
+                    db_ports.task_done()
+                    db_ports.task_done()
                     db_ports.task_done()
                     logger.debug("[DBWorker] Port task committed to DB.")
 

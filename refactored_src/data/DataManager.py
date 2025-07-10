@@ -7,8 +7,10 @@
 
 #----- Service imports -----#
 from .DatabaseManager import DatabaseManager
+from .old_DBWorker import DBWorker
 
 
 class DataManager:
     def __init__(self):
         self.databaseManager = DatabaseManager()
+        self.dbConnection = DBWorker()

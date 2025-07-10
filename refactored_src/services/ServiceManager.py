@@ -26,17 +26,19 @@ class ServiceManager:
         self.portScanner = PortScanner(self.externalManager, self.infraManager, self.logicManager)
         self.failQueue = FailQueue(self.externalManager, self.infraManager, self.logicManager)
 
-
+    #----- IPScanner Methods -----#
     def start_ip_scan(self):
         print('Just started ServiceManager.start_ip_scan()')
         self.ipScanner.start_ip_scan()
 
-
+    #----- PortScanner Methods -----#
     def start_port_scan(self):
         print('Just started ServiceManager.start_port_scan()')
         self.portScanner.start_port_scan()
 
-
+    #----- FailQueue Methods -----#
     def start_fail_queue(self):
         print('Just started ServiceManager.start_fail_queue()')
         self.failQueue.start_fail_queue()
+    
+    

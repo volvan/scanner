@@ -34,7 +34,7 @@ exit_worker_pids = {}
 
 
 
-class DatabaseManager:
+class DatabaseHandler:
     """Database manager for PostgreSQL with a shared connection pool."""
 
     _pool = None
@@ -77,29 +77,29 @@ class DatabaseManager:
                     port=database_config.DB_PORT,
                 )
                 cls._pool_pid = os.getpid()
-                logger.info("[DatabaseManager] Connection pool created.")
+                logger.info("[DatabaseHandler] Connection pool created.")
             except Exception as e:
-                logger.error(f"[DatabaseManager] Pool initialization failed: {e}")
+                logger.error(f"[DatabaseHandler] Pool initialization failed: {e}")
                 raise
 
     def __init__(self) -> None:
         """Acquire a database connection from the pool."""
         self._returned = False
 
-        if DatabaseManager._pool is None or DatabaseManager._pool_pid != os.getpid():
-            DatabaseManager._pool = None
-            DatabaseManager.initialize_pool()
+        if DatabaseHandler._pool is None or DatabaseHandler._pool_pid != os.getpid():
+            DatabaseHandler._pool = None
+            DatabaseHandler.initialize_pool()
 
         try:
             ### FOR DEBUGGING PURPOSES ###
             #pid = os.getpid()
-            #logger.debug(f"#1 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+            #logger.debug(f"#1 [DatabaseHandler] getconn() in PID={pid}, pool_pid={DatabaseHandler._pool_pid}")
             ##############################
 
-            self.connection: connection = DatabaseManager._pool.getconn()
-            logger.debug("[DatabaseManager] Acquired DB connection from pool.")
+            self.connection: connection = DatabaseHandler._pool.getconn()
+            logger.debug("[DatabaseHandler] Acquired DB connection from pool.")
         except Exception as e:
-            logger.error(f"[DatabaseManager] Failed to acquire connection: {e}")
+            logger.error(f"[DatabaseHandler] Failed to acquire connection: {e}")
             raise
 
     def insert_summary(
@@ -170,30 +170,30 @@ class DatabaseManager:
                 with self.connection.cursor() as cur:
                     cur.execute(insert_sql, vals)
                 self.connection.commit()
-                logger.info(f"[DatabaseManager] Inserted summary for {country}")
+                logger.info(f"[DatabaseHandler] Inserted summary for {country}")
                 return
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                logger.warning(f"[DatabaseManager] insert_summary DB error (#{attempt}): {e}")
+                logger.warning(f"[DatabaseHandler] insert_summary DB error (#{attempt}): {e}")
                 try:
                     ### FOR DEBUGGING PURPOSES ###
                     
                    #pid = os.getpid()
-                   #logger.debug(f"#2 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                   #logger.debug(f"#2 [DatabaseHandler] getconn() in PID={pid}, pool_pid={DatabaseHandler._pool_pid}")
                     ##############################
 
-                    self.connection = DatabaseManager._pool.getconn()
-                    logger.info("[DatabaseManager] Reconnected in insert_summary")
+                    self.connection = DatabaseHandler._pool.getconn()
+                    logger.info("[DatabaseHandler] Reconnected in insert_summary")
                 except Exception as ce:
-                    logger.error(f"[DatabaseManager] Reconnect failed: {ce}")
+                    logger.error(f"[DatabaseHandler] Reconnect failed: {ce}")
             except Exception as e:
-                logger.error(f"[DatabaseManager] insert_summary failed: {e}")
+                logger.error(f"[DatabaseHandler] insert_summary failed: {e}")
                 break
             finally:
                 try:
                     self.connection.rollback()
                 except Exception:
                     pass
-        logger.error("[DatabaseManager] insert_summary gave up after retries")
+        logger.error("[DatabaseHandler] insert_summary gave up after retries")
 
     def fetch_latest_summary_id(self, country: str) -> int | None:
         """Return the id of the most‐recent summary row for a given country, or None if none exists."""
@@ -244,27 +244,27 @@ class DatabaseManager:
                 with self.connection.cursor() as cur:
                     cur.execute(sql_stmt, params)
                 self.connection.commit()
-                logger.info(f"[DatabaseManager] Updated summary id={summary_id} with port scan metadata")
+                logger.info(f"[DatabaseHandler] Updated summary id={summary_id} with port scan metadata")
                 return
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                logger.warning(f"[DatabaseManager] update_summary DB error (#{attempt}): {e}")
+                logger.warning(f"[DatabaseHandler] update_summary DB error (#{attempt}): {e}")
                 
                 ### FOR DEBUGGING PURPOSES ###
                 
                 #pid = os.getpid()
-                #logger.debug(f"#3 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                #logger.debug(f"#3 [DatabaseHandler] getconn() in PID={pid}, pool_pid={DatabaseHandler._pool_pid}")
                 ##############################
 
-                self.connection = DatabaseManager._pool.getconn()
+                self.connection = DatabaseHandler._pool.getconn()
             except Exception as e:
-                logger.error(f"[DatabaseManager] update_summary failed: {e}")
+                logger.error(f"[DatabaseHandler] update_summary failed: {e}")
                 break
             finally:
                 try:
                     self.connection.rollback()
                 except Exception:
                     pass
-        logger.error(f"[DatabaseManager] update_summary gave up after {retry_limit} attempts")
+        logger.error(f"[DatabaseHandler] update_summary gave up after {retry_limit} attempts")
 
     def insert_host_result(self, task: dict, retry_limit: int = 3) -> None:
         """Update a host scan result in the Hosts table.
@@ -274,14 +274,14 @@ class DatabaseManager:
         """
         # validation
         if 'ip' not in task or 'host_status' not in task:
-            logger.error("[DatabaseManager] insert_host_result called with malformed task.")
+            logger.error("[DatabaseHandler] insert_host_result called with malformed task.")
             return
 
-        logger.debug(f"[DatabaseManager] insert_host_result task: {task}")
+        logger.debug(f"[DatabaseHandler] insert_host_result task: {task}")
         try:
             encrypted_ip = encrypt_ip(task['ip'])
         except Exception as e:
-            logger.error(f"[DatabaseManager] IP encryption failed: {e}")
+            logger.error(f"[DatabaseHandler] IP encryption failed: {e}")
             return
 
         update_sql = """
@@ -309,41 +309,41 @@ class DatabaseManager:
 
         cur = None
         for attempt in range(1, retry_limit + 1):
-            conn: connection = DatabaseManager._pool.getconn()
+            conn: connection = DatabaseHandler._pool.getconn()
             try:
                 with conn.cursor() as cur:
                     cur.execute(update_sql, values)
                     if cur.rowcount == 0:
-                        logger.warning(f"[DatabaseManager] No Hosts row for {task['ip']}")
+                        logger.warning(f"[DatabaseHandler] No Hosts row for {task['ip']}")
                     else:
-                        logger.info(f"[DatabaseManager] Updated host {task['ip']} -> {task['host_status']}")
+                        logger.info(f"[DatabaseHandler] Updated host {task['ip']} -> {task['host_status']}")
                 conn.commit()
-                DatabaseManager._pool.putconn(conn)
+                DatabaseHandler._pool.putconn(conn)
                 return
             except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
                 # evict this dead connection
                 try:
-                    DatabaseManager._pool.putconn(conn, close=True)
+                    DatabaseHandler._pool.putconn(conn, close=True)
                 # except TypeError:
                 except PoolError as e:
                     conn.close()
-                logger.warning(f"[DatabaseManager] insert_host_result retry {attempt}: {e}")
+                logger.warning(f"[DatabaseHandler] insert_host_result retry {attempt}: {e}")
                 time.sleep(0.5 * attempt)
             except Exception as e:
                 # any other error: evict and abort
                 try:
-                    DatabaseManager._pool.putconn(conn, close=True)
+                    DatabaseHandler._pool.putconn(conn, close=True)
                 except PoolError as e:
                     conn.close()
-                logger.error(f"[DatabaseManager] insert_host_result failed: {e} | conn {conn} | type(conn) {type(conn)}")
+                logger.error(f"[DatabaseHandler] insert_host_result failed: {e} | conn {conn} | type(conn) {type(conn)}")
 
             finally:
                 if cur is not None:
                     cur.close()
-        # logger.error("[DatabaseManager] insert_host_result gave up after retries")
+        # logger.error("[DatabaseHandler] insert_host_result gave up after retries")
 
 
-        logger.error(f"[DatabaseManager] insert_host_result gave up after {retry_limit} attempts")
+        logger.error(f"[DatabaseHandler] insert_host_result gave up after {retry_limit} attempts")
 
     def insert_port_result(self, task: dict, retry_limit: int = 3) -> None:
         """Insert or update a port scan result in the Ports table.
@@ -354,7 +354,7 @@ class DatabaseManager:
                 'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'.
             retry_limit (int): Number of retry attempts on failure.
         """
-        logger.debug(f"[DatabaseManager] insert_port_result task payload: {task!r}")
+        logger.debug(f"[DatabaseHandler] insert_port_result task payload: {task!r}")
 
         # Ensure required fields are present
         required = [
@@ -362,7 +362,7 @@ class DatabaseManager:
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
         ]
         if not all(k in task for k in required):
-            logger.error("[DatabaseManager] insert_port_result: missing fields in task.")
+            logger.error("[DatabaseHandler] insert_port_result: missing fields in task.")
             return
 
         # Skip brand-new closed ports to save space
@@ -376,11 +376,11 @@ class DatabaseManager:
                     )
                     if cur.fetchone() is None:
                         logger.debug(
-                                f"[DatabaseManager] Skipping new closed port {task['ip']}:{task['port']}"
+                                f"[DatabaseHandler] Skipping new closed port {task['ip']}:{task['port']}"
                             )
                         return
             except Exception as e:
-                logger.warning(f"[DatabaseManager] port_exists check failed: {e}")
+                logger.warning(f"[DatabaseHandler] port_exists check failed: {e}")
 
         # Build the UPSERT statement
         upsert_sql = """
@@ -406,7 +406,7 @@ class DatabaseManager:
         try:
             encrypted_ip = encrypt_ip(task['ip'])
         except Exception as e:
-            logger.error(f"[DatabaseManager] IP encryption failed: {e}")
+            logger.error(f"[DatabaseHandler] IP encryption failed: {e}")
             return
 
         now_ts = get_current_timestamp()
@@ -434,25 +434,25 @@ class DatabaseManager:
                     ### FOR DEBUGGING PURPOSES ###
                     
                    #pid = os.getpid()
-                   #logger.debug(f"#7 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                   #logger.debug(f"#7 [DatabaseHandler] getconn() in PID={pid}, pool_pid={DatabaseHandler._pool_pid}")
                     ##############################
 
-                    self.connection = DatabaseManager._pool.getconn()
+                    self.connection = DatabaseHandler._pool.getconn()
                     logger.info(
-                        f"[DatabaseManager] Reconnected DB in insert_port_result (attempt {attempt})"
+                        f"[DatabaseHandler] Reconnected DB in insert_port_result (attempt {attempt})"
                     )
 
                 with self.connection.cursor() as cur:
                     cur.execute(upsert_sql, values)
                 self.connection.commit()
                 logger.info(
-                    f"[DatabaseManager] Upserted port {task['ip']}:{task['port']} ({task['port_state']})"
+                    f"[DatabaseHandler] Upserted port {task['ip']}:{task['port']} ({task['port_state']})"
                 )
                 return
 
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 logger.warning(
-                    f"[DatabaseManager] insert_port_result connection error "
+                    f"[DatabaseHandler] insert_port_result connection error "
                     f"(attempt {attempt}): {e}"
                 )
                 # Force a fresh connection and retry
@@ -461,21 +461,21 @@ class DatabaseManager:
                     ### FOR DEBUGGING PURPOSES ###
                     
                    #pid = os.getpid()
-                   #logger.debug(f"#8 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                   #logger.debug(f"#8 [DatabaseHandler] getconn() in PID={pid}, pool_pid={DatabaseHandler._pool_pid}")
                     ##############################
 
-                    self.connection = DatabaseManager._pool.getconn()
+                    self.connection = DatabaseHandler._pool.getconn()
                     logger.info(
-                        "[DatabaseManager] Reconnected DB for insert_port_result"
+                        "[DatabaseHandler] Reconnected DB for insert_port_result"
                     )
                 except Exception as conn_e:
                     logger.error(
-                        f"[DatabaseManager] Failed to reconnect in insert_port_result: {conn_e}"
+                        f"[DatabaseHandler] Failed to reconnect in insert_port_result: {conn_e}"
                     )
 
             except Exception as e:
                 logger.warning(
-                    f"[DatabaseManager] insert_port_result attempt {attempt} failed: {e}"
+                    f"[DatabaseHandler] insert_port_result attempt {attempt} failed: {e}"
                 )
 
             # Roll back any partial transaction before retrying
@@ -489,7 +489,7 @@ class DatabaseManager:
                 time.sleep(0.5 * attempt)
 
         logger.error(
-            f"[DatabaseManager] insert_port_result failed after {retry_limit} attempts"
+            f"[DatabaseHandler] insert_port_result failed after {retry_limit} attempts"
         )
 
     def new_host(self, whois_data: dict, ips: Iterable[str]) -> None:
@@ -503,10 +503,10 @@ class DatabaseManager:
             Existing entries are updated if they already exist (upsert behavior).
         """
         if not whois_data:
-            logger.warning("[DatabaseManager] No WHOIS data to insert.")
+            logger.warning("[DatabaseHandler] No WHOIS data to insert.")
             return
         if not ips:
-            logger.warning("[DatabaseManager] No IPs provided to seed WHOIS.")
+            logger.warning("[DatabaseHandler] No IPs provided to seed WHOIS.")
             return
 
         def whois_row_generator():
@@ -521,7 +521,7 @@ class DatabaseManager:
                             matched_entry = entry
                             break
                     if not matched_entry:
-                        logger.warning(f"[DatabaseManager] No WHOIS entry found for IP: {ip}")
+                        logger.warning(f"[DatabaseHandler] No WHOIS entry found for IP: {ip}")
                         continue
 
                     yield (
@@ -540,7 +540,7 @@ class DatabaseManager:
                         scan_ts,
                     )
                 except Exception as e:
-                    logger.error(f"[DatabaseManager] Error preparing WHOIS row for {ip}: {e}")
+                    logger.error(f"[DatabaseHandler] Error preparing WHOIS row for {ip}: {e}")
 
         try:
             insert_sql = sql.SQL(
@@ -573,10 +573,10 @@ class DatabaseManager:
                     page_size=100,
                 )
             self.connection.commit()
-            logger.info("[DatabaseManager] Batch WHOIS insert committed.")
+            logger.info("[DatabaseHandler] Batch WHOIS insert committed.")
         except Exception as e:
             self.connection.rollback()
-            logger.error(f"[DatabaseManager] WHOIS insert failed: {e}")
+            logger.error(f"[DatabaseHandler] WHOIS insert failed: {e}")
 
     def port_exists(self, ip: str, port: int, retry_limit: int = 3) -> bool:
         """Check if a port scan result already exists for a given IP and port, with retries.
@@ -592,7 +592,7 @@ class DatabaseManager:
         try:
             encrypted_ip = encrypt_ip(ip)
         except Exception as e:
-            logger.error(f"[DatabaseManager] IP encryption failed in port_exists: {e}")
+            logger.error(f"[DatabaseHandler] IP encryption failed in port_exists: {e}")
             return False
 
         query = """
@@ -611,37 +611,37 @@ class DatabaseManager:
                     ### FOR DEBUGGING PURPOSES ###
                     
                     #pid = os.getpid()
-                    #logger.debug(f"#9 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                    #logger.debug(f"#9 [DatabaseHandler] getconn() in PID={pid}, pool_pid={DatabaseHandler._pool_pid}")
                     ##############################
 
-                    self.connection = DatabaseManager._pool.getconn()
-                    logger.info(f"[DatabaseManager] Reconnected DB in port_exists (attempt {attempt})")
+                    self.connection = DatabaseHandler._pool.getconn()
+                    logger.info(f"[DatabaseHandler] Reconnected DB in port_exists (attempt {attempt})")
 
                 with self.connection.cursor() as cur:
                     cur.execute(query, (encrypted_ip, port))
                     return cur.fetchone() is not None
 
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                logger.warning(f"[DatabaseManager] port_exists connection error (attempt {attempt}): {e}")
+                logger.warning(f"[DatabaseHandler] port_exists connection error (attempt {attempt}): {e}")
                 # try to reconnect immediately
                 try:
                     
                     ### FOR DEBUGGING PURPOSES ###
                     
                     #pid = os.getpid()
-                    #logger.debug(f"#10 [DatabaseManager] getconn() in PID={pid}, pool_pid={DatabaseManager._pool_pid}")
+                    #logger.debug(f"#10 [DatabaseHandler] getconn() in PID={pid}, pool_pid={DatabaseHandler._pool_pid}")
                     ##############################
 
-                    self.connection = DatabaseManager._pool.getconn()
-                    logger.info("[DatabaseManager] Reconnected DB in port_exists after error")
+                    self.connection = DatabaseHandler._pool.getconn()
+                    logger.info("[DatabaseHandler] Reconnected DB in port_exists after error")
                 except Exception as conn_e:
-                    logger.error(f"[DatabaseManager] Failed to reconnect in port_exists: {conn_e}")
+                    logger.error(f"[DatabaseHandler] Failed to reconnect in port_exists: {conn_e}")
             except Exception as e:
-                logger.warning(f"[DatabaseManager] port_exists unexpected error (attempt {attempt}): {e}")
+                logger.warning(f"[DatabaseHandler] port_exists unexpected error (attempt {attempt}): {e}")
 
             if attempt < retry_limit:
                 time.sleep(0.5 * attempt)
-        logger.error(f"[DatabaseManager] port_exists failed after {retry_limit} attempts")
+        logger.error(f"[DatabaseHandler] port_exists failed after {retry_limit} attempts")
         return False
     
     def close(self) -> None:
@@ -674,27 +674,27 @@ class DatabaseManager:
 
 
 
-        if DatabaseManager._pool is None:
-            logger.warning("[DatabaseManager] close() called but pool not initialized.")
-            raise AssertionError('Issues in [DatabaseManager].close() for `if DatabaseManager._pool is None:`')
+        if DatabaseHandler._pool is None:
+            logger.warning("[DatabaseHandler] close() called but pool not initialized.")
+            raise AssertionError('Issues in [DatabaseHandler].close() for `if DatabaseHandler._pool is None:`')
             return
         
         if not getattr(self, 'connection', None):
-            logger.warning("[DatabaseManager] close() called but no connection to return.")
-            raise AssertionError('Issues in [DatabaseManager].close() for `if not getattr(self, \'connection\', None)`')
+            logger.warning("[DatabaseHandler] close() called but no connection to return.")
+            raise AssertionError('Issues in [DatabaseHandler].close() for `if not getattr(self, \'connection\', None)`')
             return
         
         try:
-            DatabaseManager._pool.putconn(self.connection)
-            logger.debug("[DatabaseManager] Returned connection to pool.")
+            DatabaseHandler._pool.putconn(self.connection)
+            logger.debug("[DatabaseHandler] Returned connection to pool.")
         except PoolError as e:
-            logger.error(f"[DatabaseManager] ExceptionType=`{type(e).__name__}` Failed to return connection: Error: {e}")
+            logger.error(f"[DatabaseHandler] ExceptionType=`{type(e).__name__}` Failed to return connection: Error: {e}")
             try:
                 # close outright if cannot return to pool
                 self.connection.close()
-               #logger.debug("[DatabaseManager] Closed unpooled connection.")
+               #logger.debug("[DatabaseHandler] Closed unpooled connection.")
             except Exception as e2:
-                logger.error(f"[DatabaseManager] Failed to close connection outright: {e2}")
+                logger.error(f"[DatabaseHandler] Failed to close connection outright: {e2}")
 
     def __enter__(self):
         """Support context manager entry (with-statement)."""

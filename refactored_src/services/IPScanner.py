@@ -84,6 +84,10 @@ class IPScanner:
 
 
     def start_ip_scan(self):
+        # query_results = self.infraManager.query("SELECT * FROM hosts")
+        # print(f'query_results')
+        # print(query_results)
+        # input('\n\n\nEnter to continue...')
         # db_worker = DBWorker(enable_hosts=True, enable_ports=False)
         try:
             self.logicManager.dbWorkerLogic.start()
@@ -107,7 +111,8 @@ class IPScanner:
 
             # 5) persist summary with the correct scan window
             try:
-                with self.logicManager.dataManager.databaseManager as db:
+                # with self.logicManager.dataManager.databaseManager as db:
+                with DatabaseManager as db:
                     db.insert_summary(
                         country=SCAN_NATION,
                         discovery_start_ts=discovery_start_ts,

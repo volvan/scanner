@@ -22,7 +22,7 @@
     "stderr": {
       "class": "logging.StreamHandler",
       "level": "DEBUG",
-      "formatter": "simple",
+      "formatter": "detailed",
       "stream": "ext://sys.stderr",
       "filters": ["username_filter"]
     },
