@@ -41,6 +41,16 @@ python initialize_ip_scan.py
 Detach with `Ctrl+b d`, reattach with `tmux attach -t scanice`.
 
 
+### Run with code formatter
+
+Pep8 and flake8 are used, to run them, follow these steps:
+
+```bash 
+pre-commit install
+# Run the formatter on all files
+pre-commit run --all-files
+```
+
 ## Detailed Pipelines Flow
 
 ### IP Discovery Scan
