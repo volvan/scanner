@@ -1,12 +1,12 @@
 name: Check Code Formatting
 
-# on:
-#   push:
-#     branches-ignore:
-#       - staging
-#   pull_request:
-#     branches-ignore:
-#       - staging 
+on:
+  push:
+    branches-ignore:
+      - staging
+  pull_request:
+    branches-ignore:
+      - staging 
 
 jobs:
   format:
