@@ -1,10 +1,10 @@
 # The Scanner
 
-The Scanner is Völva’s core component for mapping Iceland’s internet-facing systems. It performs continuous host discovery and port scanning to reveal exposed services, track changes, and support proactive cybersecurity. Built for reliability and minimal network impact, it helps visualize national digital exposure—transparently and ethically.
+The Scanner is Völva’s core component for mapping Iceland’s internet-facing systems. It performs continuous host discovery and port scanning to reveal exposed services, track changes, and support proactive cybersecurity. Built for reliability and minimal network impact, it helps visualize national digital exposure—transparently and ethically. For further details, see the [thesis](https://hdl.handle.net/1946/50479).
 
 ## Völva: Scan Iceland 
 
-The core component responsible for conducting the network scans. It spans in three phases in the scanning pipeline (prepare, host discovery and port scanning)
+The core component responsible for conducting the network scans, is named Völva. It spans in three phases in the scanning pipeline (prepare, host discovery and port scanning). 
 
 ![Coverage](.github/img/coverage.svg)
 ![Version](https://img.shields.io/github/v/tag/volvan/scanner?label=version)
@@ -16,7 +16,7 @@ The core component responsible for conducting the network scans. It spans in thr
 ---
 
 
-## Hierarcy overview 
+## Hierarchy Overview  
 
 ```t
 ~/scanner/
@@ -25,28 +25,10 @@ The core component responsible for conducting the network scans. It spans in thr
 ├── requirements.txt
 │
 ├── _tests/
-│   ├── config/
-│   │   └── test_logging_config.py
-│   ├── conftest.py
-│   ├── database/
-│   │   └── test_db_manager.py
-│   ├── rmq/
-│   │   └── test_rmq_manager.py
-│   ├── scanner/
-│   │   ├── discovery_scan/
-│   │   │   ├── test_ip_manager.py
-│   │   │   └── test_ip_scanner.py
-│   │   └── port_scan/
-│   │       ├── test_port_manager.py
-│   │       └── test_port_scanner.py
-│   ├── test_initialize_ip_scan.py
-│   ├── test_initialize_port_scan.py
-│   └── utils/
-│       ├── test_batch_handler.py
-│       ├── test_block_handler.py
-│       ....
+│   ├── ...
+│   
 └── src/
-    ├── __init__.py
+    ├── __init__.py             # Includes version release number
     ├── config/
     │   ├── __init__.py
     │   ├── crypto_config.py
@@ -54,7 +36,7 @@ The core component responsible for conducting the network scans. It spans in thr
     │   ├── logging_config.json
     │   ├── logging_config.py
     │   ├── rmq_config.py
-    │   └── scan_config.py
+    │   └── scan_config.py      # The configurations for the scanner
     │
     ├── database/
     │   ├── __init__.py
@@ -110,28 +92,22 @@ The core component responsible for conducting the network scans. It spans in thr
 ```
 ## How to Run
 
-This project uses Python 3 and a virtual environment. Below are the minimal steps to get started.
+This project uses Python3 and runs in a virtual environment. 
 
 ### 1. Clone the Repository
 
 ```bash
 sudo apt install -y git
-git clone https://github.com/marteinnlundi/ScanICE.git
+git clone https://github.com/volvan/scanner.git
 cd scanner/
 ```
 
-### 2. Set Up Python Environment
+### 2. Set Up The Environment
 
 ```bash
-python3 -m venv venv
+python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-```
-
-To deactivate:
-
-```bash
-deactivate
 ```
 
 ### 3. Environment Variables
@@ -164,7 +140,6 @@ export SMTP_USER=...
 export SMTP_PASS=...
 export EMAIL_FROM=...
 export EMAIL_TO=...
-export NATION=...
 ```
 
 Then load them:
