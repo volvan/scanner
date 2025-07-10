@@ -6,6 +6,7 @@ from rmq.rmq_manager import RMQManager
 from unittest.mock import patch, MagicMock
 import config.rmq_config as rmq_config
 
+
 class DummyChannel:
     """Mocked RabbitMQ channel for simulating basic queue behavior."""
 

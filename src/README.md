@@ -47,6 +47,7 @@ Pep8 and flake8 are used, to run them, follow these steps:
 
 ```bash 
 pre-commit install
+cd .github
 # Run the formatter on all files
 pre-commit run --all-files
 ```
