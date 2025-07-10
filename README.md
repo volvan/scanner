@@ -31,11 +31,9 @@ The core component responsible for conducting the network scans, is named Völva
     ├── __init__.py             # Includes version release number
     ├── config/
     │   ├── __init__.py
-    │   ├── crypto_config.py
-    │   ├── database_config.py
+    │   ├── credentials_config.py
     │   ├── logging_config.json
     │   ├── logging_config.py
-    │   ├── rmq_config.py
     │   └── scan_config.py      # The configurations for the scanner
     │
     ├── database/

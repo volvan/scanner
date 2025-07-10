@@ -3,17 +3,17 @@ import pyffx  # type: ignore
 
 # Configuration
 try:
-    from config import crypto_config
+    from config import credentials_config
 except ImportError:
-    from ..config import crypto_config
+    from ..config import credentials_config
 
 
-if crypto_config.FPE_KEY is None:
+if credentials_config.FPE_KEY is None:
     raise ValueError("FPE_KEY not found in environment variables")
 
 # Create FPE cipher from environment
-key = crypto_config.FPE_KEY.encode()
-cipher = pyffx.String(key, alphabet=crypto_config.FPE_ALPHABET, length=crypto_config.FPE_LENGTH)
+key = credentials_config.FPE_KEY.encode()
+cipher = pyffx.String(key, alphabet=credentials_config.FPE_ALPHABET, length=credentials_config.FPE_LENGTH)
 
 
 def encrypt_ip(ip_addr: str) -> str:
@@ -26,7 +26,7 @@ def encrypt_ip(ip_addr: str) -> str:
         str: The encrypted IPv4 address.
     """
     octets = ip_addr.split('.')
-    return '.'.join(cipher.encrypt(o.zfill(crypto_config.FPE_LENGTH)) for o in octets)
+    return '.'.join(cipher.encrypt(o.zfill(credentials_config.FPE_LENGTH)) for o in octets)
 
 
 def decrypt_ip(encrypted_ip: str) -> str:

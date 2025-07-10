@@ -4,7 +4,7 @@ import pika
 from config.scan_config import FAIL_QUEUE
 from rmq.rmq_manager import RMQManager
 from unittest.mock import patch, MagicMock
-
+import config.rmq_config as rmq_config
 
 class DummyChannel:
     """Mocked RabbitMQ channel for simulating basic queue behavior."""
@@ -90,7 +90,6 @@ def dummy_blocking_connection(params):
 def patch_pika(monkeypatch):
     """Fixture to patch pika.BlockingConnection and RMQ config."""
     monkeypatch.setattr(pika, "BlockingConnection", dummy_blocking_connection)
-    import config.rmq_config as rmq_config
     rmq_config.RMQ_USER = "user"
     rmq_config.RMQ_PASS = "pass"
     rmq_config.RMQ_HOST = "localhost"

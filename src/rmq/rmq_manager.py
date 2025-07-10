@@ -6,7 +6,7 @@ import pika      # type: ignore
 import requests  # type: ignore
 
 # Configuration
-from config import rmq_config
+from config import credentials_config
 from config.logging_config import log_exception, logger
 from config.scan_config import FAIL_QUEUE
 
@@ -27,7 +27,7 @@ class RMQManager:
             ValueError: If RabbitMQ credentials are not set.
         """
         self.queue_name = queue_name
-        if not rmq_config.RMQ_USER or not rmq_config.RMQ_PASS:
+        if not credentials_config.RMQ_USER or not credentials_config.RMQ_PASS:
             raise ValueError("RabbitMQ credentials not set. Use export RMQ_USER and export RMQ_PASS.")
         self._connect()
 
@@ -38,11 +38,11 @@ class RMQManager:
             Exception: If connection establishment fails.
         """
         try:
-            credentials = pika.PlainCredentials(rmq_config.RMQ_USER, rmq_config.RMQ_PASS)
+            credentials = pika.PlainCredentials(credentials_config.RMQ_USER, credentials_config.RMQ_PASS)
             heartbeat = int(os.getenv("RMQ_HEARTBEAT", "300"))
             parameters = pika.ConnectionParameters(
-                rmq_config.RMQ_HOST,
-                int(rmq_config.RMQ_PORT),
+                credentials_config.RMQ_HOST,
+                int(credentials_config.RMQ_PORT),
                 '/',
                 credentials,
                 heartbeat=heartbeat,
@@ -219,8 +219,8 @@ class RMQManager:
             list[str]: List of queue names.
         """
         try:
-            url = f"http://{rmq_config.RMQ_HOST}:15672/api/queues"
-            response = requests.get(url, auth=(rmq_config.RMQ_USER, rmq_config.RMQ_PASS))
+            url = f"http://{credentials_config.RMQ_HOST}:15672/api/queues"
+            response = requests.get(url, auth=(credentials_config.RMQ_USER, credentials_config.RMQ_PASS))
             response.raise_for_status()
             queues = response.json()
             return [q["name"] for q in queues if q["name"].startswith(prefix)]

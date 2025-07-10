@@ -10,7 +10,7 @@ from utils.crypto import encrypt_ip
 from utils.timestamp import get_current_timestamp
 
 # Configuration
-from config import database_config
+from config import credentials_config
 from config.logging_config import logger
 
 # Services
@@ -42,11 +42,11 @@ class DatabaseManager:
         """
         # Validate credentials
         creds = [
-            database_config.DB_NAME,
-            database_config.DB_USER,
-            database_config.DB_PASS,
-            database_config.DB_HOST,
-            database_config.DB_PORT,
+            credentials_config.DB_NAME,
+            credentials_config.DB_USER,
+            credentials_config.DB_PASS,
+            credentials_config.DB_HOST,
+            credentials_config.DB_PORT,
         ]
         if not all(creds):
             raise ValueError("Database credentials not set.")
@@ -56,11 +56,11 @@ class DatabaseManager:
                 cls._pool = ThreadedConnectionPool(
                     minconn,
                     maxconn,
-                    dbname=database_config.DB_NAME,
-                    user=database_config.DB_USER,
-                    password=database_config.DB_PASS,
-                    host=database_config.DB_HOST,
-                    port=database_config.DB_PORT,
+                    dbname=credentials_config.DB_NAME,
+                    user=credentials_config.DB_USER,
+                    password=credentials_config.DB_PASS,
+                    host=credentials_config.DB_HOST,
+                    port=credentials_config.DB_PORT,
                 )
                 logger.info("[DatabaseManager] Connection pool created.")
             except Exception as e:

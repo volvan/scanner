@@ -1,6 +1,6 @@
 import sys
 from utils.crypto import encrypt_ip, decrypt_ip
-from config import crypto_config
+from config import credentials_config
 import pyffx  # type: ignore
 import utils.crypto as crypto_mod
 import pytest
@@ -9,14 +9,14 @@ import importlib
 
 def test_encrypt_decrypt_ip_roundtrip(monkeypatch):
     """Ensure IPs are encrypted/decrypted correctly and format is preserved."""
-    monkeypatch.setattr(crypto_config, "FPE_KEY", "testfpekey12345")
-    monkeypatch.setattr(crypto_config, "FPE_ALPHABET", "0123456789")
-    monkeypatch.setattr(crypto_config, "FPE_LENGTH", 3)
+    monkeypatch.setattr(credentials_config, "FPE_KEY", "testfpekey12345")
+    monkeypatch.setattr(credentials_config, "FPE_ALPHABET", "0123456789")
+    monkeypatch.setattr(credentials_config, "FPE_LENGTH", 3)
 
     crypto_mod.cipher = pyffx.String(
-        crypto_config.FPE_KEY.encode(),
-        alphabet=crypto_config.FPE_ALPHABET,
-        length=crypto_config.FPE_LENGTH
+        credentials_config.FPE_KEY.encode(),
+        alphabet=credentials_config.FPE_ALPHABET,
+        length=credentials_config.FPE_LENGTH
     )
 
     original_ip = "192.0.2.1"
@@ -32,7 +32,7 @@ def test_encrypt_decrypt_ip_roundtrip(monkeypatch):
 def test_raises_if_fpe_key_is_none(monkeypatch):
     """Ensure crypto module raises an error if FPE_KEY is not set."""
     # Force FPE_KEY to None to trigger the ValueError
-    monkeypatch.setattr(crypto_config, "FPE_KEY", None)
+    monkeypatch.setattr(credentials_config, "FPE_KEY", None)
 
     # Unload crypto so it re-imports with FPE_KEY = None
     if "utils.crypto" in sys.modules:
