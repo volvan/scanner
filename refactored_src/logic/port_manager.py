@@ -11,7 +11,7 @@ from config.logging_config import logger
 from config.scan_config import ALL_PORTS_QUEUE, PRIORITY_PORTS_QUEUE, FAIL_QUEUE
 
 # Services
-from data.DatabaseManager import db_ports
+from infrastructure.DBHandler import db_ports
 from infrastructure.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception

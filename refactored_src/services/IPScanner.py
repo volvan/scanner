@@ -11,11 +11,15 @@ from services.HostDiscovery import HostDiscovery
 from utils.timestamp import get_current_timestamp
 from utils.block_handler import read_block
 
+#----- Model imports -----#
+from models.QueryModel import QueryModel
+
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
-from logic.DBWorkerLogic import DBWorkerLogic
+from infrastructure.DBWorker import DBWorker
+from infrastructure.DBHandler import DBHandler
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
-from data.DatabaseManager import db_hosts, db_ports
+from infrastructure.DBHandler import db_hosts, db_ports
 
 
 #----- Logger import -----#
@@ -57,11 +61,12 @@ from config.scan_config import (  # noqa: F401
 from config.logging_config import logger, log_exception
 
 # Services
-from data.DatabaseManager import DatabaseManager
+from infrastructure.QueryHandler import QueryHandler
 from infrastructure.RabbitMQ import RabbitMQ
 # from logic.ip_manager import HostDiscovery
 from services.HostDiscovery import HostDiscovery
 
+# from .DBWorker import DBWorker
 
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
@@ -78,23 +83,16 @@ class IPScanner:
 
         self.hostDiscovery = hostDiscovery
 
+
         # From old IPScanner()
         self.batch_id_generator = itertools.count(1)
         self.active_processes = []
 
 
     def start_ip_scan(self):
-        # query_results = self.infraManager.query("SELECT * FROM hosts")
-        # print(f'query_results')
-        # print(query_results)
-        # input('\n\n\nEnter to continue...')
-        # db_worker = DBWorker(enable_hosts=True, enable_ports=False)
+        db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)
         try:
-            self.logicManager.dbWorkerLogic.start()
-
-            # scanner = IPScanner()
-
-
+            db_handler.start_hosts()
             # 1) enqueue & get filename + blocks
             filename, blocks = self.enqueue_new_targets()
             if blocks is None:
@@ -109,26 +107,34 @@ class IPScanner:
             # 4) record the actual scan-done timestamp
             discovery_done_ts = get_current_timestamp()
 
+
+
             # 5) persist summary with the correct scan window
             try:
                 # with self.logicManager.dataManager.databaseManager as db:
-                with DatabaseManager as db:
-                    db.insert_summary(
+                with DBWorker() as dbWorker:
+                    queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
                         country=SCAN_NATION,
                         discovery_start_ts=discovery_start_ts,
                         discovery_done_ts=discovery_done_ts,
                         scanned_cidrs=blocks
                     )
+
+                    success = dbWorker.execute_query_model(queryModel)
+                    if not success:
+                        logger.critical('[IPScanner.start_ip_scan] Something went wrong while inserting the summary.')
+                    
+                    
             except Exception as e:
-                logger.error(f"[Init] Failed to write discovery summary: {e}")
+                logger.error(f"[IPScanner.start_ip_scan] Failed to write discovery summary: {e}")
 
         except Exception as e:
-            logger.critical(f"[IPScan Init] Fatal error: {e}", exc_info=True)
+            logger.critical(f"[IPScanner.start_ip_scan] Fatal error: {e}", exc_info=True)
         finally:
             # self.logicManager.dbWorkerLogic.stop()
             db_hosts.join()     # block until every host task_done()
             db_ports.join()     # same for ports
-            self.logicManager.dbWorkerLogic.stop()
+            db_handler.stop()
     
 
     #TODO: To be refactored
@@ -149,22 +155,22 @@ class IPScanner:
 
         ## For testing purposes ##
         if input('Remove queues? (y/n): ').lower() == 'y':
-            all = RabbitMQ('all_addr')
-            all.channel.queue_delete('all_addr')
-            all.close()
+            # all = RabbitMQ('all_addr')
+            # all.channel.queue_delete('all_addr')
+            # all.close()
 
-            alive = RabbitMQ('alive_addr')
-            alive.channel.queue_delete('alive_addr')
-            alive.close()
+            # alive = RabbitMQ('alive_addr')
+            # alive.channel.queue_delete('alive_addr')
+            # alive.close()
 
-            dead = RabbitMQ('dead_addr')
-            dead.channel.queue_delete('dead_addr')
-            dead.close()
+            # dead = RabbitMQ('dead_addr')
+            # dead.channel.queue_delete('dead_addr')
+            # dead.close()
             
-            for i in range(1, 100):
+            for queue_name in RabbitMQ.list_queues():
                 try:
-                    temp_rmq = RabbitMQ(f'batch_{i}')
-                    temp_rmq.channel.queue_delete(f'batch_{i}')
+                    temp_rmq = RabbitMQ(queue_name)
+                    temp_rmq.channel.queue_delete(queue_name)
                     temp_rmq.close()
                 except Exception as e:
                     print(f'[enqueue_new_targets()] God diggity darn! Something went wrong {e}')
@@ -229,8 +235,8 @@ class IPScanner:
             sharing DB or RMQ connections across forks.
         """
         rmq = RabbitMQ(queue_name)
-        db_manager = DatabaseManager()
-        ip_manager = HostDiscovery(db_manager=db_manager)
+        db_manager = QueryHandler()
+        hostDiscovery = HostDiscovery(db_manager=db_manager)
 
         while True:
             method_frame, props, body = rmq.channel.basic_get(
@@ -243,7 +249,7 @@ class IPScanner:
             try:
                 # Spawn a short-lived process for this one task
                 task_proc = multiprocessing.Process(
-                    target=ip_manager.process_task,
+                    target=hostDiscovery.process_task,
                     args=(rmq.channel, method_frame, props, body),
                 )
                 task_proc.start()
@@ -280,8 +286,8 @@ class IPScanner:
             time.sleep(SCAN_DELAY)
 
         # once we drain the queue, remove it
-        ip_manager.close()
-        db_manager.close()
+        hostDiscovery.close()
+        # db_manager.close()
         rmq.remove_queue()
         rmq.close()
 
@@ -422,8 +428,6 @@ class IPScanner:
                 if filename else self.whois_reconnaissance(target=address)
             )
 
-            db_manager = DatabaseManager()
-
             def chunked(iterator, size=BATCH_SIZE):  # noqa: D103
                 it = iter(iterator)
                 while True:
@@ -432,14 +436,25 @@ class IPScanner:
                         break
                     yield batch
 
-            for batch_no, batch in enumerate(chunked(shuffled_ips), start=1):
-                logger.info("[enqueue] batch %d: size=%d", batch_no, len(batch))
-                db_manager.new_host(whois_data=whois_info, ips=batch)
-                QueueInitializer.enqueue_ips(queue_name, batch)
+            with DBWorker() as dbWorker:
+                dbWorker: DBWorker
+                for batch_no, batch in enumerate(chunked(shuffled_ips), start=1):
+                    logger.info("[enqueue] batch %d: size=%d", batch_no, len(batch))
+                    queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
+                    if queryModel is None:
+                        logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
+                        continue
+                    
+                    success = dbWorker.execute_query_model(queryModel)
+                    if not success:
+                        logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
+                        continue
 
-            db_manager.close()
-            del shuffled_ips, ip_iter
-            gc.collect()
+                    QueueInitializer.enqueue_ips(queue_name, batch)
+
+                # dbWorker.close()
+                del shuffled_ips, ip_iter
+                gc.collect()
 
             # Return the file we used for CIDR blocks
             return filename

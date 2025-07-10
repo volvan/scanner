@@ -6,11 +6,11 @@
 # from external.ExternalManager import ExternalManager
 
 #----- Service imports -----#
-from .DatabaseManager import DatabaseManager
+from infrastructure.QueryHandler import QueryHandler
 from .old_DBWorker import DBWorker
 
 
 class DataManager:
     def __init__(self):
-        self.databaseManager = DatabaseManager()
+        self.databaseManager = QueryHandler()
         self.dbConnection = DBWorker()

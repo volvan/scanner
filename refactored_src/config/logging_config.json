@@ -38,7 +38,9 @@
   },
 
   "root": {
-    "level": "INFO",
-    "handlers": ["stderr", "file"]
+    "level": "DEBUG",
+    "handlers": ["stderr", "file"],
+    "formatter": "detailed",
+    "filename": "logs/custom_app.log"
   }
 }

@@ -9,18 +9,13 @@ import sys
 from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
 
 
-serviceManager = ServiceManager()
-
-args_direct = {
-    'ip': serviceManager.start_ip_scan,
-    'port': serviceManager.start_port_scan,
-    'fail': serviceManager.start_fail_queue,
-}
 
 configure_logging(CONFIG_PATH)
 
 # logger.addFilter(LogicFilter(logicWrapper))
 logger.addFilter(WorkerPIDFilter())
+
+acceptable_args = ['ip', 'port', 'fail']
 
 if __name__ == '__main__':
     # Validate command line arguments passed in
@@ -28,9 +23,20 @@ if __name__ == '__main__':
     if sys.gettrace() is not None: args.append(input('[ip/port/fail]: '))
 
     command = args[-1]
-    if len(args) != 2 or command not in args_direct: 
+
+    
+    if len(args) != 2 or command not in acceptable_args: 
         print('\nInvalid argument(s).\n\n\tpython3 start_application [ip]scan|[port]scan|[fail]queue\n\n\nPlease try again\n')
         sys.exit(1)
+
+    serviceManager = ServiceManager()
+
+    args_direct = {
+        'ip': serviceManager.start_ip_scan,
+        'port': serviceManager.start_port_scan,
+        'fail': serviceManager.start_fail_queue,
+    }
+
 
     # Call corresponding method based on the comand given
     try:

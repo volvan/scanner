@@ -12,7 +12,7 @@ from utils.batch_handler import PortBatchHandler
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from logic.PortScanWorkerLogic import PortScanWorkerLogic
-from logic.DBWorkerLogic import DBWorkerLogic
+from infrastructure.DBWorker import DBWorker
 
 #----- Logger import -----#
 from config.logging_config import logger
@@ -49,7 +49,7 @@ class PortScanJobRunnerLogic:
             logger.exception(f"Worker {worker_id} encountered fatal error: {e}")
 
     def start(self):
-        self.db_worker = DBWorkerLogic()
+        self.db_worker = DBWorker()
         self.db_worker.start()
         processes = []
 

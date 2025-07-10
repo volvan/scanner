@@ -15,12 +15,12 @@ from config.logging_config import log_exception
 # Services
 # from rmq.rmq_manager import RabbitMQ
 # from scanners.port_scan.port_manager import PortManager
-# from database.db_manager import DatabaseManager
+# from database.db_manager import QueryHandler
 # from database.db_manager import db_hosts, db_ports
 
 from infrastructure.RabbitMQ import RabbitMQ
 from logic.port_manager import PortManager
-from data.DatabaseManager import DatabaseManager, db_hosts, db_ports
+from data.QueryHandler import QueryHandler, db_hosts, db_ports
 
 
 # Utility Handlers
@@ -205,7 +205,7 @@ logger = logging.getLogger(__name__)
 #                 logger.debug(f"[DBWorker] Got host task: {task}")
 
 #                 try:
-#                     with DatabaseManager() as db:
+#                     with QueryHandler() as db:
 #                         db.insert_host_result(task)
 #                     db_hosts.task_done()
 #                     logger.debug("[DBWorker] Host task committed to DB.")
@@ -227,7 +227,7 @@ logger = logging.getLogger(__name__)
 #                 logger.debug(f"[DBWorker] Got port task: {task}")
 
 #                 try:
-#                     with DatabaseManager() as db:
+#                     with QueryHandler() as db:
 #                         # Skip brand-new closed ports to save space
 #                         if task["port_state"] == "closed":
 #                             if not db.port_exists(task["ip"], task["port"]):

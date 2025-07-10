@@ -31,7 +31,7 @@ class ProbeHandler:
                 universal_newlines=True,
                 timeout=PROBE_TIMEOUT
             )
-            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}")
+            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}. The output: {output}")
             return output
         except subprocess.CalledProcessError as e:
             logger.warning(f"[ProbeHandler] Command failed: {' '.join(command)}")

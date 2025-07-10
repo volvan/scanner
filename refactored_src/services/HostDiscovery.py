@@ -14,8 +14,8 @@ from config.logging_config import log_exception
 from config.logging_config import logger
 
 # Services
-from data.DatabaseManager import db_hosts
-from data.DatabaseManager import DatabaseManager
+from infrastructure.DBHandler import db_hosts
+from infrastructure.QueryHandler import QueryHandler
 from infrastructure.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
@@ -24,11 +24,11 @@ sys.excepthook = log_exception
 class HostDiscovery:
     """Manager for scanning IPs, queueing results, and writing scan data to the database."""
 
-    def __init__(self, db_manager: DatabaseManager = None):
+    def __init__(self, db_manager: QueryHandler = None):
         """Initialize HostDiscovery with optional database connection and RabbitMQ queues.
 
         Args:
-            db_manager (DatabaseManager, optional): Pre-initialized database manager.
+            db_manager (QueryHandler, optional): Pre-initialized database manager.
                 If not provided, a new instance is created internally.
         """
         self.delay = SCAN_DELAY
@@ -56,9 +56,9 @@ class HostDiscovery:
 
         # Database manager
         try:
-            self.db_manager = db_manager or DatabaseManager()
+            self.db_manager = db_manager or QueryHandler()
         except Exception as e:
-            logger.error(f"[HostDiscovery] Failed to init DatabaseManager: {e}")
+            logger.error(f"[HostDiscovery] Failed to init QueryHandler: {e}")
             self.db_manager = None
 
     def ping_host(self, ip_addr: str) -> dict:
@@ -83,9 +83,6 @@ class HostDiscovery:
         ]:
             try:
                 res = fn()
-                ## For testing purposes ##
-                if res is None: print(f'method: {method} for {ip_addr} was unsuccessful')
-                ##########################
             except subprocess.TimeoutExpired:
                 logger.warning(f"[HostDiscovery] {method} to {ip_addr} timed out; continuing")
                 res = None
@@ -94,17 +91,15 @@ class HostDiscovery:
                 res = None
 
             if res and res[0] == "alive":
-                print(f'\nmethod: {method} for {ip_addr} was successful!!!')
+                # For testing
+                if method != 'icmp_ping': logger.debug(f'\nmethod: {method} for {ip_addr} was successful!!!'); print(f'\nmethod: {method} for {ip_addr} was successful!!!')
                 return {
                     "probe_method": method,
                     "probe_protocol": proto,
                     "host_status": "alive",
                     "probe_duration": float(res[1]) if res and res[1] is not None else None,
                 }
-            elif method is not 'tcp_ack_ping_ttl':
-                print(f'method: {method} did not work for {ip_addr}. But we gonna try something else B)')
-            else:
-                print(f'method: {method} did not work for {ip_addr}. God diggity darn! It\'s a goner!')
+
 
             time.sleep(self.delay)
 
@@ -239,5 +234,5 @@ class HostDiscovery:
             self.alive_rmq.close()
             self.dead_rmq.close()
             self.fail_rmq.close()
-        finally:
-            self.db_manager.close()
+        finally: pass
+        #     self.db_manager.close()

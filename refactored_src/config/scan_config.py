@@ -41,15 +41,15 @@ SINGLE_ADDR = os.getenv("SINGLE_ADDR", "8.8.8.0")                     # Single I
 
 # ─── General scan parameters ──────────────────────────────────────────────
 # WORKERS = int(os.getenv("WORKERS", 250))                              # Number of workers to spawn
-WORKERS = int(os.getenv("WORKERS", 250))  # Testing
+WORKERS = int(os.getenv("WORKERS", 15))  # Testing
 
 SCAN_DELAY = float(os.getenv("SCAN_DELAY", 0.5))                      # Delay (sec) between scan attempts
 THRESHOLD = int(os.getenv("THRESHOLD", 30))                           # Direct vs batch mode threshold
 # BATCH_SIZE = int(os.getenv("BATCH_SIZE", 500))                        # Tasks per batch & DB insert size
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", 16)) # Testing
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", 25)) # Testing
 
 # MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 100))      # Max concurrent batch-forked processes
-MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 5)) # Testing
+MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 25)) # Testing
 
 # ─── Port scan phase specific ──────────────────────────────────────────────
 PORTS_FILE = os.getenv("PORTS_FILE", "ports.txt")
