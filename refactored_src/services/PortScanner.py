@@ -107,11 +107,10 @@ class PortScanner:
 
     def start_port_scan(self):
         """Kick off a port scan, record timestamps, and use QueryModel for querying the DB."""
-        # Use DBHandler for streaming individual port results
          
          
         ## Delete Queues (excluding some from HostDiscovery) for a fresh run. This is for testing purposes only ##
-        sys.stderr.write("Remove queues? (y/n): ")
+        sys.stderr.write("Remove queues? (y/n): \n")
         sys.stderr.flush()
         clean_queue = sys.stdin.readline().strip().lower() == 'y'
 
@@ -128,10 +127,11 @@ class PortScanner:
             fail.channel.queue_delete('fail_queue')
             fail.close()
 
-            input('Enter to continue...')
+            sys.stderr.write("Enter to continue...\n")
+            sys.stderr.flush()
         ##########################
 
-
+        
         dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler)
         try:
             # Start background port-insert thread
@@ -200,7 +200,7 @@ class PortScanner:
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
-            pass
+            dbHandler.stop()
             # Stop streaming port inserts
             # dbHandler.stop()
 

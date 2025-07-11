@@ -4,11 +4,10 @@ from config.scan_config import SCAN_NATION, QUEUE_NAME, ADDR_FILE
 #----- Type annotation imports -----#
 from external.ExternalManager import ExternalManager
 from infrastructure.InfrastructureManager import InfrastructureManager
+from multiprocessing import Process
 
-from pika.adapters.blocking_connection import BlockingChannel
-from pika.adapters.blocking_connection import BlockingConnection
 from pika.spec import Basic, BasicProperties
-# from logic.LogicManager import LogicManager
+
 from services.HostDiscovery import HostDiscovery
 
 #----- Util classes imports -----#
@@ -87,25 +86,53 @@ class IPScanner:
 
         # From old IPScanner()
         self.batch_id_generator = itertools.count(1)
-        self.active_processes = []
+        self.active_processes: list[Process] = []
 
 
     def start_ip_scan(self):
+
+        ## Delete Queues for a fresh run. This is for testing purposes only ##
+        sys.stderr.write("Remove queues? (y/n): \n")
+        sys.stderr.flush()
+        clean_queue = sys.stdin.readline().strip().lower() == 'y'
+
+        if clean_queue:
+
+            for queue_name in RabbitMQ.list_queues():
+                try:
+                    temp_rmq = RabbitMQ(queue_name)
+                    temp_rmq.channel.queue_delete(queue_name)
+                    temp_rmq.close()
+                except Exception as e:
+                    print(f'[enqueue_new_targets()] God diggity darn! Something went wrong {e}')
+                    break
+
+            fail = RabbitMQ('fail_queue')
+            fail.channel.queue_delete('fail_queue')
+            fail.close()
+
+            sys.stderr.write("Enter to continue...\n")
+            sys.stderr.flush()
+        ##########################
+
+
         db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)
         try:
+            # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
             db_handler.start_hosts()
-            # 1) enqueue & get filename + blocks
+
+            # Collects new IP targets
             filename, blocks = self.enqueue_new_targets()
             if blocks is None:
                 return
 
-            # 2) record the actual scan-start timestamp
+            # Record the scan-start timestamp
             discovery_start_ts = get_current_timestamp()
 
-            # 3) perform the discovery scan (this blocks until done)
+            # Perform the discovery scan (this blocks until done)
             self.run_discovery()
 
-            # 4) record the actual scan-done timestamp
+            # Record the scan-done timestamp
             discovery_done_ts = get_current_timestamp()
 
 
@@ -153,28 +180,7 @@ class IPScanner:
         Default:
             Read from a file.
         """
-        ## Delete Queues for a fresh run. This is for testing purposes only ##
-        sys.stderr.write("Remove queues? (y/n): ")
-        sys.stderr.flush()
-        clean_queue = sys.stdin.readline().strip().lower() == 'y'
-
-        if clean_queue:
-
-            for queue_name in RabbitMQ.list_queues():
-                try:
-                    temp_rmq = RabbitMQ(queue_name)
-                    temp_rmq.channel.queue_delete(queue_name)
-                    temp_rmq.close()
-                except Exception as e:
-                    print(f'[enqueue_new_targets()] God diggity darn! Something went wrong {e}')
-                    break
-
-            fail = RabbitMQ('fail_queue')
-            fail.channel.queue_delete('fail_queue')
-            fail.close()
-
-            input('Enter to continue...')
-        ##########################
+        
         queue_name = QUEUE_NAME
         rmq = RabbitMQ(queue_name)
         
@@ -333,6 +339,7 @@ class IPScanner:
                 queue_name=main_queue_name,
                 process_callback=self.hostDiscovery.process_task
             ).start()
+
             return
 
         logger.info("[IPScanner] Batch processing mode (large scan).")

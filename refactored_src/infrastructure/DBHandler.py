@@ -63,6 +63,8 @@ class DBHandler:
 
 
     def _consume_hosts(self):
+        """Collects hosts from RabbitMQ and inserts them into the DB using DBWorker()"""
+
         ### For testing purposes ###
         # import os
         # worker_pid = str(os.getpid())
@@ -70,7 +72,6 @@ class DBHandler:
         ### For testing purposes ###
 
         dbWorker = DBWorker()
-        # logger.critical(f'worker_pid {worker_pid} created DBWorker')
         try:
             while not self.stop_signal:
                 try:

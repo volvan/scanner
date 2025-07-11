@@ -49,11 +49,12 @@ THRESHOLD = int(os.getenv("THRESHOLD", 30))                           # Direct v
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", 25)) # Testing
 
 # MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 100))      # Max concurrent batch-forked processes
-MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 25)) # Testing
+MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 10)) # Testing
 
 # ─── Port scan phase specific ──────────────────────────────────────────────
 PORTS_FILE = os.getenv("PORTS_FILE", "ports.txt")
-BATCH_AMOUNT = int(os.getenv("BATCH_AMOUNT", 100))                    # Concurrent port batches
+# BATCH_AMOUNT = int(os.getenv("BATCH_AMOUNT", 100))                    # Concurrent port batches
+BATCH_AMOUNT = int(os.getenv("BATCH_AMOUNT", 25)) # Testing
 PORT_SCAN_RETRY_LIMIT = int(os.getenv("PORT_SCAN_RETRY_LIMIT", 2))    # Retry unknown/failed ports this many times
 BATCH_TIMEOUT_SEC = int(os.getenv("BATCH_TIMEOUT_SEC", 300))          # Max time allowed per batch queue
 WORKER_RESTART_LIMIT = int(os.getenv("WORKER_RESTART_LIMIT", 3))      # Times to restart worker before marking failed

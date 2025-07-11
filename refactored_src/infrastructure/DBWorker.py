@@ -96,6 +96,7 @@ class DBWorker:
             logger.error(f"[DBWorker] Failed to acquire connection: {e}")
             raise
 
+        return
 
     def __enter__(self):
         """Support context manager entry (with-statement)."""

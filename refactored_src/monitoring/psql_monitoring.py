@@ -101,8 +101,10 @@ def main():
                 if st in stats:
                     print(f"   {st:>6}: {stats[st]}")
             for st,c in stats.items():
-                if st not in ('total','active','idle'):
+                if st not in ('total','active','idle') and st is not None:
+                    # try:
                     print(f"   {st:>6}: {c}")
+                    # finally: pass
 
             # 2) by application_name
             apps = fetch_by_app(conn)
