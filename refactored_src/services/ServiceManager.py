@@ -1,14 +1,11 @@
 
 #----- Manager imports -----#
-from logic.LogicManager import LogicManager
-from data.DataManager import DataManager
 from infrastructure.InfrastructureManager import InfrastructureManager
 from external.ExternalManager import ExternalManager
 
 #----- Service imports -----#
 from .PortScanner import PortScanner
 from .IPScanner import IPScanner
-from .FailQueue import FailQueue
 from .HostDiscovery import HostDiscovery
 
 
@@ -17,15 +14,13 @@ from .HostDiscovery import HostDiscovery
 class ServiceManager:
     def __init__(self):
         # Managers
-        self.logicManager = LogicManager(DataManager())
         self.externalManager = ExternalManager()
         self.infraManager = InfrastructureManager()
 
         # Service Instances
-        self.hostDiscovery = HostDiscovery(self.logicManager.dataManager.databaseManager)
-        self.ipScanner = IPScanner(self.externalManager, self.infraManager, self.logicManager, self.hostDiscovery)
-        self.portScanner = PortScanner(self.externalManager, self.infraManager, self.logicManager)
-        self.failQueue = FailQueue(self.externalManager, self.infraManager, self.logicManager)
+        self.hostDiscovery = HostDiscovery()
+        self.ipScanner = IPScanner(self.externalManager, self.infraManager, self.hostDiscovery)
+        self.portScanner = PortScanner(self.externalManager, self.infraManager)
 
     #----- IPScanner Methods -----#
     def start_ip_scan(self):
@@ -37,9 +32,5 @@ class ServiceManager:
         print('Just started ServiceManager.start_port_scan()')
         self.portScanner.start_port_scan()
 
-    #----- FailQueue Methods -----#
-    def start_fail_queue(self):
-        print('Just started ServiceManager.start_fail_queue()')
-        self.failQueue.start_fail_queue()
     
     

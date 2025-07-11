@@ -5,7 +5,7 @@ from multiprocessing import Process
 #----- Type annotation imports -----#
 from external.ExternalManager import ExternalManager
 from infrastructure.InfrastructureManager import InfrastructureManager 
-from logic.LogicManager import LogicManager
+# from logic.LogicManager import LogicManager
 
 #----- Service imports -----#
 from infrastructure.DBHandler import DBHandler
@@ -48,15 +48,11 @@ sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
 
 
-
-
-
-
 class PortScanner:
-    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager ,logicManager: LogicManager):
+    # def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager ,logicManager: LogicManager):
+    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
         self.externalManager = externalManager
         self.infraManager = infraManager
-        self.logicManager = logicManager
 
         self.active_processes: list[Process] = []
         self.port_manager = PortManager()
@@ -109,114 +105,23 @@ class PortScanner:
         rmq.close()
 
 
-    # def start_port_scan(self):
-    #     dbHandler:DBHandler = DBHandler()
-    #     try:
-    #         dbHandler.start_ports()
-
-    #         # 1) choose which RMQ queue to seed
-    #         queue_name = PRIORITY_PORTS_QUEUE if USE_PRIORITY_PORTS else ALL_PORTS_QUEUE
-    #         print(f"[PortScan Init] Seeding ports into '{queue_name}'…")
-
-    #         scanner = PortScanner()
-
-    #         # 2) enqueue ports
-    #         scanner.new_targets(queue_name, PORTS_FILE)
-
-    #         # 3) record scan‐start timestamp
-    #         port_start_ts = get_current_timestamp()
-
-    #         # 4) run the scan (blocks until complete)
-    #         print(f"[PortScan Init] Starting persistent port scan workers for '{queue_name}'…")
-    #         scanner.start_consuming(queue_name)
-
-    #         # 5) record scan‐done timestamp
-    #         port_done_ts = get_current_timestamp()
-
-    #         # 6) determine which expanded list to record
-    #         all_ports, priority_ports = read_ports_file(PORTS_FILE)
-    #         scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
-
-    #         # 7) PATCH or INSERT our summary row with correct timestamps & ports
-    #         try:
-    #             # with DatabaseManager() as db:
-    #             with DBWorker() as dbWorker:
-    #                 conn = dbWorker.connection
-    #                 cur = conn.cursor()
-
-    #                 # fetch most‐recent summary id
-    #                 cur.execute(
-    #                     "SELECT id FROM summary WHERE country = %s ORDER BY id DESC LIMIT 1",
-    #                     (SCAN_NATION,),
-    #                 )
-    #                 row = cur.fetchone()
-
-    #                 if row:
-    #                     summary_id = row[0]
-    #                     logger.info(f"[PortScan Init] Updating summary id={summary_id} with port timestamps")
-    #                     cur.execute(
-    #                         """
-    #                         UPDATE summary
-    #                         SET port_scan_start_ts = %s,
-    #                             port_scan_done_ts  = %s,
-    #                             scanned_ports      = %s
-    #                         WHERE id = %s
-    #                         """,
-    #                         (port_start_ts, port_done_ts, scanned_ports, summary_id),
-    #                     )
-    #                 else:
-    #                     logger.warning("[PortScan Init] No existing summary; inserting new row")
-    #                     cur.execute(
-    #                         """
-    #                         INSERT INTO summary (
-    #                             country,
-    #                             discovery_scan_start_ts,
-    #                             discovery_scan_done_ts,
-    #                             scanned_cidrs,
-    #                             port_scan_start_ts,
-    #                             port_scan_done_ts,
-    #                             scanned_ports
-    #                         ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-    #                         """,
-    #                         (
-    #                             SCAN_NATION,
-    #                             port_start_ts,   # use start_ts for discovery fields
-    #                             port_start_ts,
-    #                             [],              # no discovery CIDRs
-    #                             port_start_ts,
-    #                             port_done_ts,
-    #                             scanned_ports,
-    #                         ),
-    #                     )
-
-    #                 conn.commit()
-    #                 cur.close()
-
-    #         except Exception as e:
-    #             logger.error(f"[PortScan Init] Failed to write port summary: {e}", exc_info=True)
-
-    #     except Exception as e:
-    #         logger.critical(f"[PortScan Init] Fatal error: {e}", exc_info=True)
-    #         sys.exit(1)
-
-    #     finally:
-    #         dbHandler.stop()
-
     def start_port_scan(self):
         """Kick off a port scan, record timestamps, and use QueryModel for querying the DB."""
         # Use DBHandler for streaming individual port results
          
          
-        ## For testing purposes ##
-        if input('Remove queues? (y/n): ').lower() == 'y':
-            
+        ## Delete Queues (excluding some from HostDiscovery) for a fresh run. This is for testing purposes only ##
+        sys.stderr.write("Remove queues? (y/n): ")
+        sys.stderr.flush()
+        clean_queue = sys.stdin.readline().strip().lower() == 'y'
+
+        if clean_queue:
             for queue_name in [name for name in RabbitMQ.list_queues() if name not in ['alive_addr', 'all_addr', 'dead_addr', 'fail_queue']]:
                 try:
                     temp_rmq = RabbitMQ(queue_name)
                     temp_rmq.channel.queue_delete(queue_name)
                     temp_rmq.close()
-                except Exception as e:
-                    # print(f'[enqueue_new_targets()] God diggity darn! Something went wrong {e}')
+                except Exception:
                     continue
 
             fail = RabbitMQ('fail_queue')

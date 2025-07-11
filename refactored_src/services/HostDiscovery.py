@@ -4,6 +4,11 @@ import subprocess
 import sys
 import time
 
+# Type annotations
+from pika.adapters.blocking_connection import BlockingChannel
+from pika.adapters.blocking_connection import BlockingConnection
+from pika.spec import Basic, BasicProperties
+
 # Utility Handlers
 from utils.ping_handler import PingHandler
 from utils.timestamp import get_current_timestamp
@@ -23,7 +28,7 @@ sys.excepthook = log_exception
 
 class HostDiscovery:
     """Manager for scanning IPs, queueing results, and writing scan data to the database."""
-
+    #TODO: I don't even know how db_manager got the type QueryHandler, need to refactor.
     def __init__(self, db_manager: QueryHandler = None):
         """Initialize HostDiscovery with optional database connection and RabbitMQ queues.
 
@@ -163,8 +168,8 @@ class HostDiscovery:
                 })
         except Exception as e:
             logger.error(f"[HostDiscovery] Failed to enqueue host result to db_hosts: {e}")
-
-    def process_task(self, ch, method, properties, body) -> None:
+    
+    def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
         """Process a RabbitMQ task: scan IP, write to database, then acknowledge.
 
         Args:
@@ -176,9 +181,14 @@ class HostDiscovery:
         Raises:
             ValueError: If the message payload does not contain an "ip" key.
         """
+        ### For testing purposes ###
+        # import os
+        # worker_pid = str(os.getpid())
+        # logger.critical(f'sub_worker_pid {worker_pid} (child of worker) has just been created!')
+        ### For testing purposes ###
         try:
             # Parse the message body into a task dictionary
-            task = json.loads(body)
+            task:dict = json.loads(body)
             ip_addr = task.get("ip")
 
             # Check if the "ip" key exists and is valid

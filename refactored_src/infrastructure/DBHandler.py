@@ -6,7 +6,7 @@ import threading
 import traceback
 
 #----- Type annotation imports -----#
-from data.DataManager import DataManager
+# from data.DataManager import DataManager
 import queue
 
 #----- Model imports -----#
@@ -63,7 +63,14 @@ class DBHandler:
 
 
     def _consume_hosts(self):
+        ### For testing purposes ###
+        # import os
+        # worker_pid = str(os.getpid())
+        # logger.critical(f'worker_pid {worker_pid} is _consume_hosts() and creating a DBWroker')
+        ### For testing purposes ###
+
         dbWorker = DBWorker()
+        # logger.critical(f'worker_pid {worker_pid} created DBWorker')
         try:
             while not self.stop_signal:
                 try:

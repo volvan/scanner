@@ -1,5 +1,5 @@
 # Standard library
-import time, itertools, ipaddress
+import itertools, ipaddress
 from typing import Iterable
 
 # Utility Handlers
@@ -11,12 +11,6 @@ from config.logging_config import logger
 
 # Models
 from models.QueryModel import QueryModel
-
-# Type annotations
-from psycopg2.extensions import connection
-
-# External
-import psycopg2
 
 
 
@@ -240,141 +234,7 @@ class QueryHandler:
 
         logger.error(f"[QueryHandler] insert_host_result gave up after {retry_limit} attempts")
 
-    # def insert_port_result(self, task: dict, retry_limit: int = 3) -> None:
-    #     """Insert or update a port scan result in the Ports table.
 
-    #     Args:
-    #         task (dict): A task dictionary with keys:
-    #             'ip', 'port', 'port_state', 'port_service', 'port_protocol',
-    #             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'.
-    #         retry_limit (int): Number of retry attempts on failure.
-    #     """
-    #     logger.debug(f"[QueryHandler] insert_port_result task payload: {task!r}")
-
-    #     # Ensure required fields are present
-    #     required = [
-    #         'ip', 'port', 'port_state', 'port_service', 'port_protocol',
-    #         'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
-    #     ]
-    #     if not all(k in task for k in required):
-    #         logger.error("[QueryHandler] insert_port_result: missing fields in task.")
-    #         return
-
-    #     # Skip brand-new closed ports to save space
-    #     if task['port_state'] == 'closed':
-    #         try:
-    #             encrypted_ip = encrypt_ip(task['ip'])
-    #             with self.connection.cursor() as cur:
-    #                 cur.execute(
-    #                     "SELECT 1 FROM Ports WHERE ip_addr = %s AND port = %s LIMIT 1",
-    #                     (encrypted_ip, task['port'])
-    #                 )
-    #                 if cur.fetchone() is None:
-    #                     logger.debug(
-    #                             f"[QueryHandler] Skipping new closed port {task['ip']}:{task['port']}"
-    #                         )
-    #                     return
-    #         except Exception as e:
-    #             logger.warning(f"[QueryHandler] port_exists check failed: {e}")
-
-    #     # Build the UPSERT statement
-    #     upsert_sql = """
-    #     INSERT INTO Ports (
-    #         ip_addr, port, port_state, port_service, port_protocol,
-    #         port_product, port_version, port_cpe, port_os,
-    #         port_first_seen_ts, port_last_seen_ts, port_scan_duration_sec
-    #     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    #     ON CONFLICT (ip_addr, port) DO UPDATE SET
-    #         port_state             = EXCLUDED.port_state,
-    #         port_service           = EXCLUDED.port_service,
-    #         port_protocol          = EXCLUDED.port_protocol,
-    #         port_product           = EXCLUDED.port_product,
-    #         port_version           = EXCLUDED.port_version,
-    #         port_cpe               = EXCLUDED.port_cpe,
-    #         port_os                = EXCLUDED.port_os,
-    #         port_last_seen_ts      = EXCLUDED.port_last_seen_ts,
-    #         port_scan_duration_sec = EXCLUDED.port_scan_duration_sec,
-    #         port_first_seen_ts     = COALESCE(Ports.port_first_seen_ts, EXCLUDED.port_first_seen_ts);
-    #     """
-
-    #     # Encrypt IP and prepare values
-    #     try:
-    #         encrypted_ip = encrypt_ip(task['ip'])
-    #     except Exception as e:
-    #         logger.error(f"[QueryHandler] IP encryption failed: {e}")
-    #         return
-
-    #     now_ts = get_current_timestamp()
-    #     values = (
-    #         encrypted_ip,
-    #         task['port'],
-    #         task['port_state'],
-    #         task['port_service'],
-    #         task['port_protocol'],
-    #         task['port_product'],
-    #         task['port_version'],
-    #         task['port_cpe'],
-    #         task['port_os'],
-    #         now_ts,    # first seen
-    #         now_ts,    # last seen
-    #         float(task['duration']),
-    #     )
-
-    #     # Retry loop to handle transient SSL / connection errors
-    #     for attempt in range(1, retry_limit + 1):
-    #         try:
-    #             # If our connection was closed, grab a fresh one
-    #             if getattr(self.connection, 'closed', False):
-
-    #                 self.connection = QueryHandler._pool.getconn()
-    #                 logger.info(
-    #                     f"[QueryHandler] Reconnected DB in insert_port_result (attempt {attempt})"
-    #                 )
-
-    #             with self.connection.cursor() as cur:
-    #                 cur.execute(upsert_sql, values)
-    #             self.connection.commit()
-    #             logger.info(
-    #                 f"[QueryHandler] Upserted port {task['ip']}:{task['port']} ({task['port_state']})"
-    #             )
-    #             return
-
-    #         except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-    #             logger.warning(
-    #                 f"[QueryHandler] insert_port_result connection error "
-    #                 f"(attempt {attempt}): {e}"
-    #             )
-    #             # Force a fresh connection and retry
-    #             try:
-    #                 self.connection = QueryHandler._pool.getconn()
-    #                 logger.info(
-    #                     "[QueryHandler] Reconnected DB for insert_port_result"
-    #                 )
-    #             except Exception as conn_e:
-    #                 logger.error(
-    #                     f"[QueryHandler] Failed to reconnect in insert_port_result: {conn_e}"
-    #                 )
-
-    #         except Exception as e:
-    #             logger.warning(
-    #                 f"[QueryHandler] insert_port_result attempt {attempt} failed: {e}"
-    #             )
-
-    #         # Roll back any partial transaction before retrying
-    #         try:
-    #             self.connection.rollback()
-    #         except Exception:
-    #             pass
-
-    #         # Back off before next retry
-    #         if attempt < retry_limit:
-    #             time.sleep(0.5 * attempt)
-
-    #     logger.error(
-    #         f"[QueryHandler] insert_port_result failed after {retry_limit} attempts"
-    #     )
-
-    #TODO: Verify that this is not dead code
     def insert_port_result(
         self,
         task: dict
@@ -509,58 +369,6 @@ class QueryHandler:
 
         return QueryModel(query, params, fetch=False)
 
-
-    # def port_exists(self, ip: str, port: int, retry_limit: int = 3) -> bool:
-    #     """Check if a port scan result already exists for a given IP and port, with retries.
-
-    #     Args:
-    #         ip (str): IP address.
-    #         port (int): Port number.
-    #         retry_limit (int): Number of retry attempts on failure.
-
-    #     Returns:
-    #         bool: True if the port exists, False otherwise.
-    #     """
-    #     try:
-    #         encrypted_ip = encrypt_ip(ip)
-    #     except Exception as e:
-    #         logger.error(f"[QueryHandler] IP encryption failed in port_exists: {e}")
-    #         return False
-
-    #     query = """
-    #         SELECT 1
-    #         FROM Ports
-    #         WHERE ip_addr = %s
-    #           AND port    = %s
-    #         LIMIT 1
-    #     """
-
-    #     for attempt in range(1, retry_limit + 1):
-    #         try:
-    #             # if connection was closed underneath us, grab a new one
-    #             if getattr(self.connection, "closed", False):
-    #                 self.connection = QueryHandler._pool.getconn()
-    #                 logger.info(f"[QueryHandler] Reconnected DB in port_exists (attempt {attempt})")
-
-    #             with self.connection.cursor() as cur:
-    #                 cur.execute(query, (encrypted_ip, port))
-    #                 return cur.fetchone() is not None
-
-    #         except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-    #             logger.warning(f"[QueryHandler] port_exists connection error (attempt {attempt}): {e}")
-    #             # try to reconnect immediately
-    #             try:
-    #                 self.connection = QueryHandler._pool.getconn()
-    #                 logger.info("[QueryHandler] Reconnected DB in port_exists after error")
-    #             except Exception as conn_e:
-    #                 logger.error(f"[QueryHandler] Failed to reconnect in port_exists: {conn_e}")
-    #         except Exception as e:
-    #             logger.warning(f"[QueryHandler] port_exists unexpected error (attempt {attempt}): {e}")
-
-    #         if attempt < retry_limit:
-    #             time.sleep(0.5 * attempt)
-    #     logger.error(f"[QueryHandler] port_exists failed after {retry_limit} attempts")
-    #     return False
     
     def port_exists(
         self,

@@ -4,7 +4,11 @@ from config.scan_config import SCAN_NATION, QUEUE_NAME, ADDR_FILE
 #----- Type annotation imports -----#
 from external.ExternalManager import ExternalManager
 from infrastructure.InfrastructureManager import InfrastructureManager
-from logic.LogicManager import LogicManager
+
+from pika.adapters.blocking_connection import BlockingChannel
+from pika.adapters.blocking_connection import BlockingConnection
+from pika.spec import Basic, BasicProperties
+# from logic.LogicManager import LogicManager
 from services.HostDiscovery import HostDiscovery
 
 #----- Util classes imports -----#
@@ -63,10 +67,8 @@ from config.logging_config import logger, log_exception
 # Services
 from infrastructure.QueryHandler import QueryHandler
 from infrastructure.RabbitMQ import RabbitMQ
-# from logic.ip_manager import HostDiscovery
-from services.HostDiscovery import HostDiscovery
 
-# from .DBWorker import DBWorker
+from services.HostDiscovery import HostDiscovery
 
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
@@ -76,10 +78,9 @@ proc = psutil.Process(os.getpid())
 
 
 class IPScanner:
-    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager, logicManager: LogicManager, hostDiscovery: HostDiscovery):
+    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager, hostDiscovery: HostDiscovery):
         self.externalManager = externalManager
         self.infraManager = infraManager
-        self.logicManager = logicManager
 
         self.hostDiscovery = hostDiscovery
 
@@ -152,21 +153,13 @@ class IPScanner:
         Default:
             Read from a file.
         """
+        ## Delete Queues for a fresh run. This is for testing purposes only ##
+        sys.stderr.write("Remove queues? (y/n): ")
+        sys.stderr.flush()
+        clean_queue = sys.stdin.readline().strip().lower() == 'y'
 
-        ## For testing purposes ##
-        if input('Remove queues? (y/n): ').lower() == 'y':
-            # all = RabbitMQ('all_addr')
-            # all.channel.queue_delete('all_addr')
-            # all.close()
+        if clean_queue:
 
-            # alive = RabbitMQ('alive_addr')
-            # alive.channel.queue_delete('alive_addr')
-            # alive.close()
-
-            # dead = RabbitMQ('dead_addr')
-            # dead.channel.queue_delete('dead_addr')
-            # dead.close()
-            
             for queue_name in RabbitMQ.list_queues():
                 try:
                     temp_rmq = RabbitMQ(queue_name)
@@ -234,9 +227,19 @@ class IPScanner:
             A new HostDiscovery instance is created for each process to avoid
             sharing DB or RMQ connections across forks.
         """
+        ### For testing purposes ###
+        # import os
+        # worker_pid = str(os.getpid())
+        # logger.critical(f'worker_pid {worker_pid} has just been created for queue {queue_name}!')
+        ### For testing purposes ###
         rmq = RabbitMQ(queue_name)
         db_manager = QueryHandler()
         hostDiscovery = HostDiscovery(db_manager=db_manager)
+
+        # Adding type annotations for variables for clarity
+        method_frame: Basic.GetOk
+        props: BasicProperties
+        body: bytes
 
         while True:
             method_frame, props, body = rmq.channel.basic_get(
@@ -247,7 +250,7 @@ class IPScanner:
                 break
 
             try:
-                # Spawn a short-lived process for this one task
+                # # Spawn a short-lived process for this one task
                 task_proc = multiprocessing.Process(
                     target=hostDiscovery.process_task,
                     args=(rmq.channel, method_frame, props, body),
@@ -300,6 +303,12 @@ class IPScanner:
         Raises:
             SystemExit: If memory or CPU usage exceeds configured limits.
         """
+        ### For testing purposes ###
+        # import os
+        # worker_pid = str(os.getpid())
+        # logger.critical(f'worker_pid {worker_pid} is currently IPScanner.start_consuming({main_queue_name})')
+        ### For testing purposes ###
+        
         # If no queue specified, warn and return immediately
         if not main_queue_name:
             logger.warning("[IPScanner] Main queue name missing")

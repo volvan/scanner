@@ -42,14 +42,29 @@ class RabbitMQ:
         try:
             credentials = pika.PlainCredentials(rmq_config.RMQ_USER, rmq_config.RMQ_PASS)
             heartbeat = int(os.getenv("RMQ_HEARTBEAT", "300"))
+            # give each process/queue a human-readable name
+            connection_name = f"scan_app[{self.queue_name}]@{os.getpid()}"
             parameters = pika.ConnectionParameters(
-                rmq_config.RMQ_HOST,
-                int(rmq_config.RMQ_PORT),
-                '/',
-                credentials,
+                host=rmq_config.RMQ_HOST,
+                port=int(rmq_config.RMQ_PORT),
+                virtual_host='/',
+                credentials=credentials,
                 heartbeat=heartbeat,
-                blocked_connection_timeout=300
+                blocked_connection_timeout=300,
+                client_properties={
+                    'connection_name': connection_name
+                }
             )
+            # credentials = pika.PlainCredentials(rmq_config.RMQ_USER, rmq_config.RMQ_PASS)
+            # heartbeat = int(os.getenv("RMQ_HEARTBEAT", "300"))
+            # parameters = pika.ConnectionParameters(
+            #     rmq_config.RMQ_HOST,
+            #     int(rmq_config.RMQ_PORT),
+            #     '/',
+            #     credentials,
+            #     heartbeat=heartbeat,
+            #     blocked_connection_timeout=300
+            # )
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
             self.declare_queue()

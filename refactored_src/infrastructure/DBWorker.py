@@ -57,7 +57,10 @@ class DBWorker:
         if not all(creds):
             raise ValueError("Database credentials not set.")
 
+        worker_pid = str(os.getpid())
+        # logger.critical(f'worker_pid {worker_pid} trying to access ThreadedConnectionPool')
         with cls._pool_lock:
+            # logger.critical(f'worker_pid {worker_pid} successfully started creating an connection')
             try:
                 cls._pool = ThreadedConnectionPool(
                     minconn,
@@ -67,8 +70,10 @@ class DBWorker:
                     password=database_config.DB_PASS,
                     host=database_config.DB_HOST,
                     port=database_config.DB_PORT,
+                    application_name="scanner_dbworker",
                 )
                 cls._pool_pid = os.getpid()
+                # logger.critical(f"[DBWorker] Connection pool created for worker_pid {worker_pid}.")
                 logger.info("[DBWorker] Connection pool created.")
             except Exception as e:
                 logger.error(f"[DBWorker] Pool initialization failed: {e}")

@@ -22,7 +22,8 @@ class PortManager:
 
     def __init__(self):
         """Initialize PortManager and prepare for queue management."""
-        logger.debug(f"[PortManager] Ready to manage '{ALL_PORTS_QUEUE}' and '{PRIORITY_PORTS_QUEUE}' queues.")
+        debug_msg = f"[PortManager] Ready to manage '{ALL_PORTS_QUEUE}' and '{PRIORITY_PORTS_QUEUE}' queues."
+        logger.debug(debug_msg)
 
     def enqueue_ports(self, queue_name: str, ports: list[int]):
         """Enqueue a list of ports into the specified RabbitMQ queue.

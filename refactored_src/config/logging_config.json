@@ -21,16 +21,16 @@
   "handlers": {
     "stderr": {
       "class": "logging.StreamHandler",
-      "level": "DEBUG",
+      "level": "WARNING",
       "formatter": "detailed",
       "stream": "ext://sys.stderr",
       "filters": ["username_filter"]
     },
     "file": {
       "class": "logging.handlers.RotatingFileHandler",
-      "level": "DEBUG",
+      "level": "WARNING",
       "formatter": "detailed",
-      "filename": "logs/custom_app.log",
+      "filename": "logs/detailed_worker.log",
       "maxBytes": 1073741824,
       "backupCount": 5,
       "filters": ["username_filter"]
@@ -41,6 +41,6 @@
     "level": "DEBUG",
     "handlers": ["stderr", "file"],
     "formatter": "detailed",
-    "filename": "logs/custom_app.log"
+    "filename": "logs/detailed_worker.log"
   }
 }

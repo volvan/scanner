@@ -9,12 +9,16 @@ class QueryModel:
     Attributes:
         query (str): The SQL text with placeholders (%s).
         params (Tuple): The parameters to bind to the query.
-        fetch (bool): If True, indicates this is a SELECT and rows should be returned.
+        fetch (bool): If True, indicates this is a SELECT and 
+        rows should be returned.
     """
 
     __slots__ = ("query", "params", "fetch")
 
-    def __init__(self, query: str, params: Tuple = (), fetch: bool = False) -> None:
+    def __init__(self, 
+                 query: str, 
+                 params: Tuple = (), 
+                 fetch: bool = False) -> None:
         self.query: str = query
         self.params: Tuple = params
         self.fetch: bool = fetch

@@ -15,7 +15,7 @@ configure_logging(CONFIG_PATH)
 # logger.addFilter(LogicFilter(logicWrapper))
 logger.addFilter(WorkerPIDFilter())
 
-acceptable_args = ['ip', 'port', 'fail']
+acceptable_args = ['ip', 'port']
 
 if __name__ == '__main__':
     # Validate command line arguments passed in
@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     
     if len(args) != 2 or command not in acceptable_args: 
-        print('\nInvalid argument(s).\n\n\tpython3 start_application [ip]scan|[port]scan|[fail]queue\n\n\nPlease try again\n')
+        print('\nInvalid argument(s).\n\n\tpython3 start_application [ip]scan|[port]scan\n\n\nPlease try again\n')
         sys.exit(1)
 
     serviceManager = ServiceManager()
@@ -34,7 +34,6 @@ if __name__ == '__main__':
     args_direct = {
         'ip': serviceManager.start_ip_scan,
         'port': serviceManager.start_port_scan,
-        'fail': serviceManager.start_fail_queue,
     }
 
 

@@ -2,6 +2,9 @@
 import json
 import sys
 
+# Type annotation
+from pika.spec import Basic, BasicProperties
+
 # Utility Handlers
 from utils.randomize_handler import reservoir_of_reservoirs
 
@@ -46,9 +49,15 @@ class IPBatchHandler:
 
         tasks: list[dict] = []
         deliveries: list = []
-
+        
         for _ in range(scan_config.BATCH_SIZE):
-            method_frame, _, body = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
+            response: tuple[Basic.GetOk | None, BasicProperties, bytes]  = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
+
+            method_frame:Basic.GetOk
+            properties: BasicProperties
+            body: bytes
+            method_frame, properties, body = response
+
             if not method_frame:
                 break
             deliveries.append(method_frame)

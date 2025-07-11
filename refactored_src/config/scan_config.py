@@ -41,7 +41,7 @@ SINGLE_ADDR = os.getenv("SINGLE_ADDR", "8.8.8.0")                     # Single I
 
 # ─── General scan parameters ──────────────────────────────────────────────
 # WORKERS = int(os.getenv("WORKERS", 250))                              # Number of workers to spawn
-WORKERS = int(os.getenv("WORKERS", 15))  # Testing
+WORKERS = int(os.getenv("WORKERS", 250))  # Testing
 
 SCAN_DELAY = float(os.getenv("SCAN_DELAY", 0.5))                      # Delay (sec) between scan attempts
 THRESHOLD = int(os.getenv("THRESHOLD", 30))                           # Direct vs batch mode threshold
