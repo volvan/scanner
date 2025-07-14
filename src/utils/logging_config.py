@@ -1,18 +1,8 @@
 import sys
 import os
-import json
 import logging
 from logging.handlers import RotatingFileHandler
-
-# --- Load configuration ---
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/logging_config.json")
-
-with open(CONFIG_PATH, "r") as f:
-    config = json.load(f)
-
-DEBUG_MODE = config.get("debug", False)
-SERVICE_TAG = config.get("service_tag", "core")
-LOG_TO_FILE = config.get("log_to_file", True)
+from config.scan_config import DEBUG_MODE, LOG_TO_FILE
 
 # --- Logger setup ---
 logger = logging.getLogger("GlobalHandler")
@@ -21,7 +11,7 @@ logger.setLevel(logging.DEBUG)
 # --- Console Handler ---
 console_handler = logging.StreamHandler()
 console_formatter = logging.Formatter(
-    f"[%(levelname)s] %(asctime)s - {SERVICE_TAG} - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
+    f"[%(levelname)s] %(asctime)s - core - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
 )
 console_handler.setFormatter(console_formatter)
 console_handler.setLevel(logging.DEBUG if DEBUG_MODE else logging.WARNING)
@@ -33,12 +23,12 @@ if LOG_TO_FILE:
     os.makedirs(log_dir, exist_ok=True)
 
     file_handler = RotatingFileHandler(
-        os.path.join(log_dir, f"{SERVICE_TAG}.log"),
+        os.path.join(log_dir, f"core.log"),
         maxBytes=5 * 1024 * 1024,
         backupCount=3
     )
     file_formatter = logging.Formatter(
-        f"%(asctime)s - {SERVICE_TAG} - %(levelname)s - %(name)s - %(message)s"
+        f"%(asctime)s - core - %(levelname)s - %(name)s - %(message)s"
     )
     file_handler.setFormatter(file_formatter)
     file_handler.setLevel(logging.DEBUG)

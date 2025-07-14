@@ -23,7 +23,7 @@ from config.scan_config import (
     ALL_PORTS_QUEUE,
     PRIORITY_PORTS_QUEUE,
 )
-from config.logging_config import logger, log_exception
+from utils.logging_config import logger, log_exception
 
 # Services
 from rmq.rmq_manager import RMQManager

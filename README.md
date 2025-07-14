@@ -32,8 +32,6 @@ The core component responsible for conducting the network scans, is named Völva
     ├── config/
     │   ├── __init__.py
     │   ├── credentials_config.py
-    │   ├── logging_config.json
-    │   ├── logging_config.py
     │   └── scan_config.py      # The configurations for the scanner
     │
     ├── database/
@@ -58,6 +56,7 @@ The core component responsible for conducting the network scans, is named Völva
     ├── utils/
     │   ├── __init__.py
     │   ├── batch_handler.py
+        │   logging_config.py
     │   ├── block_handler.py
     │   ├── crypto.py
     │   ├── ping_handler.py
@@ -112,6 +111,7 @@ cd scanner/
 ```bash
 python3.11 -m venv venv
 source venv/bin/activate
+cd ..
 pip install -r requirements.txt
 ```
 

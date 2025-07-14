@@ -7,7 +7,7 @@ from utils.randomize_handler import reservoir_of_reservoirs
 
 # Configuration
 from config import scan_config
-from config.logging_config import logger, log_exception
+from utils.logging_config import logger, log_exception
 
 # Services
 from rmq.rmq_manager import RMQManager

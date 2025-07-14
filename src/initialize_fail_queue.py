@@ -7,7 +7,7 @@ from database.db_manager import db_ports, DatabaseManager
 from utils.worker_handler import DBWorker
 
 from config.scan_config import FAIL_QUEUE, OUTPUT_FAIL_QUEUE
-from config.logging_config import logger
+from utils.logging_config import logger
 
 # The queue we consume retries from
 INPUT_FAIL_QUEUE = FAIL_QUEUE

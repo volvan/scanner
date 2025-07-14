@@ -7,7 +7,7 @@ import requests  # type: ignore
 
 # Configuration
 from config import credentials_config
-from config.logging_config import log_exception, logger
+from utils.logging_config import log_exception, logger
 from config.scan_config import FAIL_QUEUE
 
 

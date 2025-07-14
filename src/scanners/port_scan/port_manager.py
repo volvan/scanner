@@ -6,7 +6,7 @@ from utils.probe_handler import ProbeHandler
 from utils.queue_initializer import QueueInitializer
 
 # Configuration
-from config.logging_config import log_exception, logger
+from utils.logging_config import log_exception, logger
 from config.scan_config import ALL_PORTS_QUEUE, PRIORITY_PORTS_QUEUE, FAIL_QUEUE
 
 # Services

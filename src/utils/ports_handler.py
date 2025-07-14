@@ -4,7 +4,7 @@ import sys
 
 # Configuration
 from config.scan_config import TARGETS_FILE_PATH
-from config.logging_config import logger, log_exception
+from utils.logging_config import logger, log_exception
 
 
 sys.excepthook = log_exception

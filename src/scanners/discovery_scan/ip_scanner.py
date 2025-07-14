@@ -26,7 +26,7 @@ from config.scan_config import (  # noqa: F401
     CPU_LIMIT,
     BATCH_TIMEOUT_SEC,
 )
-from config.logging_config import logger, log_exception
+from utils.logging_config import logger, log_exception
 
 # Services
 from database.db_manager import DatabaseManager

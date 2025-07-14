@@ -16,7 +16,7 @@ from config.scan_config import (  # noqa: F401
 # Utility Handlers
 from utils.timestamp import get_current_timestamp
 from utils.ports_handler import read_ports_file
-from config.logging_config import logger
+from utils.logging_config import logger
 
 """
 Entrypoint for the port‐scanning service.

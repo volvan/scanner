@@ -11,7 +11,7 @@ from utils.timestamp import get_current_timestamp
 
 # Configuration
 from config import credentials_config
-from config.logging_config import logger
+from utils.logging_config import logger
 
 # Services
 from psycopg2 import sql

@@ -10,7 +10,7 @@ import traceback
 
 # Configuration
 from config import scan_config
-from config.logging_config import log_exception
+from utils.logging_config import log_exception
 
 # Services
 from rmq.rmq_manager import RMQManager

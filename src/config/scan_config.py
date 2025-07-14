@@ -10,6 +10,11 @@ WHO_IS_SCAN_DELAY = int(os.getenv("WHO_IS_SCAN_DELAY", 2))
 MEM_LIMIT = int(os.getenv("SCAN_MEM_LIMIT", 1_000)) * 1024**2
 CPU_LIMIT = int(os.getenv("SCAN_CPU_LIMIT", 70))
 
+# --- Monitoring (logs) configurations ---------------------
+
+DEBUG_MODE = False                   # Debug mode T/F
+LOG_TO_FILE = True                   # Log the output to a file or simply in terminal
+
 # ─── RabbitMQ queue names (centralized for easy updates) ─────────────────────
 
 # Manual override using environment variables for flexibility during testing/multi-country runs

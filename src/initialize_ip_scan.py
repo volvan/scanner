@@ -20,7 +20,7 @@ from utils.block_handler import read_block
 from utils.timestamp import get_current_timestamp
 
 # Configuration Logging
-from config.logging_config import logger
+from utils.logging_config import logger
 
 
 """Main entry point for initiating the IP discovery scan.

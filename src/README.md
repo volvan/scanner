@@ -118,13 +118,3 @@ For concurrent scans per country:
 
 Ensure queue names do not collide by prefixing with country code.
 
-## Logs and Monitoring
-
-- Logs are written to `logs/ip_scan.log` and `logs/port_scan.log` (as per `logging_config.json`).
-- Adjust `debug`, `log_to_file`, and `service_tag` in `src/config/logging_config.json`.
-- Monitor in real time:
-    
-    ```bash
-    tail -f logs/ip_scan.log
-    ```
-    

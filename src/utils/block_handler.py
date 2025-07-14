@@ -10,7 +10,7 @@ from datetime import date
 from utils.timestamp import get_current_timestamp, parse_timestamp
 
 # Configuration
-from config.logging_config import log_exception, logger
+from utils.logging_config import log_exception, logger
 from config.scan_config import TARGETS_FILE_PATH, WHO_IS_SCAN_DELAY
 
 # Services

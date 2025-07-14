@@ -7,7 +7,7 @@ from utils.timestamp import get_current_timestamp, duration_timestamp
 
 # Configuration
 from config.scan_config import NMAP_FLAGS, PROBE_TIMEOUT, SCAN_DELAY, UNPRIV_SCAN_FLAGS
-from config.logging_config import log_exception, logger
+from utils.logging_config import log_exception, logger
 
 sys.excepthook = log_exception
 
