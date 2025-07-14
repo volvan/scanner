@@ -41,8 +41,6 @@ def parse_timestamp(timestamp_str: str) -> datetime:
     Returns:
         datetime: Parsed datetime object.
 
-    Raises:
-        ValueError: If the input string is not properly formatted.
     """
     return datetime.fromisoformat(timestamp_str)
 

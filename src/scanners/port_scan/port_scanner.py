@@ -26,7 +26,7 @@ from config.scan_config import (
 from utils.logging_config import logger, log_exception
 
 # Services
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 from scanners.port_scan.port_manager import PortManager
 
 sys.excepthook = log_exception
@@ -68,7 +68,7 @@ class PortScanner:
         Notes:
             This runs inside a spawned process. Each task is ACKed or NACKed after handling.
         """
-        rmq = RMQManager(batch_queue)
+        rmq = RabbitMQ(batch_queue)
         pm = PortManager()
 
         while True:
@@ -122,8 +122,8 @@ class PortScanner:
             )
 
             if not batch_q:
-                remaining = RMQManager(main_queue_name).tasks_in_queue()
-                RMQManager(main_queue_name).close()
+                remaining = RabbitMQ(main_queue_name).tasks_in_queue()
+                RabbitMQ(main_queue_name).close()
                 if remaining == 0:
                     logger.info("[PortScanner] All port batches completed.")
                     break

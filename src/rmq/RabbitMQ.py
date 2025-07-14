@@ -14,11 +14,11 @@ from config.scan_config import FAIL_QUEUE
 sys.excepthook = log_exception
 
 
-class RMQManager:
+class RabbitMQ:
     """Low-level wrapper for RabbitMQ operations, including connection, queue management, and pub/sub."""
 
     def __init__(self, queue_name: str):
-        """Initialize the RMQManager with the given queue name.
+        """Initialize the RabbitMQ with the given queue name.
 
         Args:
             queue_name (str): Name of the queue to manage.
@@ -52,7 +52,7 @@ class RMQManager:
             self.channel = self.connection.channel()
             self.declare_queue()
         except Exception as e:
-            logger.error(f"[RMQManager] Connection error: {e}")
+            logger.error(f"[RabbitMQ] Connection error: {e}")
             raise
 
     def declare_queue(self) -> None:
@@ -60,17 +60,17 @@ class RMQManager:
         try:
             self.channel.queue_declare(queue=self.queue_name, durable=True)
         except Exception as e:
-            logger.error(f"[RMQManager] Failed to declare queue '{self.queue_name}': {e}")
+            logger.error(f"[RabbitMQ] Failed to declare queue '{self.queue_name}': {e}")
 
     def _ensure_channel(self) -> None:
         """Ensure channel is open; reconnect and redeclare if closed."""
         if not hasattr(self, 'channel') or self.channel.is_closed:
-            logger.warning(f"[RMQManager] Channel closed for '{self.queue_name}'; reconnecting...")
+            logger.warning(f"[RabbitMQ] Channel closed for '{self.queue_name}'; reconnecting...")
             self.reconnect()
             try:
                 self.channel.queue_declare(queue=self.queue_name, durable=True)
             except Exception as e:
-                logger.error(f"[RMQManager] Failed to redeclare queue '{self.queue_name}': {e}")
+                logger.error(f"[RabbitMQ] Failed to redeclare queue '{self.queue_name}': {e}")
 
     def queue_exists(self) -> bool:
         """Check if the managed queue exists.
@@ -109,7 +109,7 @@ class RMQManager:
             queue_info = self.channel.queue_declare(queue=self.queue_name, passive=True)
             return queue_info.method.message_count
         except Exception as e:
-            logger.error(f"[RMQManager] Error checking queue: {e}")
+            logger.error(f"[RabbitMQ] Error checking queue: {e}")
             return 0
 
     def enqueue(self, message: dict) -> None:
@@ -132,7 +132,7 @@ class RMQManager:
                 properties=pika.BasicProperties(delivery_mode=2)
             )
         except (pika.exceptions.ChannelClosedByBroker, pika.exceptions.ConnectionClosed) as e:
-            logger.warning(f"[RMQManager] Failed to enqueue (closed channel): {e}")
+            logger.warning(f"[RabbitMQ] Failed to enqueue (closed channel): {e}")
             try:
                 self.reconnect()
                 self.channel.queue_declare(queue=self.queue_name, durable=True)
@@ -143,9 +143,9 @@ class RMQManager:
                     properties=pika.BasicProperties(delivery_mode=2)
                 )
             except Exception as ex:
-                logger.error(f"[RMQManager] Retry publish failed for '{self.queue_name}': {ex}")
+                logger.error(f"[RabbitMQ] Retry publish failed for '{self.queue_name}': {ex}")
         except Exception as e:
-            logger.error(f"[RMQManager] Failed to enqueue message to '{self.queue_name}': {e}")
+            logger.error(f"[RabbitMQ] Failed to enqueue message to '{self.queue_name}': {e}")
 
     def start_consuming(self, callback: object) -> None:
         """Start consuming messages from the queue with a specified callback.
@@ -165,19 +165,19 @@ class RMQManager:
             logger.info(f"[*] Worker waiting for messages in queue: {self.queue_name}. Press CTRL+C to exit.")
             self.channel.start_consuming()
         except (pika.exceptions.ConnectionClosedByBroker, pika.exceptions.ChannelClosedByBroker) as e:
-            logger.warning(f"[RMQManager] Broker closed connection: {e}")
+            logger.warning(f"[RabbitMQ] Broker closed connection: {e}")
         except Exception as e:
-            logger.error(f"[RMQManager] Unexpected error while consuming: {e}")
+            logger.error(f"[RabbitMQ] Unexpected error while consuming: {e}")
         finally:
             self.close()
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
-        logger.info("[RMQManager] Reconnecting to RabbitMQ...")
+        logger.info("[RabbitMQ] Reconnecting to RabbitMQ...")
         try:
             self.close()
         except Exception as e:
-            logger.error(f"[RMQManager] Error during reconnect close: {e}")
+            logger.error(f"[RabbitMQ] Error during reconnect close: {e}")
         self._connect()
 
     def close(self) -> None:
@@ -186,7 +186,7 @@ class RMQManager:
             try:
                 self.connection.close()
             except Exception as e:
-                logger.error(f"[RMQManager] Error closing connection: {e}")
+                logger.error(f"[RabbitMQ] Error closing connection: {e}")
 
     @staticmethod
     def worker_consume(queue_name: str, callback: object) -> None:
@@ -197,11 +197,11 @@ class RMQManager:
             callback (object): Callback function to process each message.
         """
         try:
-            manager = RMQManager(queue_name)
-            logger.info(f"[RMQManager] Worker consuming from queue: {queue_name}")
+            manager = RabbitMQ(queue_name)
+            logger.info(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
             manager.start_consuming(callback)
         except Exception as e:
-            logger.error(f"[RMQManager] Worker failed to start consuming: {e}")
+            logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
         finally:
             try:
                 manager.close()
@@ -225,7 +225,7 @@ class RMQManager:
             queues = response.json()
             return [q["name"] for q in queues if q["name"].startswith(prefix)]
         except Exception as e:
-            logger.error(f"[RMQManager] Error fetching queue list: {e}")
+            logger.error(f"[RabbitMQ] Error fetching queue list: {e}")
             return []
 
     def get_next_message(self, key: str) -> str | None:
@@ -243,7 +243,7 @@ class RMQManager:
                 data = json.loads(body)
                 return data.get(key)
         except Exception as e:
-            logger.error(f"[RMQManager] Failed to fetch next message from '{self.queue_name}': {e}")
+            logger.error(f"[RabbitMQ] Failed to fetch next message from '{self.queue_name}': {e}")
         return None
 
     def remove_queue(self) -> None:
@@ -253,11 +253,11 @@ class RMQManager:
         """
         try:
             if self.queue_empty(self.queue_name):
-                logger.info(f"[RMQManager] {self.queue_name} is empty. Deleting.")
+                logger.info(f"[RabbitMQ] {self.queue_name} is empty. Deleting.")
                 self.channel.queue_delete(queue=self.queue_name)
                 return
 
-            logger.warning(f"[RMQManager] {self.queue_name} is not empty. Draining to 'fail_queue'.")
+            logger.warning(f"[RabbitMQ] {self.queue_name} is not empty. Draining to 'fail_queue'.")
             leftovers = []
             while True:
                 method_frame, _, body = self.channel.basic_get(queue=self.queue_name, auto_ack=True)
@@ -267,16 +267,16 @@ class RMQManager:
                     task = json.loads(body)
                     leftovers.append(task)
                 except Exception as e:
-                    logger.error(f"[RMQManager] Failed to decode task: {e}")
+                    logger.error(f"[RabbitMQ] Failed to decode task: {e}")
 
             self.channel.queue_delete(queue=self.queue_name)
             self.close()
 
-            fail_rmq = RMQManager(FAIL_QUEUE)
+            fail_rmq = RabbitMQ(FAIL_QUEUE)
             for task in leftovers:
                 fail_rmq.enqueue(task)
             fail_rmq.close()
 
-            logger.info(f"[RMQManager] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
+            logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
         except Exception as e:
-            logger.error(f"[RMQManager] Error during queue removal for '{self.queue_name}': {e}")
+            logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")

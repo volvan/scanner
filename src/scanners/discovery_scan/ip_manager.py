@@ -15,7 +15,7 @@ from utils.logging_config import log_exception, logger
 # Services
 from database.db_manager import db_hosts
 from database.db_manager import DatabaseManager
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
@@ -34,21 +34,21 @@ class IPManager:
 
         # Initialize Alive queue
         try:
-            self.alive_rmq = RMQManager(ALIVE_ADDR_QUEUE)
+            self.alive_rmq = RabbitMQ(ALIVE_ADDR_QUEUE)
         except Exception as e:
             logger.error(f"[IPManager] Failed to init {ALIVE_ADDR_QUEUE} queue: {e}")
             self.alive_rmq = None
 
         # Initialize Dead queue
         try:
-            self.dead_rmq = RMQManager(DEAD_ADDR_QUEUE)
+            self.dead_rmq = RabbitMQ(DEAD_ADDR_QUEUE)
         except Exception as e:
             logger.error(f"[IPManager] Failed to init {DEAD_ADDR_QUEUE} queue: {e}")
             self.dead_rmq = None
 
         # Initialize Fail queue
         try:
-            self.fail_rmq = RMQManager(FAIL_QUEUE)
+            self.fail_rmq = RabbitMQ(FAIL_QUEUE)
         except Exception as e:
             logger.error(f"[IPManager] Failed to init {FAIL_QUEUE} queue: {e}")
             self.fail_rmq = None

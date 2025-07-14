@@ -1,7 +1,7 @@
 # Services
 from database.db_manager import DatabaseManager
 from scanners.discovery_scan.ip_scanner import IPScanner
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 
 # Configuration
 from config.scan_config import (  # noqa: F401
@@ -46,7 +46,7 @@ def enqueue_new_targets(scanner: IPScanner):
         Read from a file.
     """
     queue_name = QUEUE_NAME
-    rmq = RMQManager(queue_name)
+    rmq = RabbitMQ(queue_name)
     tasks_remaining = rmq.tasks_in_queue()
     rmq.close()
 

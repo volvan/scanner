@@ -10,7 +10,7 @@ from config import scan_config
 from utils.logging_config import logger, log_exception
 
 # Services
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
@@ -42,7 +42,7 @@ class IPBatchHandler:
             - Bad or invalid messages are routed to the fail queue.
             - If no valid tasks are found, messages are requeued.
         """
-        rmq_main = RMQManager(main_queue_name)
+        rmq_main = RabbitMQ(main_queue_name)
 
         tasks: list[dict] = []
         deliveries: list = []
@@ -63,7 +63,7 @@ class IPBatchHandler:
                         logger.warning("[IPBatchHandler] Failed to nack bad payload: %s", ex)
             except Exception:
                 try:
-                    RMQManager(scan_config.FAIL_QUEUE).enqueue({"raw": body.decode()})
+                    RabbitMQ(scan_config.FAIL_QUEUE).enqueue({"raw": body.decode()})
                 except Exception as enqueue_ex:
                     logger.error(f"[IPBatchHandler] Failed to enqueue to fail_queue: {enqueue_ex}")
                 rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
@@ -79,7 +79,7 @@ class IPBatchHandler:
             return None
 
         batch_queue = f"batch_{self.batch_id}"
-        rmq_batch = RMQManager(batch_queue)
+        rmq_batch = RabbitMQ(batch_queue)
 
         try:
             for task in tasks:
@@ -134,7 +134,7 @@ class PortBatchHandler:
         if self.ips_cache is not None:
             return self.ips_cache
 
-        ip_rmq = RMQManager(ip_queue)
+        ip_rmq = RabbitMQ(ip_queue)
         all_ips: list[str] = []
 
         while True:
@@ -183,7 +183,7 @@ class PortBatchHandler:
             The port is pulled from the port queue and associated with all cached IPs.
             Ports already batched previously are skipped.
         """
-        port_rmq = RMQManager(port_queue)
+        port_rmq = RabbitMQ(port_queue)
         method, _, body = port_rmq.channel.basic_get(queue=port_queue, auto_ack=True)
         port_rmq.close()
 
@@ -210,7 +210,7 @@ class PortBatchHandler:
 
         prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port"
         batch_name = f"{prefix}_{port}"
-        batch_rmq = RMQManager(batch_name)
+        batch_rmq = RabbitMQ(batch_name)
 
         count = 0
         for ip in reservoir_of_reservoirs(ips):

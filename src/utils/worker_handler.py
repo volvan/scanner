@@ -13,7 +13,7 @@ from config import scan_config
 from utils.logging_config import log_exception
 
 # Services
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 from scanners.port_scan.port_manager import PortManager
 from database.db_manager import DatabaseManager
 from database.db_manager import db_hosts, db_ports
@@ -48,14 +48,14 @@ class WorkerHandler:
         """
         try:
             logger.info(f"Worker {worker_id} starting...")
-            RMQManager.worker_consume(self.queue_name, self.process_callback)
+            RabbitMQ.worker_consume(self.queue_name, self.process_callback)
         except KeyboardInterrupt:
             logger.warning(f"Worker {worker_id} received KeyboardInterrupt. Exiting.")
         except Exception as e:
             logger.exception(f"Worker {worker_id} crashed: {e}")
         finally:
             try:
-                rmq_manager = RMQManager(self.queue_name)
+                rmq_manager = RabbitMQ(self.queue_name)
                 if rmq_manager.queue_empty(self.queue_name):
                     logger.info(f"Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
                     rmq_manager.remove_queue()
@@ -123,7 +123,7 @@ class PortScanWorker:
         except Exception as e:
             # Log and handle any errors encountered during task processing
             logger.exception(f"[PortScanWorker] Task crash: {e}")
-            RMQManager(scan_config.FAIL_QUEUE).enqueue({
+            RabbitMQ(scan_config.FAIL_QUEUE).enqueue({
                 "error": str(e),
                 "raw_task": body.decode() if isinstance(body, bytes) else str(body)
             })
@@ -166,7 +166,7 @@ class PortScanJobRunner:
                     continue
 
                 logger.info(f"Worker {worker_id} consuming from {next_queue}")
-                RMQManager.worker_consume(next_queue, worker.process_task)
+                RabbitMQ.worker_consume(next_queue, worker.process_task)
 
         except KeyboardInterrupt:
             logger.warning(f"Worker {worker_id} received KeyboardInterrupt. Exiting loop.")

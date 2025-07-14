@@ -1,7 +1,7 @@
 import json
 import sys
 
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 from utils.probe_handler import ProbeHandler
 from database.db_manager import db_ports, DatabaseManager
 from utils.worker_handler import DBWorker
@@ -53,7 +53,7 @@ def retry_callback(ch, method, properties, body):
 
         if state == "unknown":
             # still unknown → send to your new FINAL queue
-            RMQManager(OUTPUT_FAIL_QUEUE).enqueue({"ip": ip, "port": port})
+            RabbitMQ(OUTPUT_FAIL_QUEUE).enqueue({"ip": ip, "port": port})
         elif state == "closed":
             # only enqueue known-closed if already in DB
             with DatabaseManager() as db:
@@ -67,7 +67,7 @@ def retry_callback(ch, method, properties, body):
         logger.error(f"[RetryScan] Crash retrying {ip}:{port}: {e}")
         # on any exception, push to your FINAL queue
         try:
-            RMQManager(OUTPUT_FAIL_QUEUE).enqueue({"ip": ip, "port": port})
+            RabbitMQ(OUTPUT_FAIL_QUEUE).enqueue({"ip": ip, "port": port})
         except Exception as ex:
             logger.error(f"[RetryScan] Failed to enqueue to {OUTPUT_FAIL_QUEUE}: {ex}")
 
@@ -82,7 +82,7 @@ def main():
     try:
         db_worker.start()
 
-        rmq = RMQManager(INPUT_FAIL_QUEUE)
+        rmq = RabbitMQ(INPUT_FAIL_QUEUE)
         rmq.channel.basic_qos(prefetch_count=1)
         rmq.channel.basic_consume(
             queue=INPUT_FAIL_QUEUE,

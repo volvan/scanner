@@ -30,7 +30,7 @@ from utils.logging_config import logger, log_exception
 
 # Services
 from database.db_manager import DatabaseManager
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 from scanners.discovery_scan.ip_manager import IPManager
 
 
@@ -72,7 +72,7 @@ class IPScanner:
             A new IPManager instance is created for each process to avoid
             sharing DB or RMQ connections across forks.
         """
-        rmq = RMQManager(queue_name)
+        rmq = RabbitMQ(queue_name)
         db_manager = DatabaseManager()
         ip_manager = IPManager(db_manager=db_manager)
 
@@ -104,7 +104,7 @@ class IPScanner:
                     try:
                         FAIL = FAIL_QUEUE
                         payload = json.loads(body)
-                        RMQManager(FAIL).enqueue(payload)
+                        RabbitMQ(FAIL).enqueue(payload)
                     except Exception as e:
                         logger.error(f"[IPScanner] Failed to enqueue timed-out task: {e}")
                     finally:
@@ -151,7 +151,7 @@ class IPScanner:
             sys.exit(1)
             return
 
-        total_tasks = RMQManager(main_queue_name).tasks_in_queue()
+        total_tasks = RabbitMQ(main_queue_name).tasks_in_queue()
         logger.info(f"[IPScanner] {total_tasks} tasks waiting in '{main_queue_name}'")
 
         if total_tasks < THRESHOLD:
@@ -164,7 +164,7 @@ class IPScanner:
 
         logger.info("[IPScanner] Batch processing mode (large scan).")
         while True:
-            rmq_main = RMQManager(main_queue_name)
+            rmq_main = RabbitMQ(main_queue_name)
             remaining = rmq_main.tasks_in_queue()
             rmq_main.close()
 

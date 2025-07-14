@@ -11,7 +11,7 @@ from config.scan_config import ALL_PORTS_QUEUE, PRIORITY_PORTS_QUEUE, FAIL_QUEUE
 
 # Services
 from database.db_manager import db_ports
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
@@ -47,7 +47,7 @@ class PortManager:
         Returns:
             int | None: The next port number if available, or None if the queue is empty.
         """
-        rmq_manager = RMQManager(ALL_PORTS_QUEUE)
+        rmq_manager = RabbitMQ(ALL_PORTS_QUEUE)
         port = rmq_manager.get_next_message("port")
         rmq_manager.close()
         return port
@@ -89,7 +89,7 @@ class PortManager:
             # 2) Unknown → fail queue
             if record["port_state"] == "unknown":
                 logger.warning(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'.")
-                RMQManager(FAIL_QUEUE).enqueue({
+                RabbitMQ(FAIL_QUEUE).enqueue({
                     "ip": ip,
                     "port": port,
                     "reason": "unknown_state"
@@ -101,7 +101,7 @@ class PortManager:
 
         except Exception as e:
             logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}")
-            RMQManager(FAIL_QUEUE).enqueue({
+            RabbitMQ(FAIL_QUEUE).enqueue({
                 "error": str(e),
                 "ip": ip,
                 "port": port

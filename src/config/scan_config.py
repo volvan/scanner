@@ -18,6 +18,7 @@ LOG_TO_FILE = True                   # Log the output to a file or simply in ter
 # ─── RabbitMQ queue names (centralized for easy updates) ─────────────────────
 
 # Manual override using environment variables for flexibility during testing/multi-country runs
+ALL_ADDR_QUEUE = os.getenv("ALL_ADDR_QUEUE", "all_addr")
 ALIVE_ADDR_QUEUE = os.getenv("ALIVE_ADDR_QUEUE", "alive_addr")
 DEAD_ADDR_QUEUE = os.getenv("DEAD_ADDR_QUEUE", "dead_addr")
 FAIL_QUEUE = os.getenv("FAIL_QUEUE", "fail_queue")

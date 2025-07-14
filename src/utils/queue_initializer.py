@@ -14,7 +14,7 @@ from config.scan_config import (
 )
 
 # Services
-from rmq.rmq_manager import RMQManager
+from rmq.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
@@ -29,7 +29,7 @@ class QueueInitializer:
         Args:
             queue_name (str): The name of the queue to ensure.
         """
-        rmq_manager = RMQManager(queue_name)
+        rmq_manager = RabbitMQ(queue_name)
         # Always declare to satisfy tests that track declare_queue calls
         rmq_manager.declare_queue()
         rmq_manager.close()
@@ -75,7 +75,7 @@ class QueueInitializer:
         QueueInitializer.all_ports()
         QueueInitializer.priority_ports()
         QueueInitializer.all_addr()
-        logger.info("[QueueInitializer] All queues initialized.")
+        logger.debug("[QueueInitializer] All queues initialized.")
 
     # --- Enqueue logic ---
 
@@ -89,7 +89,7 @@ class QueueInitializer:
             start (int): Start value (inclusive).
             end (int): End value (exclusive).
         """
-        rmq_manager = RMQManager(queue_name)
+        rmq_manager = RabbitMQ(queue_name)
         if not rmq_manager.queue_exists():
             rmq_manager.declare_queue()
         for val in range(start, end):
@@ -105,7 +105,7 @@ class QueueInitializer:
             key (str): Key to use in each message (e.g., "port").
             items (list): List of values to enqueue.
         """
-        rmq_manager = RMQManager(queue_name)
+        rmq_manager = RabbitMQ(queue_name)
         if not rmq_manager.queue_exists():
             rmq_manager.declare_queue()
         for val in items:
