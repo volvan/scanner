@@ -2,6 +2,9 @@
 import json
 import sys
 
+# Type annotation
+from pika.spec import Basic, BasicProperties # type:ignore
+
 # Utility Handlers
 from utils.randomize_handler import reservoir_of_reservoirs
 
@@ -48,7 +51,13 @@ class IPBatchHandler:
         deliveries: list = []
 
         for _ in range(scan_config.BATCH_SIZE):
-            method_frame, _, body = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
+            response: tuple[Basic.GetOk | None, BasicProperties, bytes]  = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
+
+            method_frame:Basic.GetOk
+            properties: BasicProperties
+            body: bytes
+            method_frame, properties, body = response
+
             if not method_frame:
                 break
             deliveries.append(method_frame)
@@ -86,7 +95,7 @@ class IPBatchHandler:
                 rmq_batch.enqueue(task)
             for m in deliveries:
                 rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)
-            logger.info(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
+            logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
         except Exception as e:
             logger.error(f"[IPBatchHandler] Failed to create batch: {e}")
             for m in deliveries:
@@ -154,7 +163,7 @@ class PortBatchHandler:
 
         ip_rmq.close()
         self.ips_cache = all_ips
-        logger.info(f"[PortBatchHandler] Cached {len(all_ips)} alive IPs.")
+        logger.debug(f"[PortBatchHandler] Cached {len(all_ips)} alive IPs.")
         return all_ips
 
     def create_port_batch_if_allowed(self, ip_queue: str, port_queue: str) -> str | None:
@@ -218,5 +227,5 @@ class PortBatchHandler:
             count += 1
 
         batch_rmq.close()
-        logger.info(f"[PortBatchHandler] Created batch '{batch_name}' with {count} tasks.")
+        logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {count} tasks.")
         return batch_name

@@ -2,10 +2,7 @@
 import pyffx  # type: ignore
 
 # Configuration
-try:
-    from config import credentials_config
-except ImportError:
-    from ..config import credentials_config
+from config import credentials_config
 
 
 if credentials_config.FPE_KEY is None:
