@@ -40,13 +40,19 @@ class RabbitMQ:
         try:
             credentials = pika.PlainCredentials(credentials_config.RMQ_USER, credentials_config.RMQ_PASS)
             heartbeat = int(os.getenv("RMQ_HEARTBEAT", "300"))
+            # give each process/queue a human-readable name
+            connection_name = f"scan_app[{self.queue_name}]@{os.getpid()}"
+
             parameters = pika.ConnectionParameters(
-                credentials_config.RMQ_HOST,
-                int(credentials_config.RMQ_PORT),
-                '/',
-                credentials,
+                host=credentials_config.RMQ_HOST,
+                port=int(credentials_config.RMQ_PORT),
+                virtual_host='/',
+                credentials=credentials,
                 heartbeat=heartbeat,
-                blocked_connection_timeout=300
+                blocked_connection_timeout=300,
+                client_properties={
+                    'connection_name': connection_name
+                }
             )
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
@@ -162,7 +168,7 @@ class RabbitMQ:
         try:
             self.channel.basic_qos(prefetch_count=1)
             self.channel.basic_consume(queue=self.queue_name, on_message_callback=callback)
-            logger.info(f"[*] Worker waiting for messages in queue: {self.queue_name}. Press CTRL+C to exit.")
+            logger.debug(f"[*] Worker waiting for messages in queue: {self.queue_name}. Press CTRL+C to exit.")
             self.channel.start_consuming()
         except (pika.exceptions.ConnectionClosedByBroker, pika.exceptions.ChannelClosedByBroker) as e:
             logger.warning(f"[RabbitMQ] Broker closed connection: {e}")
@@ -173,7 +179,7 @@ class RabbitMQ:
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
-        logger.info("[RabbitMQ] Reconnecting to RabbitMQ...")
+        logger.debug("[RabbitMQ] Reconnecting to RabbitMQ...")
         try:
             self.close()
         except Exception as e:
@@ -198,7 +204,7 @@ class RabbitMQ:
         """
         try:
             manager = RabbitMQ(queue_name)
-            logger.info(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
+            logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
             manager.start_consuming(callback)
         except Exception as e:
             logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
@@ -253,7 +259,7 @@ class RabbitMQ:
         """
         try:
             if self.queue_empty(self.queue_name):
-                logger.info(f"[RabbitMQ] {self.queue_name} is empty. Deleting.")
+                logger.debug(f"[RabbitMQ] {self.queue_name} is empty. Deleting.")
                 self.channel.queue_delete(queue=self.queue_name)
                 return
 
