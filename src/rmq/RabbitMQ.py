@@ -175,19 +175,22 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Unexpected error while consuming: {e}")
         finally:
-            self.close()
+            self.exit()
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
         logger.debug("[RabbitMQ] Reconnecting to RabbitMQ...")
         try:
-            self.close()
+            self.exit()
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during reconnect close: {e}")
         self._connect()
 
     def close(self) -> None:
-        """Close the RabbitMQ connection safely."""
+        """ DEPRECATED!! - please use context manager.
+        
+        Close the RabbitMQ connection safely.
+        """
         if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
             try:
                 self.connection.close()
@@ -203,16 +206,12 @@ class RabbitMQ:
             callback (object): Callback function to process each message.
         """
         try:
-            manager = RabbitMQ(queue_name)
-            logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
-            manager.start_consuming(callback)
+            with RabbitMQ(queue_name) as rmq_conn:
+                logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
+                rmq_conn.start_consuming(callback)
         except Exception as e:
             logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
-        finally:
-            try:
-                manager.close()
-            except Exception:
-                pass
+
 
     @staticmethod
     def list_queues(prefix: str = "") -> list[str]:
@@ -276,13 +275,23 @@ class RabbitMQ:
                     logger.error(f"[RabbitMQ] Failed to decode task: {e}")
 
             self.channel.queue_delete(queue=self.queue_name)
-            self.close()
+            self.exit()
 
-            fail_rmq = RabbitMQ(FAIL_QUEUE)
-            for task in leftovers:
-                fail_rmq.enqueue(task)
-            fail_rmq.close()
-
-            logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
+            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
+                for task in leftovers:
+                    rmq_fail_conn.enqueue(task)
+                logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")
+
+    def __enter__(self):
+        """Support context manager entry (with-statement)."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Support context manager exit (with-statement) to close the RMQ connection safely."""
+        try:
+            if hasattr(self, "connection", None) and not self.connection.is_closed:
+                self.connection.close()
+        except Exception as e:
+            logger.error(f"[RabbitMQ] Error closing connection: {e}")

@@ -31,6 +31,8 @@ class IPManager:
                 If not provided, a new instance is created internally.
         """
         self.delay = SCAN_DELAY
+        # TODO: Change all occurrences of RMQ to be with context manager (with)
+        # TODO: Verify this logic needs to be.. 
 
         # Initialize Alive queue
         try:

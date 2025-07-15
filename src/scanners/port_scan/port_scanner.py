@@ -68,25 +68,24 @@ class PortScanner:
         Notes:
             This runs inside a spawned process. Each task is ACKed or NACKed after handling.
         """
-        rmq = RabbitMQ(batch_queue)
-        pm = PortManager()
+        with RabbitMQ(batch_queue) as rmq_conn:
+            pm = PortManager()
 
-        while True:
-            method_frame, _, body = rmq.channel.basic_get(queue=batch_queue, auto_ack=False)
-            if not method_frame:
-                break
+            while True:
+                method_frame, _, body = rmq_conn.channel.basic_get(queue=batch_queue, auto_ack=False)
+                if not method_frame:
+                    break
 
-            try:
-                task = json.loads(body)
-                pm.handle_scan_process(task["ip"], task["port"], batch_queue)
-                rmq.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
-            except Exception:
-                rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
+                try:
+                    task = json.loads(body)
+                    pm.handle_scan_process(task["ip"], task["port"], batch_queue)
+                    rmq_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+                except Exception:
+                    rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
 
-            time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))
+                time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))
 
-        rmq.remove_queue()
-        rmq.close()
+            rmq_conn.remove_queue()
 
     def start_consuming(self, main_queue_name: str) -> None:
         """Start the main port scanning loop using batched multiprocessing.
@@ -122,8 +121,8 @@ class PortScanner:
             )
 
             if not batch_q:
-                remaining = RabbitMQ(main_queue_name).tasks_in_queue()
-                RabbitMQ(main_queue_name).close()
+                with  RabbitMQ(main_queue_name) as rmq_conn:
+                    remaining = rmq_conn.tasks_in_queue()
                 if remaining == 0:
                     logger.info("[PortScanner] All port batches completed.")
                     break

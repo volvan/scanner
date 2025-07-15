@@ -46,9 +46,8 @@ def enqueue_new_targets(scanner: IPScanner):
         Read from a file.
     """
     queue_name = QUEUE_NAME
-    rmq = RabbitMQ(queue_name)
-    tasks_remaining = rmq.tasks_in_queue()
-    rmq.close()
+    with RabbitMQ(queue_name) as rmq_conn:
+        tasks_remaining = rmq_conn.tasks_in_queue()
 
     if tasks_remaining > 0:
         print(f"[Init] {tasks_remaining} tasks already in queue '{queue_name}'; skipping new enqueue.")

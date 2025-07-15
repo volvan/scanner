@@ -81,7 +81,7 @@ def main():
     db_worker = DBWorker(enable_hosts=False, enable_ports=True)
     try:
         db_worker.start()
-
+        # TODO: Error will occur as of rmq.close has been removed 
         rmq = RabbitMQ(INPUT_FAIL_QUEUE)
         rmq.channel.basic_qos(prefetch_count=1)
         rmq.channel.basic_consume(

@@ -55,12 +55,10 @@ class WorkerHandler:
             logger.exception(f"Worker {worker_id} crashed: {e}")
         finally:
             try:
-                rmq_manager = RabbitMQ(self.queue_name)
-                if rmq_manager.queue_empty(self.queue_name):
-                    logger.info(f"Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
-                    rmq_manager.remove_queue()
-                else:
-                    rmq_manager.close()
+                with RabbitMQ(self.queue_name) as rmq_conn:
+                    if rmq_conn.queue_empty(self.queue_name):
+                        logger.info(f"Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
+                        rmq_conn.remove_queue()
             except Exception as cleanup_err:
                 logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
 

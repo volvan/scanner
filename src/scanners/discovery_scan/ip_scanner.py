@@ -72,6 +72,7 @@ class IPScanner:
             A new IPManager instance is created for each process to avoid
             sharing DB or RMQ connections across forks.
         """
+        # TODO: Change all occurrences of RMQ to be with context manager (with)
         rmq = RabbitMQ(queue_name)
         db_manager = DatabaseManager()
         ip_manager = IPManager(db_manager=db_manager)
@@ -151,8 +152,9 @@ class IPScanner:
             sys.exit(1)
             return
 
-        total_tasks = RabbitMQ(main_queue_name).tasks_in_queue()
-        logger.info(f"[IPScanner] {total_tasks} tasks waiting in '{main_queue_name}'")
+        with RabbitMQ(main_queue_name) as rmq_conn:
+            total_tasks = rmq_conn.tasks_in_queue()
+            logger.info(f"[IPScanner] {total_tasks} tasks waiting in '{main_queue_name}'")
 
         if total_tasks < THRESHOLD:
             logger.info("[IPScanner] Direct processing mode (small scan).")
@@ -164,9 +166,8 @@ class IPScanner:
 
         logger.info("[IPScanner] Batch processing mode (large scan).")
         while True:
-            rmq_main = RabbitMQ(main_queue_name)
-            remaining = rmq_main.tasks_in_queue()
-            rmq_main.close()
+            with RabbitMQ(main_queue_name) as rmq_conn:
+                remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
 

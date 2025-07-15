@@ -47,9 +47,8 @@ class PortManager:
         Returns:
             int | None: The next port number if available, or None if the queue is empty.
         """
-        rmq_manager = RabbitMQ(ALL_PORTS_QUEUE)
-        port = rmq_manager.get_next_message("port")
-        rmq_manager.close()
+        with RabbitMQ(ALL_PORTS_QUEUE) as rmq_conn:
+            port = rmq_conn.get_next_message("port")
         return port
 
     def handle_scan_process(self, ip: str, port: int, queue_name: str):

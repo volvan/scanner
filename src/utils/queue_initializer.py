@@ -29,10 +29,11 @@ class QueueInitializer:
         Args:
             queue_name (str): The name of the queue to ensure.
         """
-        rmq_manager = RabbitMQ(queue_name)
-        # Always declare to satisfy tests that track declare_queue calls
-        rmq_manager.declare_queue()
-        rmq_manager.close()
+        
+        with RabbitMQ(queue_name) as rmq_conn:
+            # Always declare to satisfy tests that track declare_queue calls
+            # TODO: is this really a must? why? 
+            rmq_conn.declare_queue()
 
     # --- Named queues ---
 
@@ -77,25 +78,6 @@ class QueueInitializer:
         QueueInitializer.all_addr()
         logger.debug("[QueueInitializer] All queues initialized.")
 
-    # --- Enqueue logic ---
-
-    @classmethod
-    def enqueue_range(cls, queue_name: str, key: str, start: int, end: int):
-        """Enqueue a numeric range of values under a specific key.
-
-        Args:
-            queue_name (str): Target RabbitMQ queue name.
-            key (str): Key to use in each message (e.g., "port").
-            start (int): Start value (inclusive).
-            end (int): End value (exclusive).
-        """
-        rmq_manager = RabbitMQ(queue_name)
-        if not rmq_manager.queue_exists():
-            rmq_manager.declare_queue()
-        for val in range(start, end):
-            rmq_manager.enqueue({key: val})
-        rmq_manager.close()
-
     @classmethod
     def enqueue_list(cls, queue_name: str, key: str, items: list):
         """Enqueue a list of items under a specified key.
@@ -105,12 +87,11 @@ class QueueInitializer:
             key (str): Key to use in each message (e.g., "port").
             items (list): List of values to enqueue.
         """
-        rmq_manager = RabbitMQ(queue_name)
-        if not rmq_manager.queue_exists():
-            rmq_manager.declare_queue()
-        for val in items:
-            rmq_manager.enqueue({key: val})
-        rmq_manager.close()
+        with RabbitMQ(queue_name) as rmq_conn:
+            if not rmq_conn.queue_exists():
+                rmq_conn.declare_queue()
+            for val in items:
+                rmq_conn.enqueue({key: val})
 
     @classmethod
     def enqueue_ips(cls, queue_name: str, ips: Iterable[str]) -> None:
