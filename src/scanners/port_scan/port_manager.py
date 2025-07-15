@@ -6,13 +6,14 @@ from utils.probe_handler import ProbeHandler
 from utils.queue_initializer import QueueInitializer
 
 # Configuration
-from utils.logging_config import log_exception, logger
 from config.scan_config import ALL_PORTS_QUEUE, PRIORITY_PORTS_QUEUE, FAIL_QUEUE
 
 # Services
-from database.db_manager import db_ports
+from database.db_handler import db_ports
 from rmq.RabbitMQ import RabbitMQ
 
+# logs
+from utils.logging_config import log_exception, logger
 sys.excepthook = log_exception
 
 
@@ -21,35 +22,9 @@ class PortManager:
 
     def __init__(self):
         """Initialize PortManager and prepare for queue management."""
-        logger.info(f"[PortManager] Ready to manage '{ALL_PORTS_QUEUE}' and '{PRIORITY_PORTS_QUEUE}' queues.")
+        logger.debug(f"[PortManager] Ready to manage '{ALL_PORTS_QUEUE}' and '{PRIORITY_PORTS_QUEUE}' queues.")
 
-    def enqueue_ports(self, queue_name: str, ports: list[int]):
-        """Enqueue a list of ports into the specified RabbitMQ queue.
 
-        Args:
-            queue_name (str): Queue to target (ALL_PORTS_QUEUE or PRIORITY_PORTS_QUEUE).
-            ports (list[int]): List of port numbers to enqueue.
-        """
-        if not ports:
-            logger.warning(f"[PortManager] Port list for '{queue_name}' is empty.")
-            return
-
-        valid_queues = {ALL_PORTS_QUEUE, PRIORITY_PORTS_QUEUE}
-        if queue_name not in valid_queues:
-            logger.error(f"[PortManager] Invalid queue name: {queue_name}")
-            return
-
-        QueueInitializer.enqueue_list(queue_name=queue_name, key="port", items=ports)
-
-    def get_next_port(self) -> int | None:
-        """Fetch and return the next port from the 'all_ports' queue.
-
-        Returns:
-            int | None: The next port number if available, or None if the queue is empty.
-        """
-        with RabbitMQ(ALL_PORTS_QUEUE) as rmq_conn:
-            port = rmq_conn.get_next_message("port")
-        return port
 
     def handle_scan_process(self, ip: str, port: int, queue_name: str):
         """Probe an IP:port pair and enqueue the scan result as needed.
