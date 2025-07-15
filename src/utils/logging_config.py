@@ -4,6 +4,17 @@ import logging
 from logging.handlers import RotatingFileHandler
 from config.scan_config import DEBUG_MODE, LOG_TO_FILE
 
+class WorkerPIDFilter(logging.Filter):
+    # TODO: Verify use of this code snippet (old code)
+    def filter(self, record):
+        try:
+            worker_pid = str(os.getpid())
+            if not worker_pid: worker_pid = 'unknown'
+            record.worker_pid = worker_pid
+        except Exception:
+            record.worker_pid = 'unknown'
+        return True
+
 # --- Logger setup ---
 logger = logging.getLogger("GlobalHandler")
 logger.setLevel(logging.DEBUG)
