@@ -198,6 +198,7 @@ htmlcov/
 
 src/snapshots/*
 refactored_src/snapshots/*
+refactored_src/targets*
 
 # VSCode / IDE
 .vscode/
