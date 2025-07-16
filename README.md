@@ -63,7 +63,7 @@ The core component responsible for conducting the network scans, is named Völva
     │   ├── ports_handler.py
     │   ├── probe_handler.py
     │   ├── queue_initializer.py
-    │   ├── randomize_handler.py
+    │   ├── reservoir_randomize.py
     │   ├── timestamp.py
     │   └── worker_handler.py
     │
