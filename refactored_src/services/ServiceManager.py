@@ -14,11 +14,11 @@ from .HostDiscovery import HostDiscovery
 class ServiceManager:
     def __init__(self):
         # Managers
-        self.externalManager = ExternalManager()
+        self.externalManager = ExternalManager() # TODO: needed?
         self.infraManager = InfrastructureManager()
 
         # Service Instances
-        self.hostDiscovery = HostDiscovery()
+        self.hostDiscovery = HostDiscovery() # TODO: merge with ipScanner as host_discovery
         self.ipScanner = IPScanner(self.externalManager, self.infraManager, self.hostDiscovery)
         self.portScanner = PortScanner(self.externalManager, self.infraManager)
 

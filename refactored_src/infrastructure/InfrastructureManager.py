@@ -15,6 +15,3 @@ class InfrastructureManager:
     def start_port(self):
         return self.dbHandler.start_ports()
     
-    # def query(self, query: str, params=None):
-    #     return self.dbHandler.query(query, params)
-    
