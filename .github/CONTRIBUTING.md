@@ -43,14 +43,13 @@ Thank you for considering contributing to Völva! Before you start, please ensur
 
 | Branch Type   | Pattern       | Base     | Purpose                                                | Review? |
 | ------------- | ------------- | -------- | ------------------------------------------------------ | ------- |
-| Stable        | `master`      | –        | Production-ready. Accepts only `release` and `hotfix`. | Yes     |
+| Stable        | `main`        | –        | Production-ready. Accepts only `release` and `hotfix`. | Yes     |
 | Development   | `dev`         | –        | Main development branch.                               | Yes     |
 | Feature       | `feature/#/*` | `dev`    | Adds new features.                                     | Yes     |
 | Bugfix        | `bugfix/#/*`  | `dev`    | Fixes known bugs.                                      | Yes     |
 | Hotfix        | `hotfix/#/*`  | `master` | Emergency fix for production.                          | Yes     |
 | Release       | `release/#/*` | `dev`    | Final preparations for a stable release.               | Yes     |
 | Documentation | `docs/*`      | `dev`    | Docs only—no code changes.                             | No      |
-| Service VM    | `service`     | `dev`    | Custom branch for the service VM.                      | Yes     |
 
 Never commit directly to `master` or `dev`.
 
