@@ -2,13 +2,23 @@ import os
 
 # Path configs
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TARGETS_FILE_PATH = os.path.join(BASE_DIR, "..", "targets")
-PORTS_FILE = os.getenv("PORTS_FILE", os.path.join(TARGETS_FILE_PATH, "ports.txt"))
 WHO_IS_SCAN_DELAY = int(os.getenv("WHO_IS_SCAN_DELAY", 2))
+
+# Targets - Who to scan 
+TARGETS_FILE_PATH = os.path.join(BASE_DIR, "..", "targets")           # Stored under src/targets/
+ADDR_FILE = "blocks.txt"                                              # File containing IP/CIDR blocks to scan
+
+# Ports - What ports to scan
+PORTS_FILE = os.getenv("PORTS_FILE", os.path.join(TARGETS_FILE_PATH, "ports.txt"))
 
 # Resource limits (memory in bytes, CPU percent)
 MEM_LIMIT = int(os.getenv("SCAN_MEM_LIMIT", 1_000)) * 1024**2
 CPU_LIMIT = int(os.getenv("SCAN_CPU_LIMIT", 70))
+
+# --- Monitoring (logs) configurations ---------------------
+
+DEBUG_MODE = True                   # Debug mode T/F
+LOG_TO_FILE = True                   # Log the output to a file or simply in terminal
 
 # ─── RabbitMQ queue names (centralized for easy updates) ─────────────────────
 
@@ -31,30 +41,22 @@ PRIORITY_PORTS_QUEUE = os.getenv("PRIORITY_PORTS_QUEUE", "priority_ports")
 # PRIORITY_PORTS_QUEUE  = f"{NAMESPACE}.priority_ports"
 
 # ─── Discovery scan phase specific ─────────────────────────────────────────
-# FETCH_RIX = os.getenv("FETCH_RIX", "false").lower() == "true"         # If True, fetch IPs from RIX.is
-FETCH_RIX = False         
-QUEUE_NAME = ALL_ADDR_QUEUE                                           # The queue used for IP discovery
-ADDR_FILE = os.getenv("ADDR_FILE", "blocks.txt")                      # File containing IP/CIDR blocks
+FETCH_RIX = False                                                     # If True, fetch IPs from RIX.is
+QUEUE_NAME = "all_addr"                                               # The queue used for IP discovery
 SCAN_METHOD = os.getenv("SCAN_METHOD", "default")                     # Discovery method (e.g., tcp_syn_ping)
 SINGLE_CIDR = os.getenv("SINGLE_CIDR", "8.8.8.0/28")                  # Single CIDR example
 SINGLE_ADDR = os.getenv("SINGLE_ADDR", "8.8.8.0")                     # Single IP example
 
 # ─── General scan parameters ──────────────────────────────────────────────
-# WORKERS = int(os.getenv("WORKERS", 250))                              # Number of workers to spawn
-WORKERS = int(os.getenv("WORKERS", 250))  # Testing
-
+WORKERS = int(os.getenv("WORKERS", 250))                              # Number of workers to spawn
 SCAN_DELAY = float(os.getenv("SCAN_DELAY", 0.5))                      # Delay (sec) between scan attempts
 THRESHOLD = int(os.getenv("THRESHOLD", 30))                           # Direct vs batch mode threshold
-# BATCH_SIZE = int(os.getenv("BATCH_SIZE", 500))                        # Tasks per batch & DB insert size
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", 25)) # Testing
-
-# MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 100))      # Max concurrent batch-forked processes
-MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 10)) # Testing
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", 500))                        # Tasks per batch & DB insert size
+MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 100))      # Max concurrent batch-forked processes
 
 # ─── Port scan phase specific ──────────────────────────────────────────────
 PORTS_FILE = os.getenv("PORTS_FILE", "ports.txt")
-# BATCH_AMOUNT = int(os.getenv("BATCH_AMOUNT", 100))                    # Concurrent port batches
-BATCH_AMOUNT = int(os.getenv("BATCH_AMOUNT", 25)) # Testing
+BATCH_AMOUNT = int(os.getenv("BATCH_AMOUNT", 100))                    # Concurrent port batches
 PORT_SCAN_RETRY_LIMIT = int(os.getenv("PORT_SCAN_RETRY_LIMIT", 2))    # Retry unknown/failed ports this many times
 BATCH_TIMEOUT_SEC = int(os.getenv("BATCH_TIMEOUT_SEC", 300))          # Max time allowed per batch queue
 WORKER_RESTART_LIMIT = int(os.getenv("WORKER_RESTART_LIMIT", 3))      # Times to restart worker before marking failed
