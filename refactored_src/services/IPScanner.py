@@ -65,7 +65,6 @@ from config.logging_config import logger, log_exception
 
 # Services
 from infrastructure.QueryHandler import QueryHandler
-from infrastructure.RabbitMQ import RabbitMQ
 
 from services.HostDiscovery import HostDiscovery
 
