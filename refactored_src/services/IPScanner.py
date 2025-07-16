@@ -76,6 +76,7 @@ proc = psutil.Process(os.getpid())
 
 
 class IPScanner:
+    # TODO: merge me with hostdiscovery!    
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager, hostDiscovery: HostDiscovery):
         self.externalManager = externalManager
         self.infraManager = infraManager
@@ -116,10 +117,10 @@ class IPScanner:
         ##########################
 
 
-        db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)
+        db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)  # TODO: deprecated?!
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
-            db_handler.start_hosts()
+            db_handler.start_hosts() # TODO: critical - we already have started this thread right??
 
             # Collects new IP targets
             filename, blocks = self.enqueue_new_targets()
@@ -180,6 +181,8 @@ class IPScanner:
         Default:
             Read from a file.
         """
+        # TODO: fetch rix ever set to true? 
+        # TODO: add rmq context manager 
         
         queue_name = ALL_ADDR_QUEUE
         rmq = RabbitMQ(queue_name)
@@ -240,8 +243,11 @@ class IPScanner:
         ### For testing purposes ###
         # TODO: Change all occurrences of RMQ to be with context manager (with)
         rmq = RabbitMQ(queue_name)
+
+        # TODO: take a close look.. should we make db_man and discovery???
         db_manager = QueryHandler()
         hostDiscovery = HostDiscovery(db_manager=db_manager)
+        ####
 
         # Adding type annotations for variables for clarity
         method_frame: Basic.GetOk
@@ -257,9 +263,9 @@ class IPScanner:
                 break
 
             try:
-                # # Spawn a short-lived process for this one task
+                # Spawn a short-lived process for this one task
                 task_proc = multiprocessing.Process(
-                    target=hostDiscovery.process_task,
+                    target=hostDiscovery.process_task, # TODO: critical - why not self.hostdiscovery? 
                     args=(rmq.channel, method_frame, props, body),
                 )
                 task_proc.start()
@@ -276,9 +282,9 @@ class IPScanner:
                     try:
                         print(f'\n\n[IPScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
 
-                        FAIL = FAIL_QUEUE
+                        # FAIL = FAIL_QUEUE
                         payload = json.loads(body)
-                        RabbitMQ(FAIL).enqueue(payload)
+                        RabbitMQ(FAIL_QUEUE).enqueue(payload) # TODO: critical - this rmq opened, never closed
                     except Exception as e:
                         logger.error(f"[IPScanner] Failed to enqueue timed-out task: {e}")
                     finally:
@@ -296,7 +302,7 @@ class IPScanner:
             time.sleep(SCAN_DELAY)
 
         # once we drain the queue, remove it
-        hostDiscovery.close()
+        hostDiscovery.close() # TODO: remove aftrer merge 
         # db_manager.close()
         rmq.remove_queue()
         rmq.close()
@@ -427,7 +433,7 @@ class IPScanner:
                     "Either an IP address, a filename, or fetch_rix=True must be provided."
                 )
 
-            if fetch_rix:
+            if fetch_rix: # TODO: fetch rix ever true? 
                 new_rix_file = block_handler.fetch_rix_blocks()
                 if not new_rix_file:
                     logger.warning("[IPScanner] Could not fetch RIX blocks or create file.")

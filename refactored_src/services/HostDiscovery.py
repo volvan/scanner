@@ -28,7 +28,10 @@ sys.excepthook = log_exception
 
 class HostDiscovery:
     """Manager for scanning IPs, queueing results, and writing scan data to the database."""
-    #TODO: I don't even know how db_manager got the type QueryHandler, need to refactor.
+    # TODO: I don't even know how db_manager got the type QueryHandler, need to refactor.
+    # TODO: Change all occurrences of RMQ to be with context manager (with)
+
+
     def __init__(self, db_manager: QueryHandler = None):
         """Initialize HostDiscovery with optional database connection and RabbitMQ queues.
 
@@ -36,8 +39,9 @@ class HostDiscovery:
             db_manager (QueryHandler, optional): Pre-initialized database manager.
                 If not provided, a new instance is created internally.
         """
-        self.delay = SCAN_DELAY
 
+        # TODO: Verify this logic needs to be.. 
+        # TODO: should not have one connection per queue right?
         # Initialize Alive queue
         try:
             self.alive_rmq = RabbitMQ(ALIVE_ADDR_QUEUE)
@@ -59,12 +63,14 @@ class HostDiscovery:
             logger.error(f"[HostDiscovery] Failed to init {FAIL_QUEUE} queue: {e}")
             self.fail_rmq = None
 
+
         # Database manager
-        try:
-            self.db_manager = db_manager or QueryHandler()
-        except Exception as e:
-            logger.error(f"[HostDiscovery] Failed to init QueryHandler: {e}")
-            self.db_manager = None
+        # should not open db manager instance here.. 
+        # try:
+        #     self.db_manager = db_manager or DatabaseManager()
+        # except Exception as e:
+        #     logger.error(f"[HostDiscovery] Failed to init DatabaseManager: {e}")
+        #     self.db_manager = None
 
     def ping_host(self, ip_addr: str) -> dict:
         """Probe a host using ICMP, TCP-SYN, and TCP-ACK in sequence.
@@ -106,7 +112,7 @@ class HostDiscovery:
                 }
 
 
-            time.sleep(self.delay)
+            time.sleep(SCAN_DELAY)
 
         logger.info(f"[HostDiscovery] All probes for {ip_addr} failed with exception or timeout.")
         return {
@@ -155,9 +161,11 @@ class HostDiscovery:
 
         logger.debug(f"[HostDiscovery] Scan result: {ping_res}")
         try:
-            if self.db_manager:
-                logger.debug(f"[HostDiscovery] Enqueuing result to db_hosts: {ip_addr} -> {ping_res}")
-                db_hosts.put({
+            # Extract scan result details
+            record = {
+            # if self.db_manager:
+            #     logger.debug(f"[HostDiscovery] Enqueuing result to db_hosts: {ip_addr} -> {ping_res}")
+            #     db_hosts.put({
                     "ip": ip_addr,
                     "probe_method": ping_res.get("probe_method"),
                     "probe_protocol": ping_res.get("probe_protocol"),
@@ -165,10 +173,12 @@ class HostDiscovery:
                     "probe_duration": ping_res.get("probe_duration"),
                     "scan_start_ts": start_ts,
                     "scan_done_ts": done_ts
-                })
+                }
+            # Enqueue all results
+            db_hosts.put(record)
         except Exception as e:
             logger.error(f"[HostDiscovery] Failed to enqueue host result to db_hosts: {e}")
-    
+
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
         """Process a RabbitMQ task: scan IP, write to database, then acknowledge.
 
@@ -204,7 +214,7 @@ class HostDiscovery:
             self.handle_scan_process(ip_addr)
 
             # Add a small delay between tasks to control scan rate
-            time.sleep(self.delay)
+            time.sleep(SCAN_DELAY)
 
             # Acknowledge the message as successfully processed
             ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -240,9 +250,10 @@ class HostDiscovery:
 
     def close(self) -> None:
         """Close all RabbitMQ and database connections gracefully."""
-        try:
-            self.alive_rmq.close()
-            self.dead_rmq.close()
-            self.fail_rmq.close()
-        finally: pass
+        # TODO: change to context manager
+        # try:
+        self.alive_rmq.close()
+        self.dead_rmq.close()
+        self.fail_rmq.close()
+        # finally: pass
         #     self.db_manager.close()
