@@ -1,5 +1,5 @@
 #----- Config imports -----#
-from config.scan_config import SCAN_NATION, QUEUE_NAME, ADDR_FILE
+from config.scan_config import SCAN_NATION, ALL_ADDR_QUEUE, ADDR_FILE
 
 #----- Type annotation imports -----#
 from external.ExternalManager import ExternalManager
@@ -181,7 +181,7 @@ class IPScanner:
             Read from a file.
         """
         
-        queue_name = QUEUE_NAME
+        queue_name = ALL_ADDR_QUEUE
         rmq = RabbitMQ(queue_name)
         
         tasks_remaining = rmq.tasks_in_queue()
@@ -192,7 +192,7 @@ class IPScanner:
             return None, None
 
         print(f"[Init] No tasks in '{queue_name}'; enqueueing new targets.")
-        filename = self.new_targets(queue_name=QUEUE_NAME, filename=ADDR_FILE)
+        filename = self.new_targets(queue_name=queue_name, filename=ADDR_FILE)
         if not filename:
             return None, None
 
@@ -204,7 +204,7 @@ class IPScanner:
     def run_discovery(self):
         """Run the discovery scan (blocks until complete)."""
         logger.debug("[IPScan Init] Starting host discovery...")
-        self.start_consuming(QUEUE_NAME)
+        self.start_consuming(ALL_ADDR_QUEUE)
 
 
     def memory_ok(self) -> bool:
