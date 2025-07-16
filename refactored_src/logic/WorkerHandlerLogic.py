@@ -15,13 +15,25 @@ from config.logging_config import logger
 
 class WorkerHandlerLogic:
     """Spawns and manages multiple worker processes for IP scanning queues."""
+    # TODO: is this only used in hostdiscovery? if so, what workers are used in port scan???
 
     def __init__(self, queue_name: str, process_callback: object):
+        """Initialize a WorkerHandler instance.
+
+        Args:
+            queue_name (str): Name of the RabbitMQ queue to consume from.
+            process_callback (object): Function to call for processing tasks.
+        """
         self.queue_name = queue_name
         self.process_callback = process_callback
         self.workers_count = WORKERS
 
     def _safe_worker(self, worker_id: int):
+        """Worker process logic with error handling.
+
+        Args:
+            worker_id (int): Identifier for the worker.
+        """
         try:
             logger.debug(f"Worker {worker_id} starting...")
             RabbitMQ.worker_consume(self.queue_name, self.process_callback)
@@ -39,6 +51,8 @@ class WorkerHandlerLogic:
                 logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
 
     def start(self):
+        """Spawn multiple worker processes to handle scanning tasks."""
+        
         workers: List[Process] = []
 
         for i in range(self.workers_count):
