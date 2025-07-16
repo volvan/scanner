@@ -38,22 +38,23 @@ class IPBatchHandler:
             main_queue_name (str): Name of the main RabbitMQ queue.
 
         Returns:
-            str | None: Name of the created batch queue, or None if batch creation failed.
+            Optional[str]: Name of the created batch queue, or None if batch creation failed.
 
         Notes:
             - Tasks are ACKed only after successful re-enqueue to the batch queue.
             - Bad or invalid messages are routed to the fail queue.
             - If no valid tasks are found, messages are requeued.
         """
+        # TODO: Change rmq_main to be with context manager (with)
         rmq_main = RabbitMQ(main_queue_name)
 
         tasks: list[dict] = []
         deliveries: list = []
-        
+
         for _ in range(scan_config.BATCH_SIZE):
             response: tuple[Basic.GetOk | None, BasicProperties, bytes]  = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
 
-            method_frame:Basic.GetOk
+            method_frame:Basic.GetOk | None
             properties: BasicProperties
             body: bytes
             method_frame, properties, body = response
@@ -79,6 +80,9 @@ class IPBatchHandler:
 
         if not tasks:
             logger.warning("[IPBatchHandler] No valid tasks found; skipping batch creation.")
+            # TODO: move logic to _requeue_deliveries func
+            # _requeue_deliveries(rmq_main, deliveries, requeue=True)
+
             for m in deliveries:
                 try:
                     rmq_main.channel.basic_nack(delivery_tag=m.delivery_tag, requeue=True)
@@ -88,27 +92,35 @@ class IPBatchHandler:
             return None
 
         batch_queue = f"batch_{self.batch_id}"
-        rmq_batch = RabbitMQ(batch_queue)
 
         try:
-            for task in tasks:
-                rmq_batch.enqueue(task)
+            with RabbitMQ(batch_queue) as rmq_conn:
+                for task in tasks:
+                    rmq_conn.enqueue(task)
             for m in deliveries:
                 rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)
             logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
         except Exception as e:
-            logger.error(f"[IPBatchHandler] Failed to create batch: {e}")
-            for m in deliveries:
-                try:
-                    rmq_main.channel.basic_nack(delivery_tag=m.delivery_tag, requeue=True)
-                except Exception as ex:
-                    logger.warning(f"[IPBatchHandler] Failed to nack on error: {ex}")
-            batch_queue = None
-        finally:
-            rmq_batch.close()
-            rmq_main.close()
+                logger.error(f"[IPBatchHandler] Failed to create batch: {e}")
+                # TODO: move logic to _requeue_deliveries func
+                for m in deliveries:
+                    try:
+                        rmq_main.channel.basic_nack(delivery_tag=m.delivery_tag, requeue=True)
+                    except Exception as ex:
+                        logger.warning(f"[IPBatchHandler] Failed to nack on error: {ex}")
+                batch_queue = None
+        rmq_main.close()
 
         return batch_queue
+        # SOMethign like this
+    # def _requeue_deliveries(rmq: RabbitMQ, deliveries: list[Basic.GetOk], requeue: bool = True,) -> None:
+    #     """Nack or requeue every message in deliveries"""
+    #     for d in deliveries:
+    #         try:
+    #             rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)
+    #         except Exception as ex:
+    #             pass
+
 
 
 class PortBatchHandler:
@@ -125,6 +137,8 @@ class PortBatchHandler:
         Returns:
             bool: True if more batches can be created, False otherwise.
         """
+        # TODO: should really be a seperate function? 
+
         return len(self.used_ports) < scan_config.BATCH_AMOUNT
 
     def load_all_ips_once(self, ip_queue: str) -> list[str]:
@@ -143,25 +157,24 @@ class PortBatchHandler:
         if self.ips_cache is not None:
             return self.ips_cache
 
-        ip_rmq = RabbitMQ(ip_queue)
-        all_ips: list[str] = []
+        with RabbitMQ(ip_queue) as rmq_conn:
+            all_ips: list[str] = []
 
-        while True:
-            method, _, body = ip_rmq.channel.basic_get(queue=ip_queue, auto_ack=True)
-            if not method:
-                break
-            try:
-                msg = json.loads(body)
-                ip = msg.get("ip")
-                if ip:
-                    all_ips.append(ip)
-            except Exception:
-                logger.warning(f"[PortBatchHandler] Bad IP payload: {body}")
+            while True:
+                method, _, body = rmq_conn.channel.basic_get(queue=ip_queue, auto_ack=True)
+                if not method:
+                    break
+                try:
+                    msg = json.loads(body)
+                    ip = msg.get("ip")
+                    if ip:
+                        all_ips.append(ip)
+                except Exception:
+                    logger.warning(f"[PortBatchHandler] Bad IP payload: {body}")
 
-        for ip in all_ips:
-            ip_rmq.enqueue({"ip": ip})
+            for ip in all_ips:
+                rmq_conn.enqueue({"ip": ip})
 
-        ip_rmq.close()
         self.ips_cache = all_ips
         logger.debug(f"[PortBatchHandler] Cached {len(all_ips)} alive IPs.")
         return all_ips
@@ -174,7 +187,7 @@ class PortBatchHandler:
             port_queue (str): Queue containing available ports.
 
         Returns:
-            str | None: Name of the new batch queue, or None if not allowed.
+            Optional[str]: Name of the new batch queue, or None if not allowed.
         """
         return self.create_port_batch(ip_queue, port_queue)
 
@@ -186,18 +199,16 @@ class PortBatchHandler:
             port_queue (str): Queue with ports to scan.
 
         Returns:
-            str | None: Name of the created batch queue, or None if no batch created.
+            Optional[str]: Name of the created batch queue, or None if no batch created.
 
         Notes:
             The port is pulled from the port queue and associated with all cached IPs.
             Ports already batched previously are skipped.
         """
-        port_rmq = RabbitMQ(port_queue)
-        method, _, body = port_rmq.channel.basic_get(queue=port_queue, auto_ack=True)
-        port_rmq.close()
-
-        if not method:
-            return None
+        with RabbitMQ(port_queue) as rmq_conn:
+            method, _, body = rmq_conn.channel.basic_get(queue=port_queue, auto_ack=True)
+            if not method:
+                return None
 
         try:
             port = json.loads(body).get("port")
@@ -219,13 +230,11 @@ class PortBatchHandler:
 
         prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port"
         batch_name = f"{prefix}_{port}"
-        batch_rmq = RabbitMQ(batch_name)
 
-        count = 0
-        for ip in reservoir_of_reservoirs(ips):
-            batch_rmq.enqueue({"ip": ip, "port": port})
-            count += 1
-
-        batch_rmq.close()
+        with RabbitMQ(batch_name) as rmq_conn:
+            count = 0
+            for ip in reservoir_of_reservoirs(ips):
+                rmq_conn.enqueue({"ip": ip, "port": port})
+                count += 1
         logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {count} tasks.")
         return batch_name
