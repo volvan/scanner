@@ -26,20 +26,15 @@ from infrastructure.QueryHandler import QueryHandler
 
 # In-memory queues for DBWorker
 from multiprocessing import JoinableQueue
-db_hosts: JoinableQueue = JoinableQueue()
-db_ports: JoinableQueue = JoinableQueue()
+db_hosts: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Hosts' db table
+db_ports: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Ports' db table
 
 
 
-class DBHandler:
+class DBHandler: # TODO: rename.. Database_Handler?
 
     def __init__(self, queryHandler: QueryHandler):
-        """Initialize DBWorker.
-
-        Args:
-            enable_hosts (bool): Whether to enable host inserts.
-            enable_ports (bool): Whether to enable port inserts.
-        """
+        """Initialize.."""
         self.host_thread = None
         self.port_thread = None
         self.stop_signal = False
@@ -47,14 +42,15 @@ class DBHandler:
         self.queryHandler = queryHandler
 
     def start_hosts(self):
+        """Start database writer threads for the "Hosts" table."""
         self.stop_signal = False
 
         self.port_thread = threading.Thread(target=self._consume_hosts, daemon=True)
         self.port_thread.start()
         logger.info("[DBWorker] Host thread started.")
 
-
     def start_ports(self):
+        """Start database writer threads for the "Ports" table."""
         self.stop_signal = False
 
         self.port_thread = threading.Thread(target=self._consume_ports, daemon=True)
@@ -71,8 +67,7 @@ class DBHandler:
         # logger.critical(f'worker_pid {worker_pid} is _consume_hosts() and creating a DBWroker')
         ### For testing purposes ###
 
-        dbWorker = DBWorker()
-        try:
+        with DBWorker() as dbWorker:
             while not self.stop_signal:
                 try:
                     task = db_hosts.get(timeout=1)
@@ -83,96 +78,55 @@ class DBHandler:
 
                 queryModel: QueryModel = self.queryHandler.insert_host_result(task)
                 success = dbWorker.execute_query_model(queryModel)
-
+                
                 if success:
                     logger.debug("[DBWorker] Host task committed to DB.")
                 else:
                     logger.error(f"[DBWorker] Host update affected no rows: {task}")
-                
                 db_hosts.task_done()
-
-        finally: 
-            dbWorker.close_all()             
+        dbWorker.close_all()        
 
 
     def _consume_ports(self):
-        dbWorker = DBWorker()
-        try:
-            while not self.stop_signal:
-                try:
-                    task = db_ports.get(timeout=1)
-                except queue.Empty:
-                    continue
+        """Consume port scan results from db_ports queue and insert into database."""
+        with DBWorker() as dbWorker:
+            try:
+                while not self.stop_signal:
+                    try:
+                        task = db_ports.get(timeout=1)
+                    except queue.Empty:
+                        continue
 
-                logger.debug(f"[DBWorker] Got port task: {task}")
+                    logger.debug(f"[DBWorker] Got port task: {task}")
 
-                # Build a QueryModel for this port result
-                queryModel: QueryModel = self.queryHandler.insert_port_result(task)
-                if queryModel is None:
-                    logger.debug(f"[DBWorker] No QueryModel for task, skipping: {task}")
-                    db_ports.task_done()
-                    continue
-
-                # If it's a closed port and we've never seen it before, skip inserting
-                if task.get("port_state") == "closed":
-                    exists_qm = self.queryHandler.port_exists(task["ip"], task["port"])
-                    exists = dbWorker.execute_query_model(exists_qm)
-                    if not exists:
-                        logger.debug(f"[DBWorker] Skipping new-closed port {task['ip']}:{task['port']}")
+                    # Build a QueryModel for this port result
+                    queryModel: QueryModel = self.queryHandler.insert_port_result(task)
+                    if queryModel is None:
+                        logger.debug(f"[DBWorker] No QueryModel for task, skipping: {task}")
                         db_ports.task_done()
                         continue
 
-                # Execute the upsert/insert
-                success = dbWorker.execute_query_model(queryModel)
-                if success:
-                    logger.debug("[DBWorker] Port task committed to DB.")
-                else:
-                    logger.error(f"[DBWorker] Port insert/update affected no rows: {task}")
+                    # If it's a closed port and we've never seen it before, skip inserting
+                    if task.get("port_state") == "closed":
+                        exists_qm = self.queryHandler.port_exists(task["ip"], task["port"])
+                        exists = dbWorker.execute_query_model(exists_qm)
+                        if not exists:
+                            logger.debug(f"[DBWorker] Skipping new-closed port {task['ip']}:{task['port']}")
+                            db_ports.task_done()
+                            continue
 
-                db_ports.task_done()
+                    # Execute the upsert/insert
+                    success = dbWorker.execute_query_model(queryModel)
+                    if success:
+                        logger.debug("[DBWorker] Port task committed to DB.")
+                    else:
+                        logger.error(f"[DBWorker] Port insert/update affected no rows: {task}")
 
-        finally:
-            dbWorker.close_all()
-
-
-    def _consume_ports(self):
-        dbWorker = DBWorker()
-        try:
-            while not self.stop_signal:
-                try:
-                    task = db_ports.get(timeout=1)
-                except queue.Empty:
-                    continue
-
-                logger.debug(f"[DBWorker] Got port task: {task}")
-
-                # Build a QueryModel for this port result
-                queryModel: QueryModel = self.queryHandler.insert_port_result(task)
-                if queryModel is None:
-                    logger.debug(f"[DBWorker] No QueryModel for task, skipping: {task}")
                     db_ports.task_done()
-                    continue
 
-                # If it's a closed port and we've never seen it before, skip inserting
-                if task.get("port_state") == "closed":
-                    exists_qm = self.queryHandler.port_exists(task["ip"], task["port"])
-                    exists = dbWorker.execute_query_model(exists_qm)
-                    if not exists:
-                        logger.debug(f"[DBWorker] Skipping new-closed port {task['ip']}:{task['port']}")
-                        db_ports.task_done()
-                        continue
+            finally:
+                dbWorker.close_all()
 
-                # Execute the upsert/insert
-                success = dbWorker.execute_query_model(queryModel)
-                if success:
-                    logger.debug("[DBWorker] Port task committed to DB.")
-                else:
-                    logger.error(f"[DBWorker] Port insert/update affected no rows: {task}")
-
-                db_ports.task_done()
-
-        finally:
-            dbWorker.close_all()
 
     def stop(self):
         self.stop_signal = True

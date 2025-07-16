@@ -27,8 +27,11 @@ exit_worker_pids = {}
 
 
 class DBWorker:
-    """Database manager for PostgreSQL with a shared connection pool."""
+    """Dedicated thread-based worker that flushes scan results to the database.
 
+    Uses shared connection pool.
+    """
+    
     _pool: ThreadedConnectionPool = None
     _pool_lock = threading.Lock()
     _pool_pid = None
@@ -57,7 +60,7 @@ class DBWorker:
         if not all(creds):
             raise ValueError("Database credentials not set.")
 
-        worker_pid = str(os.getpid())
+        # worker_pid = str(os.getpid())
         # logger.critical(f'worker_pid {worker_pid} trying to access ThreadedConnectionPool')
         with cls._pool_lock:
             # logger.critical(f'worker_pid {worker_pid} successfully started creating an connection')
@@ -79,7 +82,6 @@ class DBWorker:
                 logger.error(f"[DBWorker] Pool initialization failed: {e}")
                 raise
 
-
     def __init__(self) -> None:
         """Acquire a database connection from the pool."""
         self._returned = False
@@ -87,7 +89,6 @@ class DBWorker:
         if DBWorker._pool is None or DBWorker._pool_pid != os.getpid():
             DBWorker._pool = None
             DBWorker.initialize_pool()
-
         try:
             self._conn: connection = DBWorker._pool.getconn()
             # self._conn: connection = DBWorker._pool.getconn()
@@ -95,7 +96,6 @@ class DBWorker:
         except Exception as e:
             logger.error(f"[DBWorker] Failed to acquire connection: {e}")
             raise
-
         return
 
     def __enter__(self):
@@ -114,14 +114,12 @@ class DBWorker:
 
         if DBWorker._pool is None:
             logger.warning("[DBWorker] close() called but pool not initialized.")
-            raise AssertionError('Issues in [DBWorker].close() for `if DBWorker._pool is None:`')
+            raise AssertionError('Issues in [DBWorker].close() for "if DBWorker._pool is None:"')
             return
-        
         if not getattr(self, '_conn', None):
             logger.warning("[DBWorker] close() called but no connection to return.")
             raise AssertionError('Issues in [DBWorker].close() for `if not getattr(self, \'connection\', None)`')
             return
-        
         try:
             DBWorker._pool.putconn(self._conn)
             logger.debug("[DBWorker] Returned connection to pool.")
@@ -130,10 +128,10 @@ class DBWorker:
             try:
                 # close outright if cannot return to pool
                 self._conn.close()
-               #logger.debug("[DBWorker] Closed unpooled connection.")
+                logger.debug("[DBWorker] Closed unpooled connection.")
             except Exception as e2:
                 logger.error(f"[DBWorker] Failed to close connection outright: {e2}")
- 
+
 
     @classmethod
     def close_all(cls) -> None:
@@ -151,6 +149,7 @@ class DBWorker:
         Returns:
             int: Number of affected rows.
         """
+        # TODO: should be in worker or manager?
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -166,6 +165,7 @@ class DBWorker:
         """
         Execute a SELECT statement and return all rows.
         """
+        # TODO: should be in worker or manager?
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -192,6 +192,7 @@ class DBWorker:
         Returns:
             List[Tuple] or int
         """
+        # TODO: should be in worker or manager?
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -217,5 +218,6 @@ class DBWorker:
 
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
+        # TODO: should be in worker or manager?
         return self.execute_sql(model.query, model.params, fetch=model.fetch)
         
