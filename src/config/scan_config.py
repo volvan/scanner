@@ -2,9 +2,14 @@ import os
 
 # Path configs
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TARGETS_FILE_PATH = os.path.join(BASE_DIR, "..", "targets")
-PORTS_FILE = os.getenv("PORTS_FILE", os.path.join(TARGETS_FILE_PATH, "ports.txt"))
 WHO_IS_SCAN_DELAY = int(os.getenv("WHO_IS_SCAN_DELAY", 2))
+
+# Targets - Who to scan 
+TARGETS_FILE_PATH = os.path.join(BASE_DIR, "..", "targets")           # Stored under src/targets/
+ADDR_FILE = "blocks.txt"                                              # File containing IP/CIDR blocks to scan
+
+# Ports - What ports to scan
+PORTS_FILE = os.getenv("PORTS_FILE", os.path.join(TARGETS_FILE_PATH, "ports.txt"))
 
 # Resource limits (memory in bytes, CPU percent)
 MEM_LIMIT = int(os.getenv("SCAN_MEM_LIMIT", 1_000)) * 1024**2
@@ -12,7 +17,7 @@ CPU_LIMIT = int(os.getenv("SCAN_CPU_LIMIT", 70))
 
 # --- Monitoring (logs) configurations ---------------------
 
-DEBUG_MODE = False                   # Debug mode T/F
+DEBUG_MODE = True                   # Debug mode T/F
 LOG_TO_FILE = True                   # Log the output to a file or simply in terminal
 
 # ─── RabbitMQ queue names (centralized for easy updates) ─────────────────────
@@ -38,7 +43,6 @@ PRIORITY_PORTS_QUEUE = os.getenv("PRIORITY_PORTS_QUEUE", "priority_ports")
 # ─── Discovery scan phase specific ─────────────────────────────────────────
 FETCH_RIX = False                                                     # If True, fetch IPs from RIX.is
 QUEUE_NAME = "all_addr"                                               # The queue used for IP discovery
-ADDR_FILE = os.getenv("ADDR_FILE", "blocks.txt")                      # File containing IP/CIDR blocks
 SCAN_METHOD = os.getenv("SCAN_METHOD", "default")                     # Discovery method (e.g., tcp_syn_ping)
 SINGLE_CIDR = os.getenv("SINGLE_CIDR", "8.8.8.0/28")                  # Single CIDR example
 SINGLE_ADDR = os.getenv("SINGLE_ADDR", "8.8.8.0")                     # Single IP example

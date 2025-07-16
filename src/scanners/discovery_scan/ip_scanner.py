@@ -12,7 +12,7 @@ import psutil  # type: ignore
 from utils import block_handler
 from utils.batch_handler import IPBatchHandler
 from utils.queue_initializer import QueueInitializer
-from utils.randomize_handler import reservoir_of_reservoirs
+from utils.reservoir_randomize import reservoir_of_reservoirs
 from utils.worker_handler import WorkerHandler
 
 # Configuration

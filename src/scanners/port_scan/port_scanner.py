@@ -10,7 +10,7 @@ import psutil  # type: ignore
 # Utility Handlers
 from utils.batch_handler import PortBatchHandler
 from utils.ports_handler import read_ports_file
-from utils.randomize_handler import reservoir_of_reservoirs
+from utils.reservoir_randomize import reservoir_of_reservoirs
 
 # Configuration
 from config.scan_config import (

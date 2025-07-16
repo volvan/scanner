@@ -9,7 +9,7 @@ from utils.queue_initializer import QueueInitializer
 from config.scan_config import ALL_PORTS_QUEUE, PRIORITY_PORTS_QUEUE, FAIL_QUEUE
 
 # Services
-from database.db_handler import db_ports
+from database.db_manager import db_ports
 from rmq.RabbitMQ import RabbitMQ
 
 # logs

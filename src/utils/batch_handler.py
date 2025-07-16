@@ -6,7 +6,7 @@ import sys
 from pika.spec import Basic, BasicProperties # type:ignore
 
 # Utility Handlers
-from utils.randomize_handler import reservoir_of_reservoirs
+from utils.reservoir_randomize import reservoir_of_reservoirs
 
 # Configuration
 from config import scan_config
