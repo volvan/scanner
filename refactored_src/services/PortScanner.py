@@ -20,6 +20,7 @@ from models.QueryModel import QueryModel
 import psutil
 
 from logic.port_manager import PortManager
+from utils.queue_initializer import QueueInitializer
 from utils.batch_handler import PortBatchHandler
 
 import sys, json, os, random
@@ -57,7 +58,7 @@ class PortScanner:
         self.active_processes: list[Process] = []
         self.port_manager = PortManager()
         self.batch_handler = PortBatchHandler()
-        self.alive_ip_queue = ALIVE_ADDR_QUEUE
+        # self.alive_ip_queue = ALIVE_ADDR_QUEUE
 
     def memory_ok(self) -> bool:
         """Check if current memory usage is under the configured limit.
@@ -104,10 +105,13 @@ class PortScanner:
             rmq_conn.remove_queue()
 
 
-    def start_port_scan(self):
-        """Kick off a port scan, record timestamps, and use QueryModel for querying the DB."""
-         
-         
+    def start_port_scan(self):  # TODO: rename starting_port_scan
+        """Main runner. 
+        
+        Kick off a port scan, record timestamps, and use QueryModel for querying the DB.
+        """         
+        
+        ##########################
         ## Delete Queues (excluding some from HostDiscovery) for a fresh run. This is for testing purposes only ##
         sys.stderr.write("Remove queues? (y/n): \n")
         sys.stderr.flush()
@@ -131,16 +135,18 @@ class PortScanner:
         ##########################
 
         
-        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler)
+        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler) # TODO: do we need this here also? 
         try:
             # Start background port-insert thread
-            dbHandler.start_ports()
+            dbHandler.start_ports() # TODO: has it not been called already?
 
             # 1) choose which RMQ queue to seed
             queue_name = PRIORITY_PORTS_QUEUE if USE_PRIORITY_PORTS else ALL_PORTS_QUEUE
             logger.info(f"[PortScanner] Seeding ports into '{queue_name}'…")
 
             # 2) enqueue ports
+            if not PORTS_FILE:
+                logger.error("[PortScanner] Filename required to extract ports.")
             self.new_targets(queue_name, PORTS_FILE)
 
             # 3) record scan-start timestamp
@@ -156,18 +162,20 @@ class PortScanner:
             # 6) prepare scanned_ports list
             all_ports, priority_ports = read_ports_file(PORTS_FILE)
             scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
+            if scanned_ports is None: 
+                pass #TODO: implement error handling here insted of in query_handler if empty
 
             # 7) persist summary via QueryModel
             try:
-                with DBWorker() as dbWorker:
+                with DBWorker() as dbWorker: # TODO: rename db_conn (like all with rmq start with rmq_conn)
                     # Build QueryModel for port-summary
-                    latest_summary_qm = self.infraManager.queryHandler.fetch_latest_summary_id(
+                    latest_summary_id = self.infraManager.queryHandler.fetch_latest_summary_id(
                         country=SCAN_NATION
                     )
-                    rows = dbWorker.execute_query_model(latest_summary_qm)
-                    if rows:
+                    latest_summary = dbWorker.execute_query_model(latest_summary_id)
+                    if latest_summary:
                         # update the existing summary
-                        summary_id = rows[0][0]
+                        summary_id = latest_summary[0][0]
                         update_qm = self.infraManager.queryHandler.update_summary(
                             summary_id=summary_id,
                             port_start_ts=port_start_ts,
@@ -181,9 +189,9 @@ class PortScanner:
                         # insert a brand-new summary row
                         insert_qm = self.infraManager.queryHandler.insert_summary(
                             country=SCAN_NATION,
-                            discovery_start_ts=port_start_ts,   # reuse for discovery if needed
-                            discovery_done_ts=port_start_ts,
-                            scanned_cidrs=[],                   # no discovery CIDRs here
+                            discovery_start_ts=port_start_ts,   # reuse from discovery as temp value
+                            discovery_done_ts=port_start_ts,    # reuse from discovery as temp value
+                            scanned_cidrs=[],                   # no discovery CIDRs as temp
                             port_start_ts=port_start_ts,
                             port_done_ts=port_done_ts,
                             scanned_ports=scanned_ports
@@ -199,7 +207,7 @@ class PortScanner:
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
-            dbHandler.stop()
+            dbHandler.stop() # TODO: look at this better, we shouldnt need this
             # Stop streaming port inserts
             # dbHandler.stop()
 
@@ -233,7 +241,7 @@ class PortScanner:
                 continue
 
             batch_q = self.batch_handler.create_port_batch_if_allowed(
-                self.alive_ip_queue,
+                ALIVE_ADDR_QUEUE,
                 main_queue_name
             )
 
@@ -253,6 +261,7 @@ class PortScanner:
             p.start()
             self.active_processes.append(p)
 
+        # TODO: this is outside the while true loop, should it be? 
         for p in self.active_processes:
             p.join(timeout=1)
 
@@ -271,23 +280,49 @@ class PortScanner:
             Ports are randomized before enqueueing.
         """
         try:
-            if not filename:
-                raise ValueError("Filename required to extract ports.")
-
             all_ports, priority_ports = read_ports_file(filename)
             if all_ports is None or priority_ports is None:
                 logger.warning("[PortScanner] Could not parse ports file.")
                 return
-
-            all_ports_iter = reservoir_of_reservoirs(all_ports)
-            priority_ports_iter = reservoir_of_reservoirs(priority_ports)
-
+            
             if queue_name == ALL_PORTS_QUEUE:
-                self.port_manager.enqueue_ports(ALL_PORTS_QUEUE, all_ports_iter)
+                # Randomize the ports
+                all_ports_iter = reservoir_of_reservoirs(all_ports)
+                if not all_ports_iter:
+                    logger.critical(f"[PortScanner] Port list for '{queue_name}' is empty.")
+                    return
+                # Enqueue ports
+                QueueInitializer.enqueue_list(queue_name=ALL_PORTS_QUEUE, key="port", items=all_ports_iter)
                 logger.info(f"[PortScanner] Seeded {ALL_PORTS_QUEUE} with randomized ports.")
+
             elif queue_name == PRIORITY_PORTS_QUEUE:
-                self.port_manager.enqueue_ports(PRIORITY_PORTS_QUEUE, priority_ports_iter)
+                # Randomize the ports
+                priority_ports_iter = reservoir_of_reservoirs(priority_ports)
+                if not priority_ports_iter:
+                    logger.critical(f"[PortScanner] Port list for '{queue_name}' is empty.")
+                    return
+                # Enqueue ports
+                QueueInitializer.enqueue_list(queue_name=PRIORITY_PORTS_QUEUE, key="port", items=priority_ports_iter)
                 logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
+
+        # try:
+        #     if not filename:
+        #         raise ValueError("Filename required to extract ports.")
+
+        #     all_ports, priority_ports = read_ports_file(filename)
+        #     if all_ports is None or priority_ports is None:
+        #         logger.warning("[PortScanner] Could not parse ports file.")
+        #         return
+
+        #     all_ports_iter = reservoir_of_reservoirs(all_ports)
+        #     priority_ports_iter = reservoir_of_reservoirs(priority_ports)
+
+        #     if queue_name == ALL_PORTS_QUEUE:
+        #         self.port_manager.enqueue_ports(ALL_PORTS_QUEUE, all_ports_iter)
+        #         logger.info(f"[PortScanner] Seeded {ALL_PORTS_QUEUE} with randomized ports.")
+        #     elif queue_name == PRIORITY_PORTS_QUEUE:
+        #         self.port_manager.enqueue_ports(PRIORITY_PORTS_QUEUE, priority_ports_iter)
+        #         logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
             else:
                 raise ValueError(f"Bad queue: {queue_name}")
 

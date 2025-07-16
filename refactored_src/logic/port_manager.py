@@ -16,7 +16,7 @@ from infrastructure.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
-
+# TODO: i dont need to be here.. i could be merged with PortScanner. If not, it should be clear, -the difference
 class PortManager:
     """Manager for RabbitMQ port queues and port scanning logic."""
 
@@ -25,24 +25,8 @@ class PortManager:
         debug_msg = f"[PortManager] Ready to manage '{ALL_PORTS_QUEUE}' and '{PRIORITY_PORTS_QUEUE}' queues."
         logger.debug(debug_msg)
 
-    def enqueue_ports(self, queue_name: str, ports: list[int]):
-        """Enqueue a list of ports into the specified RabbitMQ queue.
 
-        Args:
-            queue_name (str): Queue to target (ALL_PORTS_QUEUE or PRIORITY_PORTS_QUEUE).
-            ports (list[int]): List of port numbers to enqueue.
-        """
-        if not ports:
-            logger.warning(f"[PortManager] Port list for '{queue_name}' is empty.")
-            return
-
-        valid_queues = {ALL_PORTS_QUEUE, PRIORITY_PORTS_QUEUE}
-        if queue_name not in valid_queues:
-            logger.error(f"[PortManager] Invalid queue name: {queue_name}")
-            return
-
-        QueueInitializer.enqueue_list(queue_name=queue_name, key="port", items=ports)
-
+    # TODO: deadcode?
     def get_next_port(self) -> int | None:
         """Fetch and return the next port from the 'all_ports' queue.
 
@@ -54,6 +38,7 @@ class PortManager:
         rmq_manager.close()
         return port
 
+    # TODO: relevant code? 
     def handle_scan_process(self, ip: str, port: int, queue_name: str):
         """Probe an IP:port pair and enqueue the scan result as needed.
 
