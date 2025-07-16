@@ -1,5 +1,7 @@
 from typing import Tuple, Union, List
 
+# TODO: add context manager
+# TODO: review all docstring
 
 class QueryModel:
     """
@@ -15,10 +17,7 @@ class QueryModel:
 
     __slots__ = ("query", "params", "fetch")
 
-    def __init__(self, 
-                 query: str, 
-                 params: Tuple = (), 
-                 fetch: bool = False) -> None:
+    def __init__(self, query: str, params: Tuple = (), fetch: bool = False) -> None:
         self.query: str = query
         self.params: Tuple = params
         self.fetch: bool = fetch

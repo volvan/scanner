@@ -12,10 +12,10 @@ from config.logging_config import logger
 # Models
 from models.QueryModel import QueryModel
 
+# TODO: add context manager
 
-
-class QueryHandler:
-    """Database manager for PostgreSQL with a shared connection pool."""
+class QueryHandler: # Database_manager old
+    """ .. """
 
     def __init__(self) -> None:
         pass
@@ -47,7 +47,7 @@ class QueryHandler:
         that are not None will be included.
         """
         # required columns
-        cols = [
+        cols = [ # TODO: rename req_columns
             "country",
             "discovery_scan_start_ts",
             "discovery_scan_done_ts",
@@ -61,7 +61,7 @@ class QueryHandler:
         ]
 
         # optional columns
-        optional_fields = [
+        optional_fields = [ # TODO: rename opt_columns
             ("port_scan_start_ts",  port_start_ts),
             ("port_scan_done_ts",   port_done_ts),
             ("scanned_ports",       scanned_ports),
@@ -98,12 +98,11 @@ class QueryHandler:
 
 
     #TODO: Verify that this is not dead code
-    def fetch_latest_summary_id(
-        self,
-        country: str
-    ) -> QueryModel:
+    def fetch_latest_summary_id(self, country: str) -> QueryModel:
         """
-        Build a SELECT QueryModel to fetch the latest summary ID for a country.
+        Builds a SELECT QueryModel.
+        
+        Fetch the latest summary ID for a country.
         """
         sql = (
             "SELECT id"
@@ -124,31 +123,24 @@ class QueryHandler:
         port_done_ts,
         scanned_ports: list[str] = None,
     ) -> QueryModel:
+        """Builds an UPDATE QueryModel.
+        
+        Patch the existing summary row with port-scan timestamps and scanned_ports.
         """
-        Build an UPDATE QueryModel to patch port-scan metadata.
-        """
-        if scanned_ports is not None:
-            sql = (
-                "UPDATE summary"
-                " SET port_scan_start_ts = %s,"
-                "     port_scan_done_ts  = %s,"
-                "     scanned_ports      = %s"
-                " WHERE id = %s"
-            )
-            params = (port_start_ts, port_done_ts, scanned_ports, summary_id)
-        else:
-            sql = (
-                "UPDATE summary"
-                " SET port_scan_start_ts = %s,"
-                "     port_scan_done_ts  = %s"
-                " WHERE id = %s"
-            )
-            params = (port_start_ts, port_done_ts, summary_id)
+
+        sql = (
+            "UPDATE summary"
+            " SET port_scan_start_ts = %s,"
+            "     port_scan_done_ts  = %s,"
+            "     scanned_ports      = %s"
+            " WHERE id = %s"
+        )
+        params = (port_start_ts, port_done_ts, scanned_ports, summary_id)
 
         return QueryModel(query=sql, params=params, fetch=False)
 
 
-    def insert_host_result(self, task: dict, retry_limit: int = 3) -> QueryModel:
+    def insert_host_result(self, task: dict) -> QueryModel:
         """Update a host scan result in the Hosts table.
 
         Args:
@@ -235,14 +227,20 @@ class QueryHandler:
         logger.error(f"[QueryHandler] insert_host_result gave up after {retry_limit} attempts")
 
 
-    def insert_port_result(
-        self,
-        task: dict
-    ) -> QueryModel:
+    def insert_port_result(self, task: dict) -> QueryModel:
+        """Build an UPSERT QueryModel for a port scan result.
+        
+        Insert or update a port scan result in the Ports table.
+
+        Args:
+            task (dict): A task dictionary with keys:
+                'ip', 'port', 'port_state', 'port_service', 'port_protocol',
+                'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'.
         """
-        Build an UPSERT QueryModel for a port scan result.
-        """
-        required = [
+        logger.debug(f"[DatabaseManager] insert_port_result task payload: {task!r}")
+
+        # Ensure required fields are present
+        required = [ # TODO: rename to req_columns
             'ip', 'port', 'port_state', 'port_service', 'port_protocol',
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
         ]
@@ -291,14 +289,25 @@ class QueryHandler:
         whois_data: dict,
         ips: Iterable[str],
     ) -> QueryModel:
-        """
-        Prepare a batch UPSERT of WHOIS data for one or more IPs.
-        Returns a QueryModel you can hand off to your DB layer.
+        """Prepare a batch UPSERT of WHOIS data for one or more IPs.
+        
+        Seed the Hosts table with WHOIS data for one or more IP addresses.
+
+        Args:
+            whois_data (dict): WHOIS metadata keyed by CIDR (or IP range).
+            ips (Iterable[str]): List or iterable of IP addresses.
+
+        Notes:
+            Existing entries are updated if they already exist (upsert behavior).
         """
         if not whois_data:
             logger.warning("[QueryHandler] No WHOIS data to insert.")
             return None
-
+        if not ips:
+            logger.warning("[Query_Handler] No IPs provided to seed WHOIS.")
+            return None
+        
+        # Building whois data
         rows: list[tuple] = []
         scan_ts = get_current_timestamp()
         cidr_map = {
@@ -375,8 +384,17 @@ class QueryHandler:
         ip: str,
         port: int
     ) -> QueryModel:
-        """
-        Build a SELECT QueryModel to check if a port record exists.
+        """Build a SELECT QueryModel to check if a port record exists.
+        
+        Check if a port scan result already exists for a given IP and port, with retries.
+
+        Args:
+            ip (str): IP address.
+            port (int): Port number.
+            retry_limit (int): Number of retry attempts on failure.
+
+        Returns:
+            bool: True if the port exists, False otherwise.
         """
         encrypted = encrypt_ip(ip)
         sql = (
