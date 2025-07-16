@@ -20,6 +20,7 @@ from models.QueryModel import QueryModel
 from psycopg2.extensions import connection
 
 
+# TODO: what and why, comment pls
 enter_worker_pids = {}
 close_worker_pids = {}
 exit_worker_pids = {}

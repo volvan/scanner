@@ -8,12 +8,12 @@ from utils.timestamp import get_current_timestamp, duration_timestamp
 
 # Configuration
 from config import scan_config
-from config.logging_config import log_exception
-from config.logging_config import logger
+from config.logging_config import log_exception, logger
 
 
 sys.excepthook = log_exception
 
+# TODO: rename probes_discovery_scan
 
 class PingHandler:
     """Performs ICMP and TCP-based discovery pings to determine host liveness."""
@@ -52,7 +52,7 @@ class PingHandler:
             logger.debug(f"[PingHandler] Timeout: {' '.join(command)}")
             return ""
         except Exception as e:
-            logger.error(f"[PingHandler] Unexpected error running the command {command}. Error: {e}")
+            logger.error(f"[PingHandler] Unexpected error running the command: {command}. Error: {e}")
             return ""
 
     def icmp_ping(self) -> tuple[str, float] | None:
