@@ -8,6 +8,13 @@ import sys
 #----- Logger import -----#
 from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
 
+# TODO: 
+# option 1 - Run "Host Discovery Scan"
+# oprtion 2 - run "Port Scan"
+# option 3 - run scan (ip and then port scan)
+
+# Should only run this file to start Völva
+
 
 
 configure_logging(CONFIG_PATH)
