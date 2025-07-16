@@ -112,6 +112,7 @@ class IPScanner:
 
             sys.stderr.write("Enter to continue...\n")
             sys.stderr.flush()
+            logger.debug("Done removing RMQs")
         ##########################
 
 
@@ -237,6 +238,7 @@ class IPScanner:
         # worker_pid = str(os.getpid())
         # logger.critical(f'worker_pid {worker_pid} has just been created for queue {queue_name}!')
         ### For testing purposes ###
+        # TODO: Change all occurrences of RMQ to be with context manager (with)
         rmq = RabbitMQ(queue_name)
         db_manager = QueryHandler()
         hostDiscovery = HostDiscovery(db_manager=db_manager)
@@ -329,8 +331,9 @@ class IPScanner:
             sys.exit(1)
             return
 
-        total_tasks = RabbitMQ(main_queue_name).tasks_in_queue()
-        logger.debug(f"[IPScanner] {total_tasks} tasks waiting in '{main_queue_name}'")
+        with RabbitMQ(main_queue_name) as rmq_conn:
+            total_tasks = rmq_conn.tasks_in_queue()
+            logger.debug(f"[IPScanner] {total_tasks} tasks waiting in '{main_queue_name}'")
 
         if total_tasks < THRESHOLD:
             logger.info("[IPScanner] Direct processing mode (small scan).")
@@ -342,10 +345,10 @@ class IPScanner:
             return
 
         logger.info("[IPScanner] Batch processing mode (large scan).")
+
         while True:
-            rmq_main = RabbitMQ(main_queue_name)
-            remaining = rmq_main.tasks_in_queue()
-            rmq_main.close()
+            with RabbitMQ(main_queue_name) as rmq_conn:
+                remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
 
@@ -378,7 +381,7 @@ class IPScanner:
                 logger.warning("Memory high; pausing batch creation")
                 time.sleep(5)
                 continue
-
+            
             batch_id = next(self.batch_id_generator)
             batch_queue = IPBatchHandler(batch_id, remaining).create_batch(main_queue_name)
             if not batch_queue:

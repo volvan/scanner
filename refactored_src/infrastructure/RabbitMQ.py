@@ -15,6 +15,7 @@ sys.excepthook = log_exception
 # TODO: rename RMQ_Handler
 # TODO: add contaxt manager 
 # TODO: why so may connections?? 
+# TODO: 3 connections, then "[PortManager] Ready to manag.." BEFORE going in the start_ip_scan function.. 
 
 class RabbitMQ: 
     """Low-level wrapper for RabbitMQ operations, including connection, queue management, and pub/sub."""
@@ -189,15 +190,6 @@ class RabbitMQ:
             logger.error(f"[RabbitMQ] Error during reconnect close: {e}")
         self._connect()
 
-    def close(self) -> None:
-        """Close the RabbitMQ connection safely."""
-        logger.debug("RMQ - Calling close")
-        if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
-            try:
-                self.connection.close()
-            except Exception as e:
-                logger.error(f"[RabbitMQ] Error closing connection: {e}")
-
     @staticmethod
     def worker_consume(queue_name: str, callback: object) -> None:
         """Create a worker to consume messages from a queue.
@@ -206,24 +198,24 @@ class RabbitMQ:
             queue_name (str): Name of the queue to consume from.
             callback (object): Callback function to process each message.
         """
-        try:
-            manager = RabbitMQ(queue_name)
-            logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
-            manager.start_consuming(callback)
-        except Exception as e:
-            logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
-        finally:
-            try:
-                manager.close()
-            except Exception:
-                pass
-        #TODO: Add contaxt manager
         # try:
-        # with RabbitMQ(queue_name) as rmq_conn:
-        #         logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
-        #         rmq_conn.start_consuming(callback)
+        #     manager = RabbitMQ(queue_name)
+        #     logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
+        #     manager.start_consuming(callback)
         # except Exception as e:
         #     logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
+        # finally:
+        #     try:
+        #         manager.close()
+        #     except Exception:
+        #         pass
+        #TODO: Add contaxt manager
+        try:
+            with RabbitMQ(queue_name) as rmq_conn:
+                logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
+                rmq_conn.start_consuming(callback)
+        except Exception as e:
+            logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
 
 
     @staticmethod
@@ -288,6 +280,7 @@ class RabbitMQ:
                     logger.error(f"[RabbitMQ] Failed to decode task: {e}")
 
             self.channel.queue_delete(queue=self.queue_name)
+
         # TODO: Contaxt manager
         #     self.exit()
 
@@ -310,15 +303,26 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")
     
+    def close(self) -> None:
+        """Close the RabbitMQ connection safely."""
+        logger.debug("RMQ - Calling close")
+        if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
+            try:
+                self.connection.close()
+            except Exception as e:
+                logger.error(f"[RabbitMQ] Error closing connection: {e}")
+
     # TODO: Context manager
-    # def __enter__(self):
-    #     """Support context manager entry (with-statement)."""
-    #     return self
+    def __enter__(self):
+        """Support context manager entry (with-statement)."""
+        logger.debug("RMQ - Calling enter")
+        return self
     
-    # def __exit__(self, exc_type, exc_val, exc_tb):
-    #     """Support context manager exit (with-statement) to close the RMQ connection safely."""
-    #     try:
-    #         if hasattr(self, "connection", None) and not self.connection.is_closed:
-    #             self.connection.close()
-    #     except Exception as e:
-    #         logger.error(f"[RabbitMQ] Error closing connection: {e}")
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Support context manager exit (with-statement) to close the RMQ connection safely."""
+        logger.debug("RMQ - Calling exit")
+        try:
+            if hasattr(self, "connection", None) and not self.connection.is_closed:
+                self.connection.close()
+        except Exception as e: # TODO: error msg: "Error closing connection: hasattr expected 2 arguments, got 3"
+            logger.error(f"[RabbitMQ] Error closing connection: {e}")

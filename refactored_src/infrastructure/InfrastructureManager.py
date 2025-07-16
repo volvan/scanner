@@ -2,6 +2,7 @@
 from .DBHandler import DBHandler
 from .QueryHandler import QueryHandler
 
+# TODO: !!!? : no one is closing Database_Handler
 
 class InfrastructureManager:
     def __init__(self):
