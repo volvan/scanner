@@ -42,6 +42,7 @@ class HostDiscovery:
 
         # TODO: Verify this logic needs to be.. 
         # TODO: should not have one connection per queue right?
+        # TODO: thinking.. if only the enqueue function would take in queue_name.. we souldnt need 3 instances in the init here for those seperate calls right? 
         # Initialize Alive queue
         try:
             self.alive_rmq = RabbitMQ(ALIVE_ADDR_QUEUE)

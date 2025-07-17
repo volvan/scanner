@@ -94,9 +94,9 @@ class IPBatchHandler:
         batch_queue = f"batch_{self.batch_id}"
 
         try:
-            with RabbitMQ(batch_queue) as rmq_conn:
+            with RabbitMQ(batch_queue) as rmq_batch_conn:
                 for task in tasks:
-                    rmq_conn.enqueue(task)
+                    rmq_batch_conn.enqueue(task)
             for m in deliveries:
                 rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)
             logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")

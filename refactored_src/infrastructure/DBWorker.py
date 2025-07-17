@@ -220,5 +220,6 @@ class DBWorker:
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
         # TODO: should be in worker or manager?
+        logger.debug("[DBWorker] execute_query_model() called")
         return self.execute_sql(model.query, model.params, fetch=model.fetch)
         

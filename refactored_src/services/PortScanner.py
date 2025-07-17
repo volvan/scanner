@@ -85,24 +85,24 @@ class PortScanner:
         Notes:
             This runs inside a spawned process. Each task is ACKed or NACKed after handling.
         """
-        with RabbitMQ(batch_queue) as rmq_conn:
+        with RabbitMQ(batch_queue) as rmq_batch_conn:
             pm = PortManager() # TODO: add context manager, or does this need an instance? 
 
             while True:
-                method_frame, _, body = rmq_conn.channel.basic_get(queue=batch_queue, auto_ack=False)
+                method_frame, _, body = rmq_batch_conn.channel.basic_get(queue=batch_queue, auto_ack=False)
                 if not method_frame:
                     break
 
                 try:
                     task = json.loads(body)
                     pm.handle_scan_process(task["ip"], task["port"], batch_queue)
-                    rmq_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+                    rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
                 except Exception:
-                    rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
+                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
 
                 time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))
 
-            rmq_conn.remove_queue()
+            rmq_batch_conn.remove_queue()
 
 
     def start_port_scan(self):  # TODO: rename starting_port_scan

@@ -185,7 +185,7 @@ class RabbitMQ:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
         logger.debug("[RabbitMQ] Reconnecting to RabbitMQ...")
         try:
-            self.close() # TODO: self.exit()
+            self.close() # TODO: self.exit() # TODO: wait, can this work? 
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during reconnect close: {e}")
         self._connect()
@@ -261,6 +261,7 @@ class RabbitMQ:
 
         If the queue is not empty, move tasks to 'fail_queue' before deletion.
         """
+        # TODO: what is happening here though? in all this function....
         try:
             if self.queue_empty(self.queue_name):
                 logger.debug(f"[RabbitMQ] {self.queue_name} is empty. Deleting.")
@@ -270,7 +271,7 @@ class RabbitMQ:
             logger.warning(f"[RabbitMQ] {self.queue_name} is not empty. Draining to 'fail_queue'.")
             leftovers = []
             while True:
-                method_frame, _, body = self.channel.basic_get(queue=self.queue_name, auto_ack=True)
+                method_frame, _, body = self.channel.basic_get(queue=self.queue_name, auto_ack=True) # IS this not dangerous? what if anything happens while here? lost tasks or?
                 if not method_frame:
                     break
                 try:
@@ -303,26 +304,37 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")
     
+    # TODO: while i figure out the remove_queue, this is temp solution. should be a fucntion, used in remove_queue and elsewhere that only drains 'items' to FAIL_QUEUE
+    def enqueue_to_fail_queue(self, items: dict) -> None:
+
+        # NOTE: stolen fron 'enqueue'
+        
+        self.channel.basic_publish(
+            exchange='',
+            routing_key=FAIL_QUEUE,
+            body=json.dumps(items),
+            properties=pika.BasicProperties(delivery_mode=2)
+        )
+
+
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
         logger.debug("RMQ - Calling close")
-        if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
-            try:
-                self.connection.close()
-            except Exception as e:
-                logger.error(f"[RabbitMQ] Error closing connection: {e}")
+        self.__exit__()
 
     # TODO: Context manager
     def __enter__(self):
         """Support context manager entry (with-statement)."""
         logger.debug("RMQ - Calling enter")
+        # self._connect() # TODO: after using only context manager, move connect from init 
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Support context manager exit (with-statement) to close the RMQ connection safely."""
         logger.debug("RMQ - Calling exit")
         try:
-            if hasattr(self, "connection", None) and not self.connection.is_closed:
+            if hasattr(self, "connection") and not self.connection.is_closed:
+            # if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
                 self.connection.close()
         except Exception as e: # TODO: error msg: "Error closing connection: hasattr expected 2 arguments, got 3"
             logger.error(f"[RabbitMQ] Error closing connection: {e}")

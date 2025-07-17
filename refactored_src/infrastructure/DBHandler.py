@@ -43,19 +43,21 @@ class DBHandler: # TODO: rename.. Database_Handler?
 
     def start_hosts(self):
         """Start database writer threads for the "Hosts" table."""
+        logger.debug("[DBHandler] Host thread started.")
         self.stop_signal = False
 
-        self.port_thread = threading.Thread(target=self._consume_hosts, daemon=True)
-        self.port_thread.start()
-        logger.info("[DBWorker] Host thread started.")
+        self.host_thread = threading.Thread(target=self._consume_hosts, daemon=True)
+        self.host_thread.start()
+        logger.info("[DBHandler] Host thread started.")
 
     def start_ports(self):
         """Start database writer threads for the "Ports" table."""
+        logger.debug("[DBHandler] Port thread started.")
         self.stop_signal = False
 
         self.port_thread = threading.Thread(target=self._consume_ports, daemon=True)
         self.port_thread.start()
-        logger.info("[DBWorker] Port thread started.")
+        logger.info("[DBHandler] Port thread started.")
 
 
     def _consume_hosts(self):
@@ -74,15 +76,15 @@ class DBHandler: # TODO: rename.. Database_Handler?
                 except queue.Empty:
                     continue
 
-                logger.debug(f"[DBWorker] Got host task: {task}")
+                logger.debug(f"[DBHandler] Got host task: {task}")
 
                 queryModel: QueryModel = self.queryHandler.insert_host_result(task)
                 success = dbWorker.execute_query_model(queryModel)
                 
                 if success:
-                    logger.debug("[DBWorker] Host task committed to DB.")
+                    logger.debug("[DBHandler] Host task committed to DB.")
                 else:
-                    logger.error(f"[DBWorker] Host update affected no rows: {task}")
+                    logger.error(f"[DBHandler] Host update affected no rows: {task}")
                 db_hosts.task_done()
         dbWorker.close_all()        
 
@@ -97,12 +99,12 @@ class DBHandler: # TODO: rename.. Database_Handler?
                     except queue.Empty:
                         continue
 
-                    logger.debug(f"[DBWorker] Got port task: {task}")
+                    logger.debug(f"[DBHandler] Got port task: {task}")
 
                     # Build a QueryModel for this port result
                     queryModel: QueryModel = self.queryHandler.insert_port_result(task)
                     if queryModel is None:
-                        logger.debug(f"[DBWorker] No QueryModel for task, skipping: {task}")
+                        logger.debug(f"[DBHandler] No QueryModel for task, skipping: {task}")
                         db_ports.task_done()
                         continue
 
@@ -111,16 +113,16 @@ class DBHandler: # TODO: rename.. Database_Handler?
                         exists_qm = self.queryHandler.port_exists(task["ip"], task["port"])
                         exists = dbWorker.execute_query_model(exists_qm)
                         if not exists:
-                            logger.debug(f"[DBWorker] Skipping new-closed port {task['ip']}:{task['port']}")
+                            logger.debug(f"[DBHandler] Skipping new-closed port {task['ip']}:{task['port']}")
                             db_ports.task_done()
                             continue
 
                     # Execute the upsert/insert
                     success = dbWorker.execute_query_model(queryModel)
                     if success:
-                        logger.debug("[DBWorker] Port task committed to DB.")
+                        logger.debug("[DBHandler] Port task committed to DB.")
                     else:
-                        logger.error(f"[DBWorker] Port insert/update affected no rows: {task}")
+                        logger.error(f"[DBHandler] Port insert/update affected no rows: {task}")
 
                     db_ports.task_done()
 
@@ -129,8 +131,9 @@ class DBHandler: # TODO: rename.. Database_Handler?
 
 
     def stop(self):
+        logger.debug("[DBHandler] stop() called.")
         self.stop_signal = True
-        logger.info("[DBWorker] Stop signal sent. Waiting for threads to exit.")
+        logger.info("[DBHandler] Stop signal sent. Waiting for threads to exit.")
         if self.host_thread:
             self.host_thread.join(timeout=2)
         if self.port_thread:

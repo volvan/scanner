@@ -105,7 +105,7 @@ class QueueInitializer:
 
         Args:
             queue_name (str): Target RabbitMQ queue name.
-            key (str): Key to use in each message (e.g., "port").
+            key (str): Key to use in each message ("ip" or "port").
             items (list): List of values to enqueue.
         """
         rmq_manager = RabbitMQ(queue_name)
@@ -113,22 +113,24 @@ class QueueInitializer:
             rmq_manager.declare_queue()
         for val in items:
             rmq_manager.enqueue({key: val})
+            logger.debug("[enqueue_list] enqueued (key, val): (%s, %s)", key, val)
+        logger.debug("[enqueue_list] for val (%s) in items (%s)", key, val)
         rmq_manager.close()
 
-    # TODO: move to rmq or ip_manager (only call to this function is ipman )
+    # TODO: move to rmq or ip_manager (only call to this function is IPScanner )
     @classmethod
-    def enqueue_ips(cls, queue_name: str, ips: Iterable[str]) -> None:
+    def enqueue_ips(cls, queue_name: str, key: str, val: Iterable[str]) -> None:
         """Enqueue IP addresses into a queue one at a time.
 
         Args:
             queue_name (str): Name of the RabbitMQ IP queue.
-            ips (Iterable[str]): Iterable of IP address strings.
-
-        Notes:
-            Each IP address is wrapped individually as a message.
+            val (Iterable[str]): Iterable of IP address strings. # TODO: should be used for ports also
         """
-        count = 0
-        for ip in ips:
-            cls.enqueue_list(queue_name, "ip", [ip])
-            count += 1
-        logger.debug("[enqueue_ips] published %d msgs to %s", count, queue_name)
+        with RabbitMQ(queue_name) as rmq_conn: # TODO: should not open and close a connection per batch hello hellooo haha..
+            count = 0 # for debugger
+            for ip in val:
+                rmq_conn.enqueue({key: ip})
+                logger.debug("[enqueue_ips] enqueued (key, val): (%s, %s)", key, ip)
+                count += 1
+
+            logger.debug("[enqueue_ips] published %d msgs to %s", count, queue_name)

@@ -130,17 +130,15 @@ class IPScanner:
             # Record the scan-start timestamp
             discovery_start_ts = get_current_timestamp()
 
-            # Perform the discovery scan (this blocks until done)
+            # Perform the discovery scan (this blocks until done) - this runs the pipeline of the actual scan process
             self.run_discovery()
 
             # Record the scan-done timestamp
             discovery_done_ts = get_current_timestamp()
 
-
-
-            # 5) persist summary with the correct scan window
+            # Scan is concluded. Write the summary table
             try:
-                # with self.logicManager.dataManager.databaseManager as db:
+                # TODO: should be renamed and / or moved..
                 with DBWorker() as dbWorker:
                     queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
                         country=SCAN_NATION,
@@ -148,14 +146,12 @@ class IPScanner:
                         discovery_done_ts=discovery_done_ts,
                         scanned_cidrs=blocks
                     )
-
                     success = dbWorker.execute_query_model(queryModel)
                     if not success:
                         logger.critical('[IPScanner.start_ip_scan] Something went wrong while inserting the summary.')
-                    
-                    
             except Exception as e:
                 logger.error(f"[IPScanner.start_ip_scan] Failed to write discovery summary: {e}")
+
 
         except Exception as e:
             logger.critical(f"[IPScanner.start_ip_scan] Fatal error: {e}", exc_info=True)
@@ -206,6 +202,9 @@ class IPScanner:
     #TODO: To be refactored
     def run_discovery(self):
         """Run the discovery scan (blocks until complete)."""
+
+        
+    
         logger.debug("[IPScan Init] Starting host discovery...")
         self.start_consuming(ALL_ADDR_QUEUE)
 
@@ -241,8 +240,7 @@ class IPScanner:
         # worker_pid = str(os.getpid())
         # logger.critical(f'worker_pid {worker_pid} has just been created for queue {queue_name}!')
         ### For testing purposes ###
-        # TODO: Change all occurrences of RMQ to be with context manager (with)
-        rmq = RabbitMQ(queue_name)
+        
 
         # TODO: take a close look.. should we make db_man and discovery???
         db_manager = QueryHandler()
@@ -253,6 +251,9 @@ class IPScanner:
         method_frame: Basic.GetOk
         props: BasicProperties
         body: bytes
+
+        # TODO: Change all occurrences of RMQ to be with context manager (with)
+        rmq = RabbitMQ(queue_name)
 
         while True:
             method_frame, props, body = rmq.channel.basic_get(
@@ -284,7 +285,7 @@ class IPScanner:
 
                         # FAIL = FAIL_QUEUE
                         payload = json.loads(body)
-                        RabbitMQ(FAIL_QUEUE).enqueue(payload) # TODO: critical - this rmq opened, never closed
+                        rmq.enqueue_to_fail_queue(payload) 
                     except Exception as e:
                         logger.error(f"[IPScanner] Failed to enqueue timed-out task: {e}")
                     finally:
@@ -432,6 +433,10 @@ class IPScanner:
                 raise ValueError(
                     "Either an IP address, a filename, or fetch_rix=True must be provided."
                 )
+            
+            with RabbitMQ(queue_name) as rmq_conn:
+                if not rmq_conn.queue_exists():
+                    rmq_conn.declare_queue()
 
             if fetch_rix: # TODO: fetch rix ever true? 
                 new_rix_file = block_handler.fetch_rix_blocks()
@@ -474,7 +479,7 @@ class IPScanner:
                         logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
                         continue
 
-                    QueueInitializer.enqueue_ips(queue_name, batch)
+                    QueueInitializer.enqueue_ips(queue_name=queue_name, key="ip", val=batch)
 
                 # dbWorker.close()
                 del shuffled_ips, ip_iter
