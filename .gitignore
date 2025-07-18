@@ -196,9 +196,9 @@ coverage.xml
 htmlcov/
 
 
-src/snapshots/*
-refactored_src/snapshots/*
-refactored_src/targets*
+*/snapshots/*
+snapshots/
+src/targets/blocks.txt
 
 # VSCode / IDE
 .vscode/
