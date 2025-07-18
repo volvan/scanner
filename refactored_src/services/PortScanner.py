@@ -22,6 +22,7 @@ import psutil
 from logic.port_manager import PortManager
 from utils.queue_initializer import QueueInitializer
 from utils.batch_handler import PortBatchHandler
+from utils.debug_tools import run_debug_maintenance
 
 import sys, json, os, random
 
@@ -35,6 +36,7 @@ from utils.reservoir_randomize import reservoir_of_reservoirs
 from config.scan_config import (  # noqa: F401
     PRIORITY_PORTS_QUEUE,
     PORTS_FILE,
+    DEBUG_MODE,
     USE_PRIORITY_PORTS,
     ALL_PORTS_QUEUE,
     ALIVE_ADDR_QUEUE,
@@ -105,34 +107,14 @@ class PortScanner:
             rmq_batch_conn.remove_queue()
 
 
-    def start_port_scan(self):  # TODO: rename starting_port_scan
+    def launch_port_scan_pipeline(self):
         """Main runner. 
         
         Kick off a port scan, record timestamps, and use QueryModel for querying the DB.
-        """         
-        
-        ##########################
-        ## Delete Queues (excluding some from HostDiscovery) for a fresh run. This is for testing purposes only ##
-        sys.stderr.write("Remove queues? (y/n): \n")
-        sys.stderr.flush()
-        clean_queue = sys.stdin.readline().strip().lower() == 'y'
-
-        if clean_queue:
-            for queue_name in [name for name in RabbitMQ.list_queues() if name not in ['alive_addr', 'all_addr', 'dead_addr', 'fail_queue']]:
-                try:
-                    temp_rmq = RabbitMQ(queue_name)
-                    temp_rmq.channel.queue_delete(queue_name)
-                    temp_rmq.close()
-                except Exception:
-                    continue
-
-            fail = RabbitMQ('fail_queue')
-            fail.channel.queue_delete('fail_queue')
-            fail.close()
-
-            sys.stderr.write("Enter to continue...\n")
-            sys.stderr.flush()
-        ##########################
+        """
+        # USed as a bdebug mode helper, to clean up queues and the log file
+        if DEBUG_MODE:
+            run_debug_maintenance() # TODO: have exclude option to skip the 3 main queues
 
         
         dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler) # TODO: do we need this here also? 

@@ -56,7 +56,7 @@ class DBHandler: # TODO: rename.. Database_Handler?
         self.stop_signal = False
 
         self.port_thread = threading.Thread(target=self._consume_ports, daemon=True)
-        self.port_thread.start()
+        self.port_thread.start() # TODO: start after thread?
         logger.info("[DBHandler] Port thread started.")
 
 

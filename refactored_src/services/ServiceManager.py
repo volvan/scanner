@@ -24,13 +24,13 @@ class ServiceManager:
 
     #----- IPScanner Methods -----#
     def start_ip_scan(self):
-        print('Just started ServiceManager.launch_discovery_pipeline()')
-        self.ipScanner.launch_discovery_pipeline()
+        print('Just started ServiceManager.launch_discovery_scan_pipeline()')
+        self.ipScanner.launch_discovery_scan_pipeline()
 
     #----- PortScanner Methods -----#
     def start_port_scan(self):
-        print('Just started ServiceManager.start_port_scan()')
-        self.portScanner.start_port_scan()
+        print('Just started ServiceManager.launch_port_scan_pipeline()')
+        self.portScanner.launch_port_scan_pipeline()
 
     
     
