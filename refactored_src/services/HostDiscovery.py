@@ -15,7 +15,7 @@ from utils.ping_handler import PingHandler
 from utils.timestamp import get_current_timestamp
 
 # Configuration
-from config.scan_config import SCAN_DELAY, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE, CPU_LIMIT, MEM_LIMIT
+from config.scan_config import SCAN_DELAY, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE
 from config.logging_config import log_exception
 from config.logging_config import logger
 

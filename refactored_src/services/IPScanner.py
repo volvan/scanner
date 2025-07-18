@@ -202,9 +202,6 @@ class IPScanner:
     #TODO: To be refactored
     def run_discovery(self):
         """Run the discovery scan (blocks until complete)."""
-
-        
-    
         logger.debug("[IPScan Init] Starting host discovery...")
         self.start_consuming(ALL_ADDR_QUEUE)
 

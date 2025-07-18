@@ -245,7 +245,7 @@ class RabbitMQ:
             key (str): The key to extract from the message payload.
 
         Returns:
-            str | None: Value associated with the key, or None if not found.
+            Optional[str]: Value associated with the key, or None if not found.
         """
         try:
             method_frame, _, body = self.channel.basic_get(queue=self.queue_name, auto_ack=True)
@@ -293,12 +293,17 @@ class RabbitMQ:
         #     logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")
 
             self.close()
-            
-            fail_rmq = RabbitMQ(FAIL_QUEUE)
-            for task in leftovers:
-                # print(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
-                fail_rmq.enqueue(task)
-            fail_rmq.close()
+
+            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
+                logger.info(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
+                for task in leftovers:
+                    rmq_fail_conn.enqueue(task)
+
+            # fail_rmq = RabbitMQ(FAIL_QUEUE)
+            # for task in leftovers:
+            #     # print(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
+            #     fail_rmq.enqueue(task)
+            # fail_rmq.close()
 
             logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
         except Exception as e:
