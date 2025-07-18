@@ -60,6 +60,7 @@ from config.scan_config import (  # noqa: F401
     SCAN_DELAY,
     THRESHOLD,
     BATCH_TIMEOUT_SEC,
+    FETCH_RIX
 )
 from config.logging_config import logger, log_exception
 
@@ -369,36 +370,35 @@ class IPScanner:
     def new_targets(self,
                     queue_name: str,
                     address: str = None,
-                    filename: str = None,
-                    fetch_rix: bool = False) -> str:
+                    filename: str = None) -> str:
         """Extract IP addresses, randomize them, and enqueue into batches.
 
         Args:
             queue_name (str): Name of the RabbitMQ queue to enqueue into.
             address (str, optional): Single IP or CIDR block.
             filename (str, optional): File containing CIDR blocks.
-            fetch_rix (bool, optional): If True, fetch RIX blocks instead of using local data.
 
         Returns:
             str: Filename used for CIDR blocks, or None on error.
 
         Raises:
-            ValueError: If neither address, filename, nor fetch_rix is provided.
+            ValueError: If neither address or filename is provided.
         """
         try:
             if not queue_name:
                 raise ValueError("Queue name must be provided")
 
-            if not (address or filename or fetch_rix):
-                raise ValueError(
-                    "Either an IP address, a filename, or fetch_rix=True must be provided."
-                )
+            if not (address or filename):
+                if FETCH_RIX is False: 
+                    raise ValueError(
+                        "Either an IP address, a filename, or fetch_rix=True must be provided."
+                    )
             
             with RabbitMQ(queue_name) as rmq_conn:
                 if not rmq_conn.queue_exists():
                     rmq_conn.declare_queue()
 
-            if fetch_rix: # TODO: fetch rix ever true? 
+            if FETCH_RIX:
                 new_rix_file = block_handler.fetch_rix_blocks()
                 if not new_rix_file:
                     logger.warning("[IPScanner] Could not fetch RIX blocks or create file.")
