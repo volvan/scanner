@@ -24,8 +24,8 @@ class ServiceManager:
 
     #----- IPScanner Methods -----#
     def start_ip_scan(self):
-        print('Just started ServiceManager.start_ip_scan()')
-        self.ipScanner.start_ip_scan()
+        print('Just started ServiceManager.launch_discovery_pipeline()')
+        self.ipScanner.launch_discovery_pipeline()
 
     #----- PortScanner Methods -----#
     def start_port_scan(self):

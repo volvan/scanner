@@ -87,8 +87,9 @@ class IPScanner:
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
-    def start_ip_scan(self):
+    def launch_discovery_pipeline(self): # TODO: rename launch_discovery_pipeline() # TODO: move to HostDiscovery
 
+        # USed as a bdebug mode helper, to clean up queues and the log file
         if DEBUG_MODE:
             run_debug_maintenance()
 
@@ -124,13 +125,13 @@ class IPScanner:
                     )
                     success = dbWorker.execute_query_model(queryModel)
                     if not success:
-                        logger.critical('[IPScanner.start_ip_scan] Something went wrong while inserting the summary.')
+                        logger.critical('[IPScanner.launch_discovery_pipeline] Something went wrong while inserting the summary.')
             except Exception as e:
-                logger.error(f"[IPScanner.start_ip_scan] Failed to write discovery summary: {e}")
+                logger.error(f"[IPScanner.launch_discovery_pipeline] Failed to write discovery summary: {e}")
 
 
         except Exception as e:
-            logger.critical(f"[IPScanner.start_ip_scan] Fatal error: {e}", exc_info=True)
+            logger.critical(f"[IPScanner.launch_discovery_pipeline] Fatal error: {e}", exc_info=True)
         finally:
             # self.logicManager.dbWorkerLogic.stop()
             db_hosts.join()     # block until every host task_done()
