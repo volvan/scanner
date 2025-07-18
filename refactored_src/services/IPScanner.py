@@ -450,7 +450,7 @@ class IPScanner:
             else:
                 ip_iter = block_handler.get_ip_addresses_from_block(ip_address=address)
 
-            shuffled_ips = reservoir_of_reservoirs(ip_iter)
+            shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
 
             whois_info = (
                 self.whois_reconnaissance(filename=filename)
@@ -467,7 +467,7 @@ class IPScanner:
 
             with DBWorker() as dbWorker:
                 dbWorker: DBWorker
-                for batch_no, batch in enumerate(chunked(shuffled_ips), start=1):
+                for batch_no, batch in enumerate(chunked(shuffled_ips_iter), start=1):
                     logger.info("[enqueue] batch %d: size=%d", batch_no, len(batch))
                     queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
                     if queryModel is None:
@@ -479,10 +479,10 @@ class IPScanner:
                         logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
                         continue
 
-                    QueueInitializer.enqueue_ips(queue_name=queue_name, key="ip", val=batch)
+                    QueueInitializer.enqueue_items(queue_name=queue_name, key="ip", val=batch)
 
                 # dbWorker.close()
-                del shuffled_ips, ip_iter
+                del shuffled_ips_iter, ip_iter
                 gc.collect()
 
             # Return the file we used for CIDR blocks

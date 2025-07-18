@@ -320,7 +320,12 @@ class RabbitMQ:
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
         logger.debug("RMQ - Calling close")
-        self.__exit__()
+        try:
+            if hasattr(self, "connection") and not self.connection.is_closed:
+            # if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
+                self.connection.close()
+        except Exception as e: # TODO: error msg: "Error closing connection: hasattr expected 2 arguments, got 3"
+            logger.error(f"[RabbitMQ] Error closing connection: {e}")
 
     # TODO: Context manager
     def __enter__(self):
@@ -332,9 +337,4 @@ class RabbitMQ:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Support context manager exit (with-statement) to close the RMQ connection safely."""
         logger.debug("RMQ - Calling exit")
-        try:
-            if hasattr(self, "connection") and not self.connection.is_closed:
-            # if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
-                self.connection.close()
-        except Exception as e: # TODO: error msg: "Error closing connection: hasattr expected 2 arguments, got 3"
-            logger.error(f"[RabbitMQ] Error closing connection: {e}")
+        self.close()

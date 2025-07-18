@@ -292,7 +292,8 @@ class PortScanner:
                     logger.critical(f"[PortScanner] Port list for '{queue_name}' is empty.")
                     return
                 # Enqueue ports
-                QueueInitializer.enqueue_list(queue_name=ALL_PORTS_QUEUE, key="port", items=all_ports_iter)
+                # QueueInitializer.enqueue_list(queue_name=ALL_PORTS_QUEUE, key="port", items=all_ports_iter)
+                QueueInitializer.enqueue_items(queue_name=ALL_PORTS_QUEUE, key="port", val=all_ports_iter)
                 logger.info(f"[PortScanner] Seeded {ALL_PORTS_QUEUE} with randomized ports.")
 
             elif queue_name == PRIORITY_PORTS_QUEUE:
@@ -302,7 +303,8 @@ class PortScanner:
                     logger.critical(f"[PortScanner] Port list for '{queue_name}' is empty.")
                     return
                 # Enqueue ports
-                QueueInitializer.enqueue_list(queue_name=PRIORITY_PORTS_QUEUE, key="port", items=priority_ports_iter)
+                # QueueInitializer.enqueue_list(queue_name=PRIORITY_PORTS_QUEUE, key="port", items=priority_ports_iter)
+                QueueInitializer.enqueue_items(queue_name=PRIORITY_PORTS_QUEUE, key="port", val=priority_ports_iter)
                 logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
 
         # try:
