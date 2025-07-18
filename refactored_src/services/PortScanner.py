@@ -30,7 +30,7 @@ from config.logging_config import logger, log_exception
 from utils.batch_handler import PortBatchHandler
 from utils.ports_handler import read_ports_file
 from utils.timestamp import get_current_timestamp
-from utils.randomize_handler import reservoir_of_reservoirs
+from utils.reservoir_randomize import reservoir_of_reservoirs
 
 from config.scan_config import (  # noqa: F401
     PRIORITY_PORTS_QUEUE,
