@@ -1,5 +1,5 @@
 #----- Config imports -----#
-from config.scan_config import SCAN_NATION, ALL_ADDR_QUEUE, ADDR_FILE
+from config.scan_config import SCAN_NATION, ALL_ADDR_QUEUE, ADDR_FILE, DEBUG_MODE
 
 #----- Type annotation imports -----#
 from external.ExternalManager import ExternalManager
@@ -14,6 +14,7 @@ from services.HostDiscovery import HostDiscovery
 from utils.timestamp import get_current_timestamp
 from utils.block_handler import read_block, whois_block
 from utils.resource_status import resource_ok
+from utils.debug_tools import run_debug_maintenance
 
 #----- Model imports -----#
 from models.QueryModel import QueryModel
@@ -56,10 +57,8 @@ from config.scan_config import (  # noqa: F401
     BATCH_SIZE,
     FAIL_QUEUE,
     MAX_BATCH_PROCESSES,
-    MEM_LIMIT,
     SCAN_DELAY,
     THRESHOLD,
-    CPU_LIMIT,
     BATCH_TIMEOUT_SEC,
 )
 from config.logging_config import logger, log_exception
@@ -88,33 +87,10 @@ class IPScanner:
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
-
     def start_ip_scan(self):
 
-        ## Delete Queues for a fresh run. This is for testing purposes only ##
-        sys.stderr.write("Remove queues? (y/n): \n")
-        sys.stderr.flush()
-        clean_queue = sys.stdin.readline().strip().lower() == 'y'
-
-        if clean_queue:
-
-            for queue_name in RabbitMQ.list_queues():
-                try:
-                    temp_rmq = RabbitMQ(queue_name)
-                    temp_rmq.channel.queue_delete(queue_name)
-                    temp_rmq.close()
-                except Exception as e:
-                    print(f'[enqueue_new_targets()] God diggity darn! Something went wrong {e}')
-                    break
-
-            fail = RabbitMQ('fail_queue')
-            fail.channel.queue_delete('fail_queue')
-            fail.close()
-
-            sys.stderr.write("Enter to continue...\n")
-            sys.stderr.flush()
-            logger.debug("Done removing RMQs")
-        ##########################
+        if DEBUG_MODE:
+            run_debug_maintenance()
 
 
         db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)  # TODO: deprecated?!

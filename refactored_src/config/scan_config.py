@@ -1,18 +1,24 @@
-import os
-# TODO: fix fetch from RIX everywhere..
+import os # TODO: fix fetch from RIX everywhere..
+
+
 
 # --- Global settings and configurations ---------------------
-
-# Global paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(os.path.dirname(BASE_DIR)) 
 
-# Resource limits
-MEM_LIMIT = 1_000 * 1024**2                                           # Memory in bytes
-CPU_LIMIT = 70                                                        # CPU percent
 
 # --- Monitoring (logs) configurations ---------------------
 DEBUG_MODE = True                                                     # Debug mode T/F
 LOG_TO_FILE = True                                                    # Log the output to a file or simply in terminal
+
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/logging_config.json")
+LOG_DIR = os.path.join(ROOT_DIR, "logs")
+
+
+# ---  Resource limits ---------------------
+MEM_LIMIT = 1_000 * 1024**2                                           # Memory in bytes
+CPU_LIMIT = 70                                                        # CPU percent
+
 
 # ─── General scan parameters ──────────────────────────────────────────────
 WORKERS = 3                                                           # Number of workers to spawn (DEFAULT: 250)
@@ -21,6 +27,7 @@ THRESHOLD = int(30)                                                   # Direct v
 BATCH_SIZE = int(3)                                                 # Tasks per batch & DB insert size ( DEFAULT: 500)
 MAX_BATCH_PROCESSES = int(100)                                        # Max concurrent batch-forked processes
 WHO_IS_SCAN_DELAY = int(2)
+
 
 # ─── Discovery scan phase specific ─────────────────────────────────────────
 SCAN_NATION = "IS"                                                    # Scan Nation to scan
