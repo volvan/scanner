@@ -12,7 +12,7 @@ from services.HostDiscovery import HostDiscovery
 
 #----- Util classes imports -----#
 from utils.timestamp import get_current_timestamp
-from utils.block_handler import read_block
+from utils.block_handler import read_block, whois_block
 
 #----- Model imports -----#
 from models.QueryModel import QueryModel
@@ -452,10 +452,12 @@ class IPScanner:
 
             shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
 
-            whois_info = (
-                self.whois_reconnaissance(filename=filename)
-                if filename else self.whois_reconnaissance(target=address)
-            )
+            # whois_info = (
+            #     self.whois_reconnaissance(filename=filename)
+            #     if filename else self.whois_reconnaissance(target=address)
+            # )
+            whois_info = whois_block(target=address, filename=filename)
+
 
             def chunked(iterator, size=BATCH_SIZE):  # noqa: D103
                 it = iter(iterator)
@@ -492,27 +494,26 @@ class IPScanner:
             logger.error(f"[IPScanner] Error in new_targets: {e}")
             return None
 
-    def whois_reconnaissance(self,
-                             target: str = None,
-                             filename: str = None):
-        """Perform WHOIS reconnaissance on an IP or CIDR block.
+    # def whois_reconnaissance(self, target: str = None, filename: str = None):
+    #     """Perform WHOIS reconnaissance on an IP or CIDR block.
 
-        Args:
-            target (str, optional): IP address or CIDR block.
-            filename (str, optional): Path to a file containing CIDR blocks.
+    #     Args:
+    #         target (str, optional): IP address or CIDR block.
+    #         filename (str, optional): Path to a file containing CIDR blocks.
 
-        Returns:
-            dict: Parsed WHOIS data.
+    #     Returns:
+    #         dict: Parsed WHOIS data.
 
-        Raises:
-            ValueError: If neither target nor filename is specified.
-        """
-        try:
-            if filename:
-                return block_handler.whois_block(filename=filename)
-            if target:
-                return block_handler.whois_block(target=target)
-            raise ValueError("Either a valid CIDR or a filename must be provided.")
-        except Exception as e:
-            logger.error(f"[IPScanner] WHOIS reconnaissance error: {e}")
-            return {}
+    #     Raises:
+    #         ValueError: If neither target nor filename is specified.
+    #     """
+
+    #     try:
+    #         if filename:
+    #             return block_handler.whois_block(filename=filename)
+    #         if target:
+    #             return block_handler.whois_block(target=target)
+    #         raise ValueError("Either a valid CIDR or a filename must be provided.")
+    #     except Exception as e:
+    #         logger.error(f"[IPScanner] WHOIS reconnaissance error: {e}")
+    #         return {}

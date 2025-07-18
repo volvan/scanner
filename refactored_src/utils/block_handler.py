@@ -180,20 +180,32 @@ def whois_block(target: str = None, filename: str = None) -> dict:
     Returns:
         dict: Mapping of CIDR -> WHOIS metadata fields, with a non-null 'cidr'.
     """
-    cidr_list = []
+    if not (target or filename):
+        raise ValueError("Either a valid CIDR or a filename must be provided.")
+
     if filename:
         cidr_list = read_block(filename)
-    elif target:
+    else:
         cidr_list = [target]
 
-    results = {}
+    results: dict[str, dict] = {}
+
+    # cidr_list = []
+    # if filename:
+    #     cidr_list = read_block(filename)
+    # elif target:
+    #     cidr_list = [target]
+
+    # results = {}
 
     # for every cidr incomming do whois
     for cidr in cidr_list:
-        try:
+        try:            
+            # base_ip = cidr.split('/', 1)[0]
             base_ip = cidr.split('/')[0]
-            obj = IPWhois(base_ip)
-            result = obj.lookup_rdap()
+            result = IPWhois(base_ip).lookup_rdap()
+            # obj = IPWhois(base_ip)
+            # result = obj.lookup_rdap()
 
             network = result.get("network", {})
             org_obj = network.get("org", {})
@@ -212,7 +224,6 @@ def whois_block(target: str = None, filename: str = None) -> dict:
                 cidr_value = str(cidr_obj)
             except Exception:
                 cidr_value = None
-
             # ── FALLBACK ──
             if cidr_value is None:
                 cidr_value = cidr
