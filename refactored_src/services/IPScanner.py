@@ -13,6 +13,7 @@ from services.HostDiscovery import HostDiscovery
 #----- Util classes imports -----#
 from utils.timestamp import get_current_timestamp
 from utils.block_handler import read_block, whois_block
+from utils.resource_status import resource_ok
 
 #----- Model imports -----#
 from models.QueryModel import QueryModel
@@ -69,7 +70,6 @@ from infrastructure.QueryHandler import QueryHandler
 from services.HostDiscovery import HostDiscovery
 
 sys.excepthook = log_exception
-proc = psutil.Process(os.getpid())
 
 #-----------------------#
 
@@ -209,21 +209,7 @@ class IPScanner:
         self.start_consuming(ALL_ADDR_QUEUE)
 
 
-    def memory_ok(self) -> bool:
-        """Check if current memory usage is below the configured limit.
 
-        Returns:
-            bool: True if memory usage is under MEM_LIMIT, False otherwise.
-        """
-        return proc.memory_info().rss < MEM_LIMIT
-
-    def cpu_ok(self) -> bool:
-        """Check if current CPU usage is under the configured limit.
-
-        Returns:
-            bool: True if CPU usage is below CPU_LIMIT, False otherwise.
-        """
-        return psutil.cpu_percent(interval=1) < CPU_LIMIT
 
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
@@ -328,15 +314,15 @@ class IPScanner:
             logger.warning("[IPScanner] Main queue name missing")
             return
 
-        if not self.memory_ok():
+        if not resource_ok():
             logger.warning("Memory limit reached; shutting down")
             sys.exit(1)
             return
 
-        if not self.cpu_ok():
-            logger.warning("CPU limit reached; shutting down")
-            sys.exit(1)
-            return
+        # if not self.hostDiscovery.cpu_ok():
+        #     logger.warning("CPU limit reached; shutting down")
+        #     sys.exit(1)
+        #     return
 
         with RabbitMQ(main_queue_name) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
@@ -384,7 +370,7 @@ class IPScanner:
                 # Loop back and prune again
                 continue
 
-            if not self.memory_ok():
+            if not resource_ok():
                 logger.warning("Memory high; pausing batch creation")
                 time.sleep(5)
                 continue
@@ -452,10 +438,6 @@ class IPScanner:
 
             shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
 
-            # whois_info = (
-            #     self.whois_reconnaissance(filename=filename)
-            #     if filename else self.whois_reconnaissance(target=address)
-            # )
             whois_info = whois_block(target=address, filename=filename)
 
 
@@ -471,6 +453,8 @@ class IPScanner:
                 dbWorker: DBWorker
                 for batch_no, batch in enumerate(chunked(shuffled_ips_iter), start=1):
                     logger.info("[enqueue] batch %d: size=%d", batch_no, len(batch))
+
+                    # Insert to database
                     queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
                     if queryModel is None:
                         logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
@@ -480,6 +464,8 @@ class IPScanner:
                     if not success:
                         logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
                         continue
+
+                    # Insert to RMQ 
 
                     QueueInitializer.enqueue_items(queue_name=queue_name, key="ip", val=batch)
 
@@ -493,27 +479,3 @@ class IPScanner:
         except Exception as e:
             logger.error(f"[IPScanner] Error in new_targets: {e}")
             return None
-
-    # def whois_reconnaissance(self, target: str = None, filename: str = None):
-    #     """Perform WHOIS reconnaissance on an IP or CIDR block.
-
-    #     Args:
-    #         target (str, optional): IP address or CIDR block.
-    #         filename (str, optional): Path to a file containing CIDR blocks.
-
-    #     Returns:
-    #         dict: Parsed WHOIS data.
-
-    #     Raises:
-    #         ValueError: If neither target nor filename is specified.
-    #     """
-
-    #     try:
-    #         if filename:
-    #             return block_handler.whois_block(filename=filename)
-    #         if target:
-    #             return block_handler.whois_block(target=target)
-    #         raise ValueError("Either a valid CIDR or a filename must be provided.")
-    #     except Exception as e:
-    #         logger.error(f"[IPScanner] WHOIS reconnaissance error: {e}")
-    #         return {}

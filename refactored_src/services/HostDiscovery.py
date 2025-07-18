@@ -8,13 +8,14 @@ import time
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.adapters.blocking_connection import BlockingConnection
 from pika.spec import Basic, BasicProperties
+import psutil, os
 
 # Utility Handlers
 from utils.ping_handler import PingHandler
 from utils.timestamp import get_current_timestamp
 
 # Configuration
-from config.scan_config import SCAN_DELAY, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE
+from config.scan_config import SCAN_DELAY, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE, CPU_LIMIT, MEM_LIMIT
 from config.logging_config import log_exception
 from config.logging_config import logger
 
@@ -24,7 +25,7 @@ from infrastructure.QueryHandler import QueryHandler
 from infrastructure.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
-
+# proc = psutil.Process(os.getpid())
 
 class HostDiscovery:
     """Manager for scanning IPs, queueing results, and writing scan data to the database."""
