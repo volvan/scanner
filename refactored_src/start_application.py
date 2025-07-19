@@ -1,5 +1,6 @@
 
 #----- Manager imports -----#
+from utils.debug_tools import run_debug_maintenance
 from services.ServiceManager import ServiceManager
 
 #----- Standard libraries -----#
@@ -7,6 +8,7 @@ import sys
 
 #----- Logger import -----#
 from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
+from config.scan_config import DEBUG_MODE
 
 # TODO: 
 # option 1 - Run "Host Discovery Scan"
@@ -46,6 +48,9 @@ if __name__ == '__main__':
 
     # Call corresponding method based on the comand given
     try:
+        # USed as a bdebug mode helper, to clean up queues and the log file
+        if DEBUG_MODE:
+            run_debug_maintenance()
         args_direct[command]()
     except AssertionError as e:
         print(f'Something went wrong\nErr: {e}')

@@ -87,11 +87,8 @@ class IPScanner:
         self.active_processes: list[Process] = []
 
     def launch_discovery_scan_pipeline(self): #  TODO: move to HostDiscovery
+        """ The 'main' """
         # TODO: should be refactored and logic reviewed
-
-        # USed as a bdebug mode helper, to clean up queues and the log file
-        if DEBUG_MODE:
-            run_debug_maintenance()
 
         db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)  # TODO: deprecated?!
         try:
@@ -104,11 +101,11 @@ class IPScanner:
             # If tasks are already in queue, stop the program 
             # TODO: should not stop the program but assign workers and consume from the queue.. right?
             if tasks_remaining > 0:
-                logger.warning(f"[IPScanner, enqueue_new_targets()] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
+                logger.warning(f"[IPScanner] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
                 return
             # Else, no tasks are in queue, so we enqueue tasks
-            logger.info(f"[IPScanner, enqueue_new_targets()] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
-            filename = self.new_targets(queue_name=ALL_ADDR_QUEUE, filename=ADDR_FILE)
+            logger.info(f"[IPScanner ] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
+            filename = self.new_targets()
             if not filename:
                 return
             
@@ -151,7 +148,7 @@ class IPScanner:
             db_handler.stop()
 
 
-    def new_targets(self, queue_name: str, address: str = None, filename: str = None) -> str:
+    def new_targets(self) -> str:
         """Extract IP addresses, randomize them, and enqueue into batches.
 
         Args:
@@ -166,16 +163,11 @@ class IPScanner:
             ValueError: If neither address or filename is provided.
         """
         try:
-            if not queue_name:
-                raise ValueError("Queue name must be provided")
-
-            if not (address or filename):
-                if FETCH_RIX is False: 
-                    raise ValueError(
-                        "Either an IP address, a filename, or fetch_rix=True must be provided."
-                    )
+            # TODO: move this to the check thats in beguinning
+            # if not ALL_ADDR_QUEUE:
+            #     raise ValueError("Queue name must be provided")
             
-            with RabbitMQ(queue_name) as rmq_conn:
+            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 if not rmq_conn.queue_exists():
                     rmq_conn.declare_queue()
 
@@ -186,14 +178,17 @@ class IPScanner:
                     return None
                 filename = new_rix_file
                 ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
-            elif filename:
-                ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
+            elif ADDR_FILE:
+                filename = ADDR_FILE
+                ip_iter = block_handler.get_ip_addresses_from_block(filename=ADDR_FILE)
             else:
-                ip_iter = block_handler.get_ip_addresses_from_block(ip_address=address)
+                raise ValueError(
+                    "Either an IP address, a filename, or fetch_rix=True must be provided."
+                )
 
             shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
 
-            whois_info = whois_block(target=address, filename=filename)
+            whois_info = whois_block(target=None, filename=filename)
 
 
             def chunked(iterator, size=BATCH_SIZE):  # noqa: D103
@@ -222,7 +217,7 @@ class IPScanner:
 
                     # Insert to RMQ 
 
-                    QueueInitializer.enqueue_items(queue_name=queue_name, key="ip", val=batch)
+                    QueueInitializer.enqueue_items(queue_name=ALL_ADDR_QUEUE, key="ip", val=batch)
 
                 # dbWorker.close()
                 del shuffled_ips_iter, ip_iter
@@ -320,14 +315,7 @@ class IPScanner:
         rmq.close()
 
     def start_consuming(self) -> None:
-        """Start consuming tasks from the main queue, choosing direct or batch mode.
-
-        Args:
-            main_queue_name (str): Name of the primary RabbitMQ queue.
-
-        Raises:
-            SystemExit: If memory or CPU usage exceeds configured limits.
-        """
+        """Start consuming tasks from the main queue, choosing direct or batch mode."""
         ### For testing purposes ###
         # import os
         # worker_pid = str(os.getpid())
