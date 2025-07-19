@@ -287,7 +287,7 @@ class IPScanner:
                         f"timed out after {BATCH_TIMEOUT_SEC}s; routing to fail_queue."
                     )
                     try:
-                        print(f'\n\n[IPScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
+                        logger.info(f'\n\n[IPScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
                         payload = json.loads(body)
                         rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE) 
                     except Exception as e:

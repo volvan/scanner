@@ -288,25 +288,12 @@ class RabbitMQ:
         # TODO: Contaxt manager
         #     self.exit()
 
-        #     with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-        #         for task in leftovers:
-        #             rmq_fail_conn.enqueue(task)
-        #         logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
-        # except Exception as e:
-        #     logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")
-
-            self.close()
+            self.close() # TODO: why? 
 
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
                 logger.info(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
                 for task in leftovers:
                     rmq_fail_conn.enqueue_to_queue(message=task)
-
-            # fail_rmq = RabbitMQ(FAIL_QUEUE)
-            # for task in leftovers:
-            #     # print(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
-            #     fail_rmq.enqueue(task)
-            # fail_rmq.close()
 
             logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
         except Exception as e:

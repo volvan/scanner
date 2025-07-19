@@ -76,8 +76,7 @@ class PortManager:
 
                 # 2) Unknown → fail queue
                 if record["port_state"] == "unknown":
-                    print(f'\n\n#1 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
-                    logger.warning(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'.")
+                    logger.warning(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {scan_result}\n\n")
                     message = {
                         "ip": ip,
                         "port": port,
@@ -90,8 +89,7 @@ class PortManager:
                 db_ports.put(record)
 
             except Exception as e:
-                print(f'\n\n#2 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
-                logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}")
+                logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}\nscan_results: {scan_result}\n\n")
 
                 message = {
                         "error": str(e),

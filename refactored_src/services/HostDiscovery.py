@@ -96,7 +96,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
 
             if res and res[0] == "alive":
                 # For testing
-                if method != 'icmp_ping': logger.debug(f'\nmethod: {method} for {ip_addr} was successful!!!'); print(f'\nmethod: {method} for {ip_addr} was successful!!!')
+                if method != 'icmp_ping': logger.debug(f'\nmethod: {method} for {ip_addr} was successful!!!');
                 return {
                     "probe_method": method,
                     "probe_protocol": proto,
