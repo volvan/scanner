@@ -80,36 +80,47 @@ class IPScanner:
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager, hostDiscovery: HostDiscovery):
         self.externalManager = externalManager
         self.infraManager = infraManager
-
-        self.hostDiscovery = hostDiscovery
-
+        self.hostDiscovery = hostDiscovery # TODO: should be merged with this file
 
         # From old IPScanner()
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
     def launch_discovery_scan_pipeline(self): #  TODO: move to HostDiscovery
+        # TODO: should be refactored and logic reviewed
 
         # USed as a bdebug mode helper, to clean up queues and the log file
         if DEBUG_MODE:
             run_debug_maintenance()
-
 
         db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)  # TODO: deprecated?!
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
             db_handler.start_hosts() # TODO: critical - we already have started this thread right??
 
-            # Collects new IP targets
-            filename, blocks = self.enqueue_new_targets()
+            # Check how many tasks in queue
+            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
+                tasks_remaining = rmq_conn.tasks_in_queue()
+            # If tasks are already in queue, stop the program 
+            # TODO: should not stop the program but assign workers and consume from the queue.. right?
+            if tasks_remaining > 0:
+                logger.warning(f"[IPScanner, enqueue_new_targets()] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
+                return
+            # Else, no tasks are in queue, so we enqueue tasks
+            logger.info(f"[IPScanner, enqueue_new_targets()] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
+            filename = self.new_targets(queue_name=ALL_ADDR_QUEUE, filename=ADDR_FILE)
+            if not filename:
+                return
+            
+            blocks = read_block(filename)
             if blocks is None:
                 return
-
+            
             # Record the scan-start timestamp
             discovery_start_ts = get_current_timestamp()
 
             # Perform the discovery scan (this blocks until done) - this runs the pipeline of the actual scan process
-            self.run_discovery()
+            self.start_consuming()
 
             # Record the scan-done timestamp
             discovery_done_ts = get_current_timestamp()
@@ -138,53 +149,6 @@ class IPScanner:
             db_hosts.join()     # block until every host task_done()
             db_ports.join()     # same for ports
             db_handler.stop()
-    
-
-    #TODO: To be refactored
-    def enqueue_new_targets(self):
-        """Enqueue IP targets from a file or directly via CIDR/IP.
-
-        Modify this function for different use cases.
-
-        Options:
-            - Fetch addresses from RIX.is.
-            - A single CIDR string.
-            - A single IP address string.
-            - CIDR's or IP Addresses from a file.
-
-        Default:
-            Read from a file.
-        """
-        # TODO: fetch rix ever set to true? 
-        # TODO: add rmq context manager 
-        
-        queue_name = ALL_ADDR_QUEUE
-        rmq = RabbitMQ(queue_name)
-        
-        tasks_remaining = rmq.tasks_in_queue()
-        rmq.close()
-
-        if tasks_remaining > 0:
-            print(f"[Init] {tasks_remaining} tasks already in queue '{queue_name}'; skipping new enqueue.")
-            return None, None
-
-        print(f"[Init] No tasks in '{queue_name}'; enqueueing new targets.")
-        filename = self.new_targets(queue_name=queue_name, filename=ADDR_FILE)
-        if not filename:
-            return None, None
-
-        blocks = read_block(filename)
-        return filename, blocks
-
-
-    #TODO: To be refactored
-    def run_discovery(self):
-        """Run the discovery scan (blocks until complete)."""
-        logger.debug("[IPScan Init] Starting host discovery...")
-        self.start_consuming(ALL_ADDR_QUEUE)
-
-
-
 
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
@@ -205,7 +169,7 @@ class IPScanner:
 
         # TODO: take a close look.. should we make db_man and discovery???
         db_manager = QueryHandler()
-        hostDiscovery = HostDiscovery(db_manager=db_manager)
+        hostDiscovery = HostDiscovery(db_manager=db_manager) # TODO: should this be new instane?
         ####
 
         # Adding type annotations for variables for clarity
@@ -269,7 +233,7 @@ class IPScanner:
         rmq.remove_queue()
         rmq.close()
 
-    def start_consuming(self, main_queue_name: str) -> None:
+    def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode.
 
         Args:
@@ -283,31 +247,23 @@ class IPScanner:
         # worker_pid = str(os.getpid())
         # logger.critical(f'worker_pid {worker_pid} is currently IPScanner.start_consuming({main_queue_name})')
         ### For testing purposes ###
-        
-        # If no queue specified, warn and return immediately
-        if not main_queue_name:
-            logger.warning("[IPScanner] Main queue name missing")
-            return
+        logger.debug("[IPScan Init] Starting host discovery...")
 
         if not resource_ok():
             logger.warning("Memory limit reached; shutting down")
             sys.exit(1)
             return
 
-        # if not self.hostDiscovery.cpu_ok():
-        #     logger.warning("CPU limit reached; shutting down")
-        #     sys.exit(1)
-        #     return
-
-        with RabbitMQ(main_queue_name) as rmq_conn:
+        # TODO: didnt we check just a second ago?
+        with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
-            logger.debug(f"[IPScanner] {total_tasks} tasks waiting in '{main_queue_name}'")
+            logger.debug(f"[IPScanner] {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'")
 
         if total_tasks < THRESHOLD:
             logger.info("[IPScanner] Direct processing mode (small scan).")
             WorkerHandlerLogic(
-                queue_name=main_queue_name,
-                process_callback=self.hostDiscovery.process_task
+                queue_name=ALL_ADDR_QUEUE,
+                process_callback=self.hostDiscovery.process_task # TODO: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
             ).start()
 
             return
@@ -315,7 +271,7 @@ class IPScanner:
         logger.info("[IPScanner] Batch processing mode (large scan).")
 
         while True:
-            with RabbitMQ(main_queue_name) as rmq_conn:
+            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
@@ -327,7 +283,7 @@ class IPScanner:
             if 0 < remaining < BATCH_SIZE and not self.active_processes:
                 logger.debug(f"[IPScanner] Final tail of {remaining} tasks; creating last batch.")
                 batch_id = next(self.batch_id_generator)
-                batch_queue = IPBatchHandler(batch_id, remaining).create_batch(main_queue_name)
+                batch_queue = IPBatchHandler(batch_id, remaining).create_batch(ALL_ADDR_QUEUE)
                 if batch_queue:
                     p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
                     p.start()
@@ -351,7 +307,7 @@ class IPScanner:
                 continue
             
             batch_id = next(self.batch_id_generator)
-            batch_queue = IPBatchHandler(batch_id, remaining).create_batch(main_queue_name)
+            batch_queue = IPBatchHandler(batch_id, remaining).create_batch(ALL_ADDR_QUEUE)
             if not batch_queue:
                 logger.warning("[IPScanner] No batch created - retrying.")
                 time.sleep(3)
