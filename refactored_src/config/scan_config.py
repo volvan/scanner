@@ -1,7 +1,6 @@
 import os # TODO: fix fetch from RIX everywhere..
 
 
-
 # --- Global settings and configurations ---------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(os.path.dirname(BASE_DIR)) 
@@ -23,7 +22,7 @@ CPU_LIMIT = 70                                                        # CPU perc
 # ─── General scan parameters ──────────────────────────────────────────────
 WORKERS = 3                                                           # Number of workers to spawn (DEFAULT: 250)
 SCAN_DELAY = float(0.5)                                               # Delay (sec) between scan attempts
-THRESHOLD = int(30)                                                   # Direct vs batch mode threshold
+THRESHOLD = int(3)                                                   # Direct vs batch mode threshold
 BATCH_SIZE = int(3)                                                 # Tasks per batch & DB insert size ( DEFAULT: 500)
 MAX_BATCH_PROCESSES = int(100)                                        # Max concurrent batch-forked processes
 WHO_IS_SCAN_DELAY = int(2)
