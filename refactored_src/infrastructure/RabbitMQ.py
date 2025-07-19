@@ -59,7 +59,7 @@ class RabbitMQ:
             )
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
-            self.declare_queue()
+            self.declare_queue() # TODO: should really always try to declare queue?? 
             logger.debug("RMQ - Calling _connect")
         except Exception as e:
             logger.error(f"[RabbitMQ] Connection error: {e}")
@@ -297,7 +297,7 @@ class RabbitMQ:
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
                 logger.info(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
                 for task in leftovers:
-                    rmq_fail_conn.enqueue(task)
+                    rmq_fail_conn.enqueue_to_queue(message=task)
 
             # fail_rmq = RabbitMQ(FAIL_QUEUE)
             # for task in leftovers:
@@ -309,17 +309,39 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")
     
-    # TODO: while i figure out the remove_queue, this is temp solution. should be a fucntion, used in remove_queue and elsewhere that only drains 'items' to FAIL_QUEUE
-    def enqueue_to_fail_queue(self, items: dict) -> None:
+    # TODO: enqueue_to_queue rename to something descriptive
+    def enqueue_to_queue(self, message: dict, queue_name: str = None):
+        # TODO: heere to replace enqueue to use queue_name
 
-        # NOTE: stolen fron 'enqueue'
-        
-        self.channel.basic_publish(
-            exchange='',
-            routing_key=FAIL_QUEUE,
-            body=json.dumps(items),
-            properties=pika.BasicProperties(delivery_mode=2)
-        )
+        try:
+            queue_name = queue_name or self.queue_name
+
+            self._ensure_channel()
+            if not self.queue_exists():
+                self.declare_queue()
+            self.channel.basic_publish(
+                exchange='',
+                routing_key=queue_name,
+                body=json.dumps(message),
+                properties=pika.BasicProperties(delivery_mode=2)
+            )
+            logger.debug(f"[RabbitMQ enqueue_to_queue()]: enqueued {message} to {queue_name}")
+            
+        except (pika.exceptions.ChannelClosedByBroker, pika.exceptions.ConnectionClosed) as e:
+            logger.warning(f"[RabbitMQ] Failed to enqueue (closed channel): {e}")
+            try:
+                self.reconnect()
+                self.channel.queue_declare(queue=self.queue_name, durable=True)
+                self.channel.basic_publish(
+                    exchange='',
+                    routing_key=self.queue_name,
+                    body=json.dumps(message),
+                    properties=pika.BasicProperties(delivery_mode=2)
+                )
+            except Exception as ex:
+                logger.error(f"[RabbitMQ] Retry publish failed for '{self.queue_name}': {ex}")
+        except Exception as e:
+            logger.error(f"[RabbitMQ] Failed to enqueue message to '{self.queue_name}': {e}")
 
 
     def close(self) -> None:

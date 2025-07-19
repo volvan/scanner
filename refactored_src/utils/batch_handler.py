@@ -73,21 +73,14 @@ class IPBatchHandler:
                         logger.warning("[IPBatchHandler] Failed to nack bad payload: %s", ex)
             except Exception:
                 try:
-                    RabbitMQ(scan_config.FAIL_QUEUE).enqueue({"raw": body.decode()})
+                    rmq_main.enqueue_to_queue(message={"raw": body.decode()}, queue_name=scan_config.FAIL_QUEUE)
                 except Exception as enqueue_ex:
                     logger.error(f"[IPBatchHandler] Failed to enqueue to fail_queue: {enqueue_ex}")
                 rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
 
         if not tasks:
             logger.warning("[IPBatchHandler] No valid tasks found; skipping batch creation.")
-            # TODO: move logic to _requeue_deliveries func
-            # _requeue_deliveries(rmq_main, deliveries, requeue=True)
-
-            for m in deliveries:
-                try:
-                    rmq_main.channel.basic_nack(delivery_tag=m.delivery_tag, requeue=True)
-                except Exception as ex:
-                    logger.warning(f"[IPBatchHandler] Failed to requeue message: {ex}")
+            self._requeue_deliveries(rmq=rmq_main, deliveries= deliveries, requeue= True)
             rmq_main.close()
             return None
 
@@ -96,30 +89,26 @@ class IPBatchHandler:
         try:
             with RabbitMQ(batch_queue) as rmq_batch_conn:
                 for task in tasks:
-                    rmq_batch_conn.enqueue(task)
+                    rmq_batch_conn.enqueue_to_queue(message=task)
             for m in deliveries:
                 rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)
             logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
         except Exception as e:
-                logger.error(f"[IPBatchHandler] Failed to create batch: {e}")
-                # TODO: move logic to _requeue_deliveries func
-                for m in deliveries:
-                    try:
-                        rmq_main.channel.basic_nack(delivery_tag=m.delivery_tag, requeue=True)
-                    except Exception as ex:
-                        logger.warning(f"[IPBatchHandler] Failed to nack on error: {ex}")
+                self._requeue_deliveries(rmq=rmq_main, deliveries= deliveries, requeue= True)
                 batch_queue = None
         rmq_main.close()
 
         return batch_queue
-        # SOMethign like this
-    # def _requeue_deliveries(rmq: RabbitMQ, deliveries: list[Basic.GetOk], requeue: bool = True,) -> None:
-    #     """Nack or requeue every message in deliveries"""
-    #     for d in deliveries:
-    #         try:
-    #             rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)
-    #         except Exception as ex:
-    #             pass
+    
+        # TODO: SOMethign like this
+    def _requeue_deliveries(rmq: RabbitMQ, deliveries: list[Basic.GetOk], requeue: bool = True,) -> None:
+        """Nack or requeue every message in deliveries"""
+        for d in deliveries:
+            try:
+                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)
+                logger.warning(f"[IPBatchHandler] Requeued message.")
+            except Exception as ex:
+                logger.warning(f"[IPBatchHandler] Failed to requeue message: {ex}")
 
 
 
@@ -173,7 +162,7 @@ class PortBatchHandler:
                     logger.warning(f"[PortBatchHandler] Bad IP payload: {body}")
 
             for ip in all_ips:
-                rmq_conn.enqueue({"ip": ip})
+                rmq_conn.enqueue_to_queue(message={"ip": ip})
 
         self.ips_cache = all_ips
         logger.debug(f"[PortBatchHandler] Cached {len(all_ips)} alive IPs.")
@@ -223,7 +212,7 @@ class PortBatchHandler:
             return None
         self.used_ports.add(port)
 
-        ips = self.load_all_ips_once(ip_queue)
+        ips = self.load_all_ips_once(ip_queue) # TODO: this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes?will it be requeued or gone?
         if not ips:
             logger.warning("[PortBatchHandler] No alive IPs to batch against.")
             return None
@@ -234,7 +223,7 @@ class PortBatchHandler:
         with RabbitMQ(batch_name) as rmq_conn:
             count = 0
             for ip in reservoir_of_reservoirs(ips):
-                rmq_conn.enqueue({"ip": ip, "port": port})
+                rmq_conn.enqueue_to_queue(message={"ip": ip, "port": port})
                 count += 1
         logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {count} tasks.")
         return batch_name

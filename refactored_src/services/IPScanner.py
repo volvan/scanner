@@ -1,5 +1,5 @@
 #----- Config imports -----#
-from config.scan_config import SCAN_NATION, ALL_ADDR_QUEUE, ADDR_FILE, DEBUG_MODE
+from config.scan_config import SCAN_NATION, ALL_ADDR_QUEUE, ADDR_FILE
 
 #----- Type annotation imports -----#
 from external.ExternalManager import ExternalManager
@@ -288,10 +288,8 @@ class IPScanner:
                     )
                     try:
                         print(f'\n\n[IPScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
-
-                        # FAIL = FAIL_QUEUE
                         payload = json.loads(body)
-                        rmq.enqueue_to_fail_queue(payload) 
+                        rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE) 
                     except Exception as e:
                         logger.error(f"[IPScanner] Failed to enqueue timed-out task: {e}")
                     finally:

@@ -77,11 +77,13 @@ class PortManager:
             if record["port_state"] == "unknown":
                 print(f'\n\n#1 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
                 logger.warning(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'.")
-                RabbitMQ(FAIL_QUEUE).enqueue({
+                message = {
                     "ip": ip,
                     "port": port,
                     "reason": "unknown_state"
-                })
+                }
+                with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
+                    rmq_fail_conn.enqueue_to_queue(message=message)
                 return
 
             # 3) Enqueue all results (open, filtered, and closed)
@@ -90,8 +92,11 @@ class PortManager:
         except Exception as e:
             print(f'\n\n#2 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
             logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}")
-            RabbitMQ(FAIL_QUEUE).enqueue({
-                "error": str(e),
-                "ip": ip,
-                "port": port
-            })
+
+            message = {
+                    "error": str(e),
+                    "ip": ip,
+                    "port": port
+                }
+            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
+                rmq_fail_conn.enqueue_to_queue(message=message)

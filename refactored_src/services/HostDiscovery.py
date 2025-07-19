@@ -132,11 +132,13 @@ class HostDiscovery:
             host_status (str): Scan result ("alive" or "dead").
         """
         data = {"ip": ip_addr, "status": host_status}
+
         try:
-            if host_status == "alive":
-                self.alive_rmq.enqueue(data)
-            else:
-                self.dead_rmq.enqueue(data)
+            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO: this queue is used as placeholder, could be any queue
+                if host_status == "alive":
+                    rmq_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message=data)
+                else:
+                    rmq_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message=data)
         except Exception as e:
             logger.error(f"[HostDiscovery] Failed to enqueue {host_status} result for {ip_addr}: {e}")
 
@@ -231,10 +233,12 @@ class HostDiscovery:
                 logger.warning("[HostDiscovery] Failed to nack message")
 
             # Enqueue the error to the fail queue for further investigation
-            self.fail_rmq.enqueue({
-                "error": "Invalid JSON",
-                "raw_task": body.decode() if isinstance(body, bytes) else str(body)
-            })
+            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
+                message= {
+                    "error": "Invalid JSON",
+                    "raw_task": body.decode() if isinstance(body, bytes) else str(body)
+                }
+                rmq_fail_conn.enqueue_to_queue(message=message)
         except Exception as e:
             # Catch any other exceptions during task processing
             logger.error(f"[HostDiscovery] Error processing task: {e}")
@@ -245,10 +249,12 @@ class HostDiscovery:
                 logger.warning("[HostDiscovery] Failed to nack message")
 
             # Enqueue the error details into the fail queue
-            self.fail_rmq.enqueue({
-                "error": str(e),
-                "raw_task": body.decode() if isinstance(body, bytes) else str(body)
-            })
+            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
+                message= {
+                    "error": str(e),
+                    "raw_task": body.decode() if isinstance(body, bytes) else str(body)
+                }
+                rmq_fail_conn.enqueue_to_queue(message=message)
 
     def close(self) -> None:
         """Close all RabbitMQ and database connections gracefully."""
