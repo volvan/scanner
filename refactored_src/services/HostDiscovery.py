@@ -27,7 +27,7 @@ from infrastructure.RabbitMQ import RabbitMQ
 sys.excepthook = log_exception
 # proc = psutil.Process(os.getpid())
 
-class HostDiscovery:
+class HostDiscovery: # TODO: rename DiscoveryScanner
     """Manager for scanning IPs, queueing results, and writing scan data to the database."""
     # TODO: I don't even know how db_manager got the type QueryHandler, need to refactor.
     # TODO: Change all occurrences of RMQ to be with context manager (with)
@@ -64,15 +64,6 @@ class HostDiscovery:
         except Exception as e:
             logger.error(f"[HostDiscovery] Failed to init {FAIL_QUEUE} queue: {e}")
             self.fail_rmq = None
-
-
-        # Database manager
-        # should not open db manager instance here.. 
-        # try:
-        #     self.db_manager = db_manager or DatabaseManager()
-        # except Exception as e:
-        #     logger.error(f"[HostDiscovery] Failed to init DatabaseManager: {e}")
-        #     self.db_manager = None
 
     def ping_host(self, ip_addr: str) -> dict:
         """Probe a host using ICMP, TCP-SYN, and TCP-ACK in sequence.

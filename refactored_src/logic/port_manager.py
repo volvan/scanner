@@ -26,17 +26,17 @@ class PortManager:
         logger.debug(debug_msg)
 
 
-    # TODO: deadcode?
-    def get_next_port(self) -> int | None:
-        """Fetch and return the next port from the 'all_ports' queue.
+    # # TODO: deadcode?
+    # def get_next_port(self) -> int | None:
+    #     """Fetch and return the next port from the 'all_ports' queue.
 
-        Returns:
-            int | None: The next port number if available, or None if the queue is empty.
-        """
-        rmq_manager = RabbitMQ(ALL_PORTS_QUEUE)
-        port = rmq_manager.get_next_message("port")
-        rmq_manager.close()
-        return port
+    #     Returns:
+    #         int | None: The next port number if available, or None if the queue is empty.
+    #     """
+    #     rmq_manager = RabbitMQ(ALL_PORTS_QUEUE)
+    #     port = rmq_manager.get_next_message("port")
+    #     rmq_manager.close()
+    #     return port
 
     # TODO: relevant code? 
     def handle_scan_process(self, ip: str, port: int, queue_name: str):
@@ -53,50 +53,49 @@ class PortManager:
             - Unknown scan states are routed to the 'fail_queue'.
             - Ports that are newly closed are skipped to save storage space.
         """
-        try:
-            # 1) Run the Nmap scan
-            scanner = ProbeHandler(ip, str(port))
-            scan_result = scanner.scan()
+        with RabbitMQ(ALL_PORTS_QUEUE) as rmq_ports_conn:
+            try:
+                # 1) Run the Nmap scan
+                scanner = ProbeHandler(ip, str(port))
+                scan_result = scanner.scan()
 
-            # Extract scan result details
-            record = {
-                "type": "port_result",
-                "ip": ip,
-                "port": port,
-                "port_state": scan_result["state"],
-                "port_service": scan_result["service"],
-                "port_protocol": scan_result["protocol"],
-                "port_product": scan_result["product"],
-                "port_version": scan_result["version"],
-                "port_cpe": scan_result["cpe"],
-                "port_os": scan_result["os"],
-                "duration": scan_result["duration"],
-            }
-
-            # 2) Unknown → fail queue
-            if record["port_state"] == "unknown":
-                print(f'\n\n#1 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
-                logger.warning(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'.")
-                message = {
+                # Extract scan result details
+                record = {
+                    "type": "port_result",
                     "ip": ip,
                     "port": port,
-                    "reason": "unknown_state"
+                    "port_state": scan_result["state"],
+                    "port_service": scan_result["service"],
+                    "port_protocol": scan_result["protocol"],
+                    "port_product": scan_result["product"],
+                    "port_version": scan_result["version"],
+                    "port_cpe": scan_result["cpe"],
+                    "port_os": scan_result["os"],
+                    "duration": scan_result["duration"],
                 }
-                with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-                    rmq_fail_conn.enqueue_to_queue(message=message)
-                return
 
-            # 3) Enqueue all results (open, filtered, and closed)
-            db_ports.put(record)
+                # 2) Unknown → fail queue
+                if record["port_state"] == "unknown":
+                    print(f'\n\n#1 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
+                    logger.warning(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'.")
+                    message = {
+                        "ip": ip,
+                        "port": port,
+                        "reason": "unknown_state"
+                    }
+                    rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
+                    return
 
-        except Exception as e:
-            print(f'\n\n#2 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
-            logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}")
+                # 3) Enqueue all results (open, filtered, and closed)
+                db_ports.put(record)
 
-            message = {
-                    "error": str(e),
-                    "ip": ip,
-                    "port": port
-                }
-            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-                rmq_fail_conn.enqueue_to_queue(message=message)
+            except Exception as e:
+                print(f'\n\n#2 [PortManager.handler_scan_process] Currently inserting into fail_queue. \nscan_results: {scan_result}\n\n')
+                logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}")
+
+                message = {
+                        "error": str(e),
+                        "ip": ip,
+                        "port": port
+                    }
+                rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)

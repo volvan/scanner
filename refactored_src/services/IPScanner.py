@@ -343,6 +343,7 @@ class IPScanner:
         logger.info("[IPScanner] Batch processing mode (large scan).")
 
         while True:
+            # TODO: WorkerHandlerLogic should be used, not creating the same logic in code.. reuse the code pls.. 
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 remaining = rmq_conn.tasks_in_queue()
 

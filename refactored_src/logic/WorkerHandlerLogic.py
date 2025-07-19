@@ -35,24 +35,25 @@ class WorkerHandlerLogic:
             worker_id (int): Identifier for the worker.
         """
         try:
-            logger.debug(f"Worker {worker_id} starting...")
+            logger.debug(f"[WorkerHandlerLogic] Worker {worker_id} starting...")
             RabbitMQ.worker_consume(self.queue_name, self.process_callback)
         except KeyboardInterrupt:
-            logger.warning(f"Worker {worker_id} received KeyboardInterrupt. Exiting.")
+            logger.warning(f"[WorkerHandlerLogic] Worker {worker_id} received KeyboardInterrupt. Exiting.")
         except Exception as e:
             logger.exception(f"Worker {worker_id} crashed: {e}")
         finally:
             try:
                 with RabbitMQ(self.queue_name) as rmq_conn:
-                    if rmq_conn.queue_empty(self.queue_name):
-                        logger.debug(f"Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
+                    if rmq_conn.tasks_in_queue() == 0:
+                    # if rmq_conn.queue_empty(self.queue_name):
+                        logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
                         rmq_conn.remove_queue()
             except Exception as cleanup_err:
                 logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
 
     def start(self):
         """Spawn multiple worker processes to handle scanning tasks."""
-        
+        # TODO: this is only called when small IPscanning mode, not batch, should it be like that?
         workers: List[Process] = []
 
         for i in range(self.workers_count):
@@ -61,14 +62,14 @@ class WorkerHandlerLogic:
                 args=(i,),
             )
             p.start()
-            logger.debug(f"Started worker {i} on '{self.queue_name}'")
+            logger.debug(f"[WorkerHandlerLogic] Started worker {i} on '{self.queue_name}'")
             workers.append(p)
 
         try:
             for p in workers:
                 p.join()
         except KeyboardInterrupt:
-            logger.warning("Terminating workers...")
+            logger.warning("[WorkerHandlerLogic] Terminating workers...")
             for p in workers:
                 if p.is_alive():
                     p.terminate()

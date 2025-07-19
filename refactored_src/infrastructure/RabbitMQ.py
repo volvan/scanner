@@ -94,20 +94,21 @@ class RabbitMQ:
         except Exception:
             return False
 
-    def queue_empty(self, queue_name: str) -> bool:
-        """Check if the specified queue is empty.
+    # def queue_empty(self, queue_name: str) -> bool:
+    #     """Check if the specified queue is empty.
 
-        Args:
-            queue_name (str): Name of the queue.
+    #     Args:
+    #         queue_name (str): Name of the queue.
 
-        Returns:
-            bool: True if the queue is empty, False otherwise.
-        """
-        try:
-            queue_info = self.channel.queue_declare(queue=queue_name, passive=True)
-            return queue_info.method.message_count == 0
-        except Exception:
-            return True
+    #     Returns:
+    #         bool: True if the queue is empty, False otherwise.
+    #     """
+    #     # TODO: delete function when verified not in use
+    #     try:
+    #         queue_info = self.channel.queue_declare(queue=queue_name, passive=True)
+    #         return queue_info.method.message_count == 0
+    #     except Exception:
+    #         return True
 
     def tasks_in_queue(self) -> int:
         """Get the number of messages currently in the queue.
@@ -131,6 +132,7 @@ class RabbitMQ:
         Notes:
             If the queue does not exist, it will be declared automatically.
         """
+        # TODO: this should be removed after verified its not in use
         try:
             self._ensure_channel()
             if not self.queue_exists():
@@ -263,7 +265,8 @@ class RabbitMQ:
         """
         # TODO: what is happening here though? in all this function....
         try:
-            if self.queue_empty(self.queue_name):
+            if self.tasks_in_queue() == 0:
+            # if self.queue_empty(self.queue_name):
                 logger.debug(f"[RabbitMQ] {self.queue_name} is empty. Deleting.")
                 self.channel.queue_delete(queue=self.queue_name)
                 return
@@ -346,6 +349,7 @@ class RabbitMQ:
 
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
+        # TODO: this should be removed after verified its not in use
         logger.debug("RMQ - Calling close")
         try:
             if hasattr(self, "connection") and not self.connection.is_closed:

@@ -23,6 +23,7 @@ from logic.port_manager import PortManager
 from utils.queue_initializer import QueueInitializer
 from utils.batch_handler import PortBatchHandler
 from utils.debug_tools import run_debug_maintenance
+from utils.resource_status import resource_ok
 
 import sys, json, os, random
 
@@ -51,7 +52,7 @@ sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
 
 
-class PortScanner:
+class PortScanner: # TODO: rename PortScanner 
     # def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager ,logicManager: LogicManager):
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
         self.externalManager = externalManager
@@ -61,22 +62,6 @@ class PortScanner:
         self.port_manager = PortManager()
         self.batch_handler = PortBatchHandler()
         # self.alive_ip_queue = ALIVE_ADDR_QUEUE
-
-    def memory_ok(self) -> bool:
-        """Check if current memory usage is under the configured limit.
-
-        Returns:
-            bool: True if memory usage is below MEM_LIMIT, False otherwise.
-        """
-        return proc.memory_info().rss < MEM_LIMIT
-
-    def cpu_ok(self) -> bool:
-        """Check if current CPU usage is under the configured limit.
-
-        Returns:
-            bool: True if CPU usage is below CPU_LIMIT, False otherwise.
-        """
-        return psutil.cpu_percent(interval=1) < CPU_LIMIT
 
     def _drain_and_exit(self, batch_queue: str) -> None:
         """Drain and process all tasks from a batch queue, then delete the queue.
@@ -204,12 +189,8 @@ class PortScanner:
             Spawns new processes for each port-batch queue up to MAX_BATCH_PROCESSES.
             Waits if memory usage or active processes reach limits.
         """
-        if not self.memory_ok():
-            logger.warning("Memory limit reached; shutting down")
-            sys.exit(1)
-
-        if not self.cpu_ok():
-            logger.warning("CPU limit reached; shutting down")
+        
+        if not resource_ok():
             sys.exit(1)
 
         logger.debug(f"[PortScanner] Starting batched port-scan on '{main_queue_name}'")
@@ -291,24 +272,6 @@ class PortScanner:
                 QueueInitializer.enqueue_items(queue_name=PRIORITY_PORTS_QUEUE, key="port", val=priority_ports_iter)
                 logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
 
-        # try:
-        #     if not filename:
-        #         raise ValueError("Filename required to extract ports.")
-
-        #     all_ports, priority_ports = read_ports_file(filename)
-        #     if all_ports is None or priority_ports is None:
-        #         logger.warning("[PortScanner] Could not parse ports file.")
-        #         return
-
-        #     all_ports_iter = reservoir_of_reservoirs(all_ports)
-        #     priority_ports_iter = reservoir_of_reservoirs(priority_ports)
-
-        #     if queue_name == ALL_PORTS_QUEUE:
-        #         self.port_manager.enqueue_ports(ALL_PORTS_QUEUE, all_ports_iter)
-        #         logger.info(f"[PortScanner] Seeded {ALL_PORTS_QUEUE} with randomized ports.")
-        #     elif queue_name == PRIORITY_PORTS_QUEUE:
-        #         self.port_manager.enqueue_ports(PRIORITY_PORTS_QUEUE, priority_ports_iter)
-        #         logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
             else:
                 raise ValueError(f"Bad queue: {queue_name}")
 
