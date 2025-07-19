@@ -115,23 +115,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             "probe_duration": None,
         }
 
-    def enqueue_results(self, ip_addr: str, host_status: str) -> None:
-        """Enqueue an IP address into the alive or dead RabbitMQ queue.
 
-        Args:
-            ip_addr (str): IP address that was scanned.
-            host_status (str): Scan result ("alive" or "dead").
-        """
-        data = {"ip": ip_addr, "status": host_status}
-
-        try:
-            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO: this queue is used as placeholder, could be any queue
-                if host_status == "alive":
-                    rmq_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message=data)
-                else:
-                    rmq_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message=data)
-        except Exception as e:
-            logger.error(f"[HostDiscovery] Failed to enqueue {host_status} result for {ip_addr}: {e}")
 
     def handle_scan_process(self, ip_addr: str) -> None:
         """Scan an IP address and enqueue the result to RabbitMQ and database queues.
@@ -152,15 +136,25 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             }
 
         done_ts = get_current_timestamp()
-        self.enqueue_results(ip_addr, ping_res["host_status"])
+
+        host_state = ping_res["host_status"]
+        data = {"ip": ip_addr, "status": host_state}
+
+        try:
+            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO: this queue is used as placeholder, could be any queue
+                if host_state == "alive":
+                    rmq_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message=data)
+                else:
+                    rmq_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message=data)
+        except Exception as e:
+            logger.error(f"[HostDiscovery] Failed to enqueue {host_state} result for {ip_addr}: {e}")
+
+
 
         logger.debug(f"[HostDiscovery] Scan result: {ping_res}")
         try:
             # Extract scan result details
             record = {
-            # if self.db_manager:
-            #     logger.debug(f"[HostDiscovery] Enqueuing result to db_hosts: {ip_addr} -> {ping_res}")
-            #     db_hosts.put({
                     "ip": ip_addr,
                     "probe_method": ping_res.get("probe_method"),
                     "probe_protocol": ping_res.get("probe_protocol"),
@@ -173,6 +167,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             db_hosts.put(record)
         except Exception as e:
             logger.error(f"[HostDiscovery] Failed to enqueue host result to db_hosts: {e}")
+
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
         """Process a RabbitMQ task: scan IP, write to database, then acknowledge.

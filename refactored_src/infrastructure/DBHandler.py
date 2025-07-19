@@ -3,7 +3,6 @@ from config.scan_config import WORKERS
 
 #----- Standard library -----#
 import threading
-import traceback
 
 #----- Type annotation imports -----#
 # from data.DataManager import DataManager
@@ -26,12 +25,13 @@ from infrastructure.QueryHandler import QueryHandler
 
 # In-memory queues for DBWorker
 from multiprocessing import JoinableQueue
+
+
 db_hosts: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Hosts' db table
 db_ports: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Ports' db table
 
 
-
-class DBHandler: # TODO: rename.. Database_Handler?
+class DBHandler: # TODO: rename.. Database_Handler? maybe..
 
     def __init__(self, queryHandler: QueryHandler):
         """Initialize.."""
@@ -48,7 +48,6 @@ class DBHandler: # TODO: rename.. Database_Handler?
 
         self.host_thread = threading.Thread(target=self._consume_hosts, daemon=True)
         self.host_thread.start()
-        logger.info("[DBHandler] Host thread started.")
 
     def start_ports(self):
         """Start database writer threads for the "Ports" table."""
@@ -57,8 +56,6 @@ class DBHandler: # TODO: rename.. Database_Handler?
 
         self.port_thread = threading.Thread(target=self._consume_ports, daemon=True)
         self.port_thread.start() # TODO: start after thread?
-        logger.info("[DBHandler] Port thread started.")
-
 
     def _consume_hosts(self):
         """Collects hosts from RabbitMQ and inserts them into the DB using DBWorker()"""

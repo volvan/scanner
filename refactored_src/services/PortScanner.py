@@ -43,8 +43,6 @@ from config.scan_config import (  # noqa: F401
     ALIVE_ADDR_QUEUE,
     SCAN_NATION,
     MAX_BATCH_PROCESSES,
-    MEM_LIMIT,
-    CPU_LIMIT,
     SCAN_DELAY,
     PROBE_JITTER_MAX,
 )

@@ -8,7 +8,7 @@ from utils.queue_initializer import QueueInitializer
 # Configuration
 from config.logging_config import log_exception
 from config.logging_config import logger
-from config.scan_config import ALL_PORTS_QUEUE, PRIORITY_PORTS_QUEUE, FAIL_QUEUE
+from config.scan_config import ALL_PORTS_QUEUE, FAIL_QUEUE
 
 # Services
 from infrastructure.DBHandler import db_ports
@@ -22,23 +22,9 @@ class PortManager:
 
     def __init__(self):
         """Initialize PortManager and prepare for queue management."""
-        debug_msg = f"[PortManager] Ready to manage '{ALL_PORTS_QUEUE}' and '{PRIORITY_PORTS_QUEUE}' queues."
-        logger.debug(debug_msg)
+        logger.debug(f"[PortManager] Ready")
 
-
-    # # TODO: deadcode?
-    # def get_next_port(self) -> int | None:
-    #     """Fetch and return the next port from the 'all_ports' queue.
-
-    #     Returns:
-    #         int | None: The next port number if available, or None if the queue is empty.
-    #     """
-    #     rmq_manager = RabbitMQ(ALL_PORTS_QUEUE)
-    #     port = rmq_manager.get_next_message("port")
-    #     rmq_manager.close()
-    #     return port
-
-    # TODO: relevant code? 
+    # TODO: relevant code?
     def handle_scan_process(self, ip: str, port: int, queue_name: str):
         """Probe an IP:port pair and enqueue the scan result as needed.
 
@@ -51,7 +37,6 @@ class PortManager:
             - If the port is open or filtered, the result is inserted into `db_ports`.
             - If the port is closed but already known in the database, it is also inserted.
             - Unknown scan states are routed to the 'fail_queue'.
-            - Ports that are newly closed are skipped to save storage space.
         """
         with RabbitMQ(ALL_PORTS_QUEUE) as rmq_ports_conn:
             try:
@@ -76,7 +61,7 @@ class PortManager:
 
                 # 2) Unknown → fail queue
                 if record["port_state"] == "unknown":
-                    logger.warning(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {scan_result}\n\n")
+                    logger.info(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {scan_result}\n\n")
                     message = {
                         "ip": ip,
                         "port": port,

@@ -94,22 +94,6 @@ class RabbitMQ:
         except Exception:
             return False
 
-    # def queue_empty(self, queue_name: str) -> bool:
-    #     """Check if the specified queue is empty.
-
-    #     Args:
-    #         queue_name (str): Name of the queue.
-
-    #     Returns:
-    #         bool: True if the queue is empty, False otherwise.
-    #     """
-    #     # TODO: delete function when verified not in use
-    #     try:
-    #         queue_info = self.channel.queue_declare(queue=queue_name, passive=True)
-    #         return queue_info.method.message_count == 0
-    #     except Exception:
-    #         return True
-
     def tasks_in_queue(self) -> int:
         """Get the number of messages currently in the queue.
 
@@ -123,41 +107,6 @@ class RabbitMQ:
             logger.error(f"[RabbitMQ] Error checking queue: {e}")
             return 0
 
-    def enqueue(self, message: dict) -> None:
-        """Publish a JSON message to the queue.
-
-        Args:
-            message (dict): Message to publish.
-
-        Notes:
-            If the queue does not exist, it will be declared automatically.
-        """
-        # TODO: this should be removed after verified its not in use
-        try:
-            self._ensure_channel()
-            if not self.queue_exists():
-                self.declare_queue()
-            self.channel.basic_publish(
-                exchange='',
-                routing_key=self.queue_name,
-                body=json.dumps(message),
-                properties=pika.BasicProperties(delivery_mode=2)
-            )
-        except (pika.exceptions.ChannelClosedByBroker, pika.exceptions.ConnectionClosed) as e:
-            logger.warning(f"[RabbitMQ] Failed to enqueue (closed channel): {e}")
-            try:
-                self.reconnect()
-                self.channel.queue_declare(queue=self.queue_name, durable=True)
-                self.channel.basic_publish(
-                    exchange='',
-                    routing_key=self.queue_name,
-                    body=json.dumps(message),
-                    properties=pika.BasicProperties(delivery_mode=2)
-                )
-            except Exception as ex:
-                logger.error(f"[RabbitMQ] Retry publish failed for '{self.queue_name}': {ex}")
-        except Exception as e:
-            logger.error(f"[RabbitMQ] Failed to enqueue message to '{self.queue_name}': {e}")
 
     def start_consuming(self, callback: object) -> None:
         """Start consuming messages from the queue with a specified callback.
@@ -180,8 +129,8 @@ class RabbitMQ:
             logger.warning(f"[RabbitMQ] Broker closed connection: {e}")
         except Exception as e:
             logger.error(f"[RabbitMQ] Unexpected error while consuming: {e}")
-        finally:
-            self.close() # TODO: self.exit()
+        # finally:
+        #     self.close() # TODO: self.exit()
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
@@ -288,7 +237,7 @@ class RabbitMQ:
         # TODO: Contaxt manager
         #     self.exit()
 
-            self.close() # TODO: why? 
+            # self.close() # TODO: why? 
 
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
                 logger.info(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
@@ -301,6 +250,14 @@ class RabbitMQ:
     
     # TODO: enqueue_to_queue rename to something descriptive
     def enqueue_to_queue(self, message: dict, queue_name: str = None):
+        """Publish a JSON message to the queue.
+
+        Args:
+            message (dict): Message to publish.
+
+        Notes:
+            If the queue does not exist, it will be declared automatically.
+        """
         # TODO: heere to replace enqueue to use queue_name
 
         try:

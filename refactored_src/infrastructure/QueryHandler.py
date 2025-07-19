@@ -188,44 +188,6 @@ class QueryHandler: # Database_manager old
 
         return queryModel
 
-        # cur = None
-        # for attempt in range(1, retry_limit + 1):
-        #     conn: connection = QueryHandler._pool.getconn()
-        #     try:
-        #         with conn.cursor() as cur:
-        #             cur.execute(update_sql, values)
-        #             if cur.rowcount == 0:
-        #                 logger.warning(f"[QueryHandler] No Hosts row for {task['ip']}")
-        #             else:
-        #                 logger.info(f"[QueryHandler] Updated host {task['ip']} -> {task['host_status']}")
-        #         conn.commit()
-        #         QueryHandler._pool.putconn(conn)
-        #         return
-        #     except (psycopg2.InterfaceError, psycopg2.OperationalError) as e:
-        #         # evict this dead connection
-        #         try:
-        #             QueryHandler._pool.putconn(conn, close=True)
-        #         # except TypeError:
-        #         except PoolError as e:
-        #             conn.close()
-        #         logger.warning(f"[QueryHandler] insert_host_result retry {attempt}: {e}")
-        #         time.sleep(0.5 * attempt)
-        #     except Exception as e:
-        #         # any other error: evict and abort
-        #         try:
-        #             QueryHandler._pool.putconn(conn, close=True)
-        #         except PoolError as e:
-        #             conn.close()
-        #         logger.error(f"[QueryHandler] insert_host_result failed: {e} | conn {conn} | type(conn) {type(conn)}")
-
-        #     finally:
-        #         if cur is not None:
-        #             cur.close()
-        # logger.error("[QueryHandler] insert_host_result gave up after retries")
-
-
-        logger.error(f"[QueryHandler] insert_host_result gave up after {retry_limit} attempts")
-
 
     def insert_port_result(self, task: dict) -> QueryModel:
         """Build an UPSERT QueryModel for a port scan result.
