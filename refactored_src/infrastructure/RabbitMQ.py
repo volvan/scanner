@@ -15,7 +15,7 @@ sys.excepthook = log_exception
 # TODO: rename RMQ_Handler
 # TODO: add contaxt manager 
 # TODO: why so may connections?? 
-# TODO: 3 connections, then "[PortManager] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function.. 
+# TODO: 3 connections, then "[PortScanner] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function.. 
 
 class RabbitMQ: 
     """Low-level wrapper for RabbitMQ operations, including connection, queue management, and pub/sub."""

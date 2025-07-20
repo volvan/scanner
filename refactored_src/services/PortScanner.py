@@ -8,7 +8,7 @@ from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
 #----- Service imports -----#
-from infrastructure.DBHandler import DBHandler
+from infrastructure.DBHandler import DBHandler, db_ports
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
@@ -19,11 +19,12 @@ from models.QueryModel import QueryModel
 #----- OLD IMPORTS -----#
 import psutil
 
-from logic.port_manager import PortManager
 from utils.queue_initializer import QueueInitializer
 from utils.batch_handler import PortBatchHandler
 from utils.debug_tools import run_debug_maintenance
 from utils.resource_status import resource_ok
+from utils.probe_handler import ProbeHandler
+
 
 import sys, json, os, random
 
@@ -41,6 +42,7 @@ from config.scan_config import (  # noqa: F401
     USE_PRIORITY_PORTS,
     ALL_PORTS_QUEUE,
     ALIVE_ADDR_QUEUE,
+    FAIL_QUEUE,
     SCAN_NATION,
     MAX_BATCH_PROCESSES,
     SCAN_DELAY,
@@ -57,9 +59,66 @@ class PortScanner: # TODO: rename PortScanner
         self.infraManager = infraManager
 
         self.active_processes: list[Process] = []
-        self.port_manager = PortManager()
         self.batch_handler = PortBatchHandler()
         # self.alive_ip_queue = ALIVE_ADDR_QUEUE
+
+    def handle_scan_process(self, ip: str, port: int, queue_name: str):
+        """Probe an IP:port pair and enqueue the scan result as needed.
+
+        Args:
+            ip (str): IP address to scan.
+            port (int): Port number to scan.
+            queue_name (str): Name of the originating queue.
+
+        Notes:
+            - If the port is open or filtered, the result is inserted into `db_ports`.
+            - If the port is closed but already known in the database, it is also inserted.
+            - Unknown scan states are routed to the 'fail_queue'.
+        """
+        with RabbitMQ(ALL_PORTS_QUEUE) as rmq_ports_conn:
+            try:
+                # 1) Run the Nmap scan
+                scanner = ProbeHandler(ip, str(port))
+                scan_result = scanner.scan()
+
+                # Extract scan result details
+                record = {
+                    "type": "port_result",
+                    "ip": ip,
+                    "port": port,
+                    "port_state": scan_result["state"],
+                    "port_service": scan_result["service"],
+                    "port_protocol": scan_result["protocol"],
+                    "port_product": scan_result["product"],
+                    "port_version": scan_result["version"],
+                    "port_cpe": scan_result["cpe"],
+                    "port_os": scan_result["os"],
+                    "duration": scan_result["duration"],
+                }
+
+                # 2) Unknown → fail queue
+                if record["port_state"] == "unknown":
+                    logger.info(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {scan_result}\n\n")
+                    message = {
+                        "ip": ip,
+                        "port": port,
+                        "reason": "unknown_state"
+                    }
+                    rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
+                    return
+
+                # 3) Enqueue all results (open, filtered, and closed)
+                db_ports.put(record)
+
+            except Exception as e:
+                logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}\nscan_results: {scan_result}\n\n")
+
+                message = {
+                        "error": str(e),
+                        "ip": ip,
+                        "port": port
+                    }
+                rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
 
     def _drain_and_exit(self, batch_queue: str) -> None:
         """Drain and process all tasks from a batch queue, then delete the queue.
@@ -71,7 +130,6 @@ class PortScanner: # TODO: rename PortScanner
             This runs inside a spawned process. Each task is ACKed or NACKed after handling.
         """
         with RabbitMQ(batch_queue) as rmq_batch_conn:
-            pm = PortManager() # TODO: add context manager, or does this need an instance? 
 
             while True:
                 method_frame, _, body = rmq_batch_conn.channel.basic_get(queue=batch_queue, auto_ack=False)
@@ -80,7 +138,7 @@ class PortScanner: # TODO: rename PortScanner
 
                 try:
                     task = json.loads(body)
-                    pm.handle_scan_process(task["ip"], task["port"], batch_queue)
+                    self.handle_scan_process(task["ip"], task["port"], batch_queue)
                     rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
                 except Exception:
                     rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
