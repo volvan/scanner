@@ -1,18 +1,24 @@
+# Standard library
+import gc
+import itertools
+import json
+import multiprocessing
 import subprocess
 import sys
 import time
 
-#----- Config imports -----#
-from config.scan_config import ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, SCAN_NATION, ALL_ADDR_QUEUE, ADDR_FILE, SCAN_DELAY
-
-#----- Type annotation imports -----#
 from external.ExternalManager import ExternalManager
 from infrastructure.InfrastructureManager import InfrastructureManager
 from multiprocessing import Process
 
 from pika.spec import Basic, BasicProperties
 
-#----- Util classes imports -----#
+# Utility Handlers
+from utils import block_handler
+from utils.batch_handler import IPBatchHandler
+from utils.queue_initializer import QueueInitializer
+from utils.reservoir_randomize import reservoir_of_reservoirs
+
 from utils.timestamp import get_current_timestamp
 from utils.block_handler import read_block, whois_block
 from utils.resource_status import resource_ok
@@ -24,42 +30,24 @@ from models.QueryModel import QueryModel
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import DBHandler
+from infrastructure.DBHandler import DBHandler, db_hosts, db_ports
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
-from infrastructure.DBHandler import db_hosts, db_ports
 
 # Type annotations
 from pika.adapters.blocking_connection import BlockingChannel
-from pika.adapters.blocking_connection import BlockingConnection
-from pika.spec import Basic, BasicProperties
 
 #----- Logger import -----#
-from config.logging_config import logger
+from config.logging_config import logger, log_exception
+sys.excepthook = log_exception
 
-
-#-----------------------#
-#      OLD IMPORTS      #
-#-----------------------#
-
-# Standard library
-import gc
-import itertools
-import json
-import multiprocessing
-import os
-import sys
-import time
-import psutil  # type: ignore
-
-# Utility Handlers
-from utils import block_handler
-from utils.batch_handler import IPBatchHandler
-from utils.queue_initializer import QueueInitializer
-from utils.reservoir_randomize import reservoir_of_reservoirs
-# from utils.worker_handler import WorkerHandler
 
 # Configuration
 from config.scan_config import (  # noqa: F401
+    ALIVE_ADDR_QUEUE,
+    ALL_ADDR_QUEUE,
+    ADDR_FILE,
+    DEAD_ADDR_QUEUE,
+    SCAN_NATION,
     BATCH_SIZE,
     FAIL_QUEUE,
     MAX_BATCH_PROCESSES,
@@ -68,24 +56,19 @@ from config.scan_config import (  # noqa: F401
     BATCH_TIMEOUT_SEC,
     FETCH_RIX
 )
-from config.logging_config import logger, log_exception
-
-sys.excepthook = log_exception
-
-#-----------------------#
 
 
 
-class HostDiscovery: # TODO: rename DiscoveryScanner 
+class DiscoveryScanner: # TODO: rename DiscoveryScanner 
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
         self.externalManager = externalManager
         self.infraManager = infraManager
 
-        # From old HostDiscovery()
+        # From old DiscoveryScanner()
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
-    def launch_discovery_scan_pipeline(self): #  TODO: move to HostDiscovery
+    def launch_discovery_scan_pipeline(self): #  TODO: move to DiscoveryScanner
         """ The 'main' """
         # TODO: should be refactored and logic reviewed
 
@@ -100,10 +83,10 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             # If tasks are already in queue, stop the program 
             # TODO: should not stop the program but assign workers and consume from the queue.. right?
             if tasks_remaining > 0:
-                logger.warning(f"[HostDiscovery] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
+                logger.warning(f"[DiscoveryScanner] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
                 return
             # Else, no tasks are in queue, so we enqueue tasks
-            logger.info(f"[HostDiscovery ] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
+            logger.info(f"[DiscoveryScanner ] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
             filename = self.new_targets()
             if not filename:
                 return
@@ -133,13 +116,13 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
                     )
                     success = dbWorker.execute_query_model(queryModel)
                     if not success:
-                        logger.critical('[HostDiscovery.launch_discovery_scan_pipeline] Something went wrong while inserting the summary.')
+                        logger.critical('[DiscoveryScanner.launch_discovery_scan_pipeline] Something went wrong while inserting the summary.')
             except Exception as e:
-                logger.error(f"[HostDiscovery.launch_discovery_scan_pipeline] Failed to write discovery summary: {e}")
+                logger.error(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Failed to write discovery summary: {e}")
 
 
         except Exception as e:
-            logger.critical(f"[HostDiscovery.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
+            logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
         finally:
             # self.logicManager.dbWorkerLogic.stop()
             db_hosts.join()     # block until every host task_done()
@@ -173,7 +156,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             if FETCH_RIX:
                 new_rix_file = block_handler.fetch_rix_blocks()
                 if not new_rix_file:
-                    logger.warning("[HostDiscovery] Could not fetch RIX blocks or create file.")
+                    logger.warning("[DiscoveryScanner] Could not fetch RIX blocks or create file.")
                     return None
                 filename = new_rix_file
                 ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
@@ -226,7 +209,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             return filename
 
         except Exception as e:
-            logger.error(f"[HostDiscovery] Error in new_targets: {e}")
+            logger.error(f"[DiscoveryScanner] Error in new_targets: {e}")
             return None
 
 
@@ -254,7 +237,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
                 raise ValueError("Invalid IP format: IP must be a string")
 
             # Log the IP address being processed
-            logger.info(f"[HostDiscovery] Processing IP: {ip_addr}")
+            logger.info(f"[DiscoveryScanner] Processing IP: {ip_addr}")
 
             # Handle the scanning process for the IP address
             self.handle_scan_process(ip_addr)
@@ -267,12 +250,12 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
 
         except json.JSONDecodeError as e:
             # Handle invalid JSON format in the message body
-            logger.warning(f"[HostDiscovery] Failed to decode JSON: {e}")
+            logger.warning(f"[DiscoveryScanner] Failed to decode JSON: {e}")
             try:
                 # Nack the message, marking it as failed and not requeued
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             except Exception:
-                logger.warning("[HostDiscovery] Failed to nack message")
+                logger.warning("[DiscoveryScanner] Failed to nack message")
 
             # Enqueue the error to the fail queue for further investigation
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
@@ -283,12 +266,12 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
                 rmq_fail_conn.enqueue_to_queue(message=message)
         except Exception as e:
             # Catch any other exceptions during task processing
-            logger.error(f"[HostDiscovery] Error processing task: {e}")
+            logger.error(f"[DiscoveryScanner] Error processing task: {e}")
             try:
                 # Nack the message in case of a failure
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             except Exception:
-                logger.warning("[HostDiscovery] Failed to nack message")
+                logger.warning("[DiscoveryScanner] Failed to nack message")
 
             # Enqueue the error details into the fail queue
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
@@ -306,7 +289,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             queue_name (str): Name of the RabbitMQ queue to drain.
 
         Notes:
-            A new HostDiscovery instance is created for each process to avoid
+            A new DiscoveryScanner instance is created for each process to avoid
             sharing DB or RMQ connections across forks.
         """
         
@@ -340,25 +323,25 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
                     task_proc.terminate()
                     task_proc.join()
                     logger.warning(
-                        f"[HostDiscovery] Task {body!r} in batch '{queue_name}' "
+                        f"[DiscoveryScanner] Task {body!r} in batch '{queue_name}' "
                         f"timed out after {BATCH_TIMEOUT_SEC}s; routing to fail_queue."
                     )
                     try:
-                        logger.info(f'\n\n[HostDiscovery._drain_and_exit] Currently inserting into fail_queue.\n\n')
+                        logger.info(f'\n\n[DiscoveryScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
                         payload = json.loads(body)
                         rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE) 
                     except Exception as e:
-                        logger.error(f"[HostDiscovery] Failed to enqueue timed-out task: {e}")
+                        logger.error(f"[DiscoveryScanner] Failed to enqueue timed-out task: {e}")
                     finally:
                         rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag)
 
             except Exception as e:
                 # any unexpected error wrapping the worker
-                logger.error(f"[HostDiscovery] Error running timed-task wrapper: {e}")
+                logger.error(f"[DiscoveryScanner] Error running timed-task wrapper: {e}")
                 try:
                     rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
                 except Exception as nack_err:
-                    logger.warning(f"[HostDiscovery] Failed to nack message after wrapper error: {nack_err}")
+                    logger.warning(f"[DiscoveryScanner] Failed to nack message after wrapper error: {nack_err}")
 
             # pause between tasks
             time.sleep(SCAN_DELAY)
@@ -369,11 +352,6 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
 
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""
-        ### For testing purposes ###
-        # import os
-        # worker_pid = str(os.getpid())
-        # logger.critical(f'worker_pid {worker_pid} is currently HostDiscovery.start_consuming({main_queue_name})')
-        ### For testing purposes ###
         logger.debug("[IPScan Init] Starting host discovery...")
 
         if not resource_ok():
@@ -384,10 +362,10 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
         # TODO: didnt we check just a second ago?
         with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
-            logger.debug(f"[HostDiscovery] {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'")
+            logger.debug(f"[DiscoveryScanner] {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'")
 
         if total_tasks < THRESHOLD:
-            logger.info("[HostDiscovery] Direct processing mode (small scan).")
+            logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
             WorkerHandlerLogic(
                 queue_name=ALL_ADDR_QUEUE,
                 process_callback=self.process_task # TODO: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
@@ -395,7 +373,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
 
             return
 
-        logger.info("[HostDiscovery] Batch processing mode (large scan).")
+        logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
 
         while True:
             # TODO: WorkerHandlerLogic should be used, not creating the same logic in code.. reuse the code pls.. 
@@ -405,11 +383,11 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
 
             if remaining == 0 and not self.active_processes:
-                logger.debug("[HostDiscovery] All batches completed.")
+                logger.debug("[DiscoveryScanner] All batches completed.")
                 break
 
             if 0 < remaining < BATCH_SIZE and not self.active_processes:
-                logger.debug(f"[HostDiscovery] Final tail of {remaining} tasks; creating last batch.")
+                logger.debug(f"[DiscoveryScanner] Final tail of {remaining} tasks; creating last batch.")
                 batch_id = next(self.batch_id_generator)
                 batch_queue = IPBatchHandler(batch_id, remaining).create_batch(ALL_ADDR_QUEUE)
                 if batch_queue:
@@ -437,11 +415,11 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             batch_id = next(self.batch_id_generator)
             batch_queue = IPBatchHandler(batch_id, remaining).create_batch(ALL_ADDR_QUEUE)
             if not batch_queue:
-                logger.warning("[HostDiscovery] No batch created - retrying.")
+                logger.warning("[DiscoveryScanner] No batch created - retrying.")
                 time.sleep(3)
                 continue
 
-            logger.info(f"[HostDiscovery] Created batch queue: {batch_queue}")
+            logger.info(f"[DiscoveryScanner] Created batch queue: {batch_queue}")
             p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
             p.start()
             self.active_processes.append(p)
@@ -463,7 +441,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
         try:
             ping_res = self.ping_host(ip_addr)
         except Exception as e:
-            logger.error(f"[HostDiscovery] Failed to ping host {ip_addr}: {e}")
+            logger.error(f"[DiscoveryScanner] Failed to ping host {ip_addr}: {e}")
             ping_res = {
                 "probe_method": None,
                 "probe_protocol": None,
@@ -483,11 +461,11 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
                 else:
                     rmq_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message=data)
         except Exception as e:
-            logger.error(f"[HostDiscovery] Failed to enqueue {host_state} result for {ip_addr}: {e}")
+            logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} result for {ip_addr}: {e}")
 
 
 
-        logger.debug(f"[HostDiscovery] Scan result: {ping_res}")
+        logger.debug(f"[DiscoveryScanner] Scan result: {ping_res}")
         try:
             # Extract scan result details
             record = {
@@ -502,7 +480,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             # Enqueue all results
             db_hosts.put(record)
         except Exception as e:
-            logger.error(f"[HostDiscovery] Failed to enqueue host result to db_hosts: {e}")
+            logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
 
 
     def ping_host(self, ip_addr: str) -> dict:
@@ -528,10 +506,10 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
             try:
                 res = fn()
             except subprocess.TimeoutExpired:
-                logger.warning(f"[HostDiscovery] {method} to {ip_addr} timed out; continuing")
+                logger.warning(f"[DiscoveryScanner] {method} to {ip_addr} timed out; continuing")
                 res = None
             except Exception as e:
-                logger.warning(f"[HostDiscovery] {method} to {ip_addr} crashed: {e}")
+                logger.warning(f"[DiscoveryScanner] {method} to {ip_addr} crashed: {e}")
                 res = None
 
             if res and res[0] == "alive":
@@ -547,7 +525,7 @@ class HostDiscovery: # TODO: rename DiscoveryScanner
 
             time.sleep(SCAN_DELAY)
 
-        logger.info(f"[HostDiscovery] All probes for {ip_addr} failed with exception or timeout.")
+        logger.info(f"[DiscoveryScanner] All probes for {ip_addr} failed with exception or timeout.")
         return {
             "probe_method": None,
             "probe_protocol": None,

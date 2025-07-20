@@ -15,7 +15,7 @@ from config.logging_config import logger
 
 class WorkerHandlerLogic:
     """Spawns and manages multiple worker processes for IP scanning queues."""
-    # TODO: is this only used in hostdiscovery? if so, what workers are used in port scan???
+    # TODO: is this only used in DiscoveryScanner? if so, what workers are used in port scan???
 
     def __init__(self, queue_name: str, process_callback: object):
         """Initialize a WorkerHandler instance.

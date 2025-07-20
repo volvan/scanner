@@ -5,7 +5,7 @@ from external.ExternalManager import ExternalManager
 
 #----- Service imports -----#
 from .PortScanner import PortScanner
-from .HostDiscovery import HostDiscovery
+from .DiscoveryScanner import DiscoveryScanner
 
 from config.logging_config import logger
 
@@ -18,15 +18,15 @@ class ServiceManager:
         self.infraManager = InfrastructureManager()
 
         # Service Instances
-        self.HostDiscovery = HostDiscovery(self.externalManager, self.infraManager)
+        self.discoveryScanner = DiscoveryScanner(self.externalManager, self.infraManager)
         self.portScanner = PortScanner(self.externalManager, self.infraManager)
 
-    #----- HostDiscovery Methods -----#
+    #----- DiscoveryScanner Methods -----#
     def start_ip_scan(self):
         # TODO: here should call a checker, that checks all config vars, to make sure they are correct and there.
         # TODO: Then remove the endless redundant checks in code
         logger.info('Just started ServiceManager.launch_discovery_scan_pipeline()')
-        self.HostDiscovery.launch_discovery_scan_pipeline()
+        self.discoveryScanner.launch_discovery_scan_pipeline()
 
     #----- PortScanner Methods -----#
     def start_port_scan(self):
