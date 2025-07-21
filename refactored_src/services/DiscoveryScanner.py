@@ -30,7 +30,7 @@ from models.QueryModel import QueryModel
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import AckDispatcher, DBHandler, db_hosts, db_acks, db_ports
+from infrastructure.DBHandler import RMQAckThread, DBHandler, db_hosts, db_acks, db_ports
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
 
 # Type annotations
@@ -240,7 +240,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         # start the ACK dispatcher exactly once in THIS process
         # TODO: only a patch, DO NOT USE IN PRODUCTION
         if not hasattr(self, "_ack_thread_started"):
-            AckDispatcher(rmq).start()
+            RMQAckThread(rmq).start()
             logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
             self._ack_thread_started = True
 

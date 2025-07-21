@@ -59,14 +59,13 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
 
         For every successful commit to the database, we enqueue the delivery tag to db_acks queue to be acked.
         """
+        # from psycopg2.extras import execute_values (at top)
+        # BATCH_ROWS = 200 (would be in scan_config)
+        # pending = [] # So that it writes in batches also..
 
         with DBWorker() as dbWorker:
             while not self.stop_signal:
-                # from psycopg2.extras import execute_values
-                # BATCH_ROWS = 200
-                # pending = []
 
-                # # inside _consume_hosts loop
                 # pending.append(values_tuple)
                 # if len(pending) >= BATCH_ROWS:
                 #     execute_values(cur, INSERT_SQL, pending)
@@ -159,7 +158,7 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
         if self.port_thread:
             self.port_thread.join(timeout=2)
 
-class AckDispatcher(threading.Thread):
+class RMQAckThread(threading.Thread):
     """Thread that consumes delivery_tags from db_acks and ACKs/NACKs safely.
     
     Done on this process RMQ channel.
@@ -167,7 +166,7 @@ class AckDispatcher(threading.Thread):
     """
     # TODO: Add an alert on db_acks.qsize() to notice if ACKs ever fall behind.
     def __init__(self, rmq_conn: RabbitMQ):
-        super().__init__(daemon=True, name="Volva_AckDispatcher")
+        super().__init__(daemon=True, name="Volva_RMQAckThread")
         self.channel  = rmq_conn.channel
 
     def run(self):

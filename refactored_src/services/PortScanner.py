@@ -8,7 +8,7 @@ from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
 #----- Service imports -----#
-from infrastructure.DBHandler import DBHandler, db_ports, db_acks,db_hosts, AckDispatcher
+from infrastructure.DBHandler import DBHandler, db_ports, db_acks,db_hosts, RMQAckThread
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
@@ -224,7 +224,7 @@ class PortScanner: # TODO: rename PortScanner
         with RabbitMQ(batch_queue) as rmq_batch_conn:
             # start the ACK dispatcher exactly once in THIS process
             if not hasattr(self, "_ack_thread_started"):
-                AckDispatcher(rmq_batch_conn).start()
+                RMQAckThread(rmq_batch_conn).start()
                 logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
                 self._ack_thread_started = True
 
