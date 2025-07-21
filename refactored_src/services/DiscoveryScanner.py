@@ -128,91 +128,8 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             db_hosts.join() # block until every host task_done()
             db_handler.stop()
             logger.warning("[DiscoveryScanner] Trying to stop database handler.")
-            # self.infraManager.dbHandler.stop() # TODO: validate this has to be
+            self.infraManager.dbHandler.stop() # TODO: validate this has to be
             db_acks.join() # every delivery‑tag ACKed/NACKed
-
-
-    def new_targets(self) -> str:
-        """Extract IP addresses, randomize them, and enqueue into batches.
-
-        Args:
-            queue_name (str): Name of the RabbitMQ queue to enqueue into.
-            address (str, optional): Single IP or CIDR block.
-            filename (str, optional): File containing CIDR blocks.
-
-        Returns:
-            str: Filename used for CIDR blocks, or None on error.
-
-        Raises:
-            ValueError: If neither address or filename is provided.
-        """
-        try:
-            # TODO: move this to the check thats in beguinning
-            # if not ALL_ADDR_QUEUE:
-            #     raise ValueError("Queue name must be provided")
-            
-            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-                if not rmq_conn.queue_exists():
-                    rmq_conn.declare_queue()
-
-            if FETCH_RIX:
-                new_rix_file = block_handler.fetch_rix_blocks()
-                if not new_rix_file:
-                    logger.warning("[DiscoveryScanner] Could not fetch RIX blocks or create file.")
-                    return None
-                filename = new_rix_file
-                ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
-            elif ADDR_FILE:
-                filename = ADDR_FILE
-                ip_iter = block_handler.get_ip_addresses_from_block(filename=ADDR_FILE)
-            else:
-                raise ValueError(
-                    "Either an IP address, a filename, or fetch_rix=True must be provided."
-                )
-
-            shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
-
-            whois_info = whois_block(target=None, filename=filename)
-
-
-            def chunked(iterator, size=BATCH_SIZE):  # noqa: D103
-                it = iter(iterator)
-                while True:
-                    batch = list(itertools.islice(it, size))
-                    if not batch:
-                        break
-                    yield batch
-
-            with DBWorker() as dbWorker:
-                dbWorker: DBWorker
-                for batch_no, batch in enumerate(chunked(shuffled_ips_iter), start=1):
-                    logger.info("[enqueue] batch %d: size=%d", batch_no, len(batch))
-
-                    # Insert to database
-                    queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
-                    if queryModel is None:
-                        logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
-                        continue
-                    
-                    success = dbWorker.execute_query_model(queryModel)
-                    if not success:
-                        logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
-                        continue
-
-                    # Insert to RMQ 
-
-                    QueueInitializer.enqueue_items(queue_name=ALL_ADDR_QUEUE, key="ip", val=batch)
-
-                # dbWorker.close()
-                del shuffled_ips_iter, ip_iter
-                gc.collect()
-
-            # Return the file we used for CIDR blocks
-            return filename
-
-        except Exception as e:
-            logger.error(f"[DiscoveryScanner] Error in new_targets: {e}")
-            return None
 
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
@@ -448,6 +365,88 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             if p.is_alive():
                 p.join(timeout=1)
 
+
+    def new_targets(self) -> str:
+        """Extract IP addresses, randomize them, and enqueue into batches.
+
+        Args:
+            queue_name (str): Name of the RabbitMQ queue to enqueue into.
+            address (str, optional): Single IP or CIDR block.
+            filename (str, optional): File containing CIDR blocks.
+
+        Returns:
+            str: Filename used for CIDR blocks, or None on error.
+
+        Raises:
+            ValueError: If neither address or filename is provided.
+        """
+        try:
+            # TODO: move this to the check thats in beguinning
+            # if not ALL_ADDR_QUEUE:
+            #     raise ValueError("Queue name must be provided")
+            
+            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
+                if not rmq_conn.queue_exists():
+                    rmq_conn.declare_queue()
+
+            if FETCH_RIX:
+                new_rix_file = block_handler.fetch_rix_blocks()
+                if not new_rix_file:
+                    logger.warning("[DiscoveryScanner] Could not fetch RIX blocks or create file.")
+                    return None
+                filename = new_rix_file
+                ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
+            elif ADDR_FILE:
+                filename = ADDR_FILE
+                ip_iter = block_handler.get_ip_addresses_from_block(filename=ADDR_FILE)
+            else:
+                raise ValueError(
+                    "Either an IP address, a filename, or fetch_rix=True must be provided."
+                )
+
+            shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
+
+            whois_info = whois_block(target=None, filename=filename)
+
+
+            def chunked(iterator, size=BATCH_SIZE):  # noqa: D103
+                it = iter(iterator)
+                while True:
+                    batch = list(itertools.islice(it, size))
+                    if not batch:
+                        break
+                    yield batch
+
+            with DBWorker() as dbWorker:
+                dbWorker: DBWorker
+                for batch_no, batch in enumerate(chunked(shuffled_ips_iter), start=1):
+                    logger.info("[enqueue] batch %d: size=%d", batch_no, len(batch))
+
+                    # Insert to database
+                    queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
+                    if queryModel is None:
+                        logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
+                        continue
+                    
+                    success = dbWorker.execute_query_model(queryModel)
+                    if not success:
+                        logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
+                        continue
+
+                    # Insert to RMQ 
+
+                    QueueInitializer.enqueue_items(queue_name=ALL_ADDR_QUEUE, key="ip", val=batch)
+
+                # dbWorker.close()
+                del shuffled_ips_iter, ip_iter
+                gc.collect()
+
+            # Return the file we used for CIDR blocks
+            return filename
+
+        except Exception as e:
+            logger.error(f"[DiscoveryScanner] Error in new_targets: {e}")
+            return None
 
 
     def ping_host(self, ip_addr: str) -> dict:
