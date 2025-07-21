@@ -30,7 +30,7 @@ from models.QueryModel import QueryModel
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import AckDispatcher, DBHandler, db_hosts, db_acks
+from infrastructure.DBHandler import AckDispatcher, DBHandler, db_hosts, db_acks, db_ports
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
 
 # Type annotations
@@ -125,11 +125,17 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
         finally:
             # self.logicManager.dbWorkerLogic.stop()
+            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
+            
             db_hosts.join() # block until every host task_done()
             db_handler.stop()
-            logger.warning("[DiscoveryScanner] Trying to stop database handler.")
-            self.infraManager.dbHandler.stop() # TODO: validate this has to be
+
+            # TODO: this is a broken patch.. 
             db_acks.join() # every delivery‑tag ACKed/NACKed
+
+            # self.infraManager.dbHandler.stop() # TODO: validate this has to be
+            
+            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
 
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
@@ -232,6 +238,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         rmq = RabbitMQ(queue_name)
 
         # start the ACK dispatcher exactly once in THIS process
+        # TODO: only a patch, DO NOT USE IN PRODUCTION
         if not hasattr(self, "_ack_thread_started"):
             AckDispatcher(rmq).start()
             logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
@@ -283,17 +290,19 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             time.sleep(SCAN_DELAY)
 
         # once we drain the queue, remove it
+        logger.debug("DiscoveryScanner _drain_and_exit calling remove_queue")
         rmq.remove_queue()
         rmq.close()
 
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""
-        logger.debug("[IPScan Init] Starting host discovery...")
 
         if not resource_ok():
             logger.warning("Memory limit reached; shutting down")
             sys.exit(1)
             return
+        
+        logger.debug("[IPScan Init] Starting host discovery...")
 
         # TODO: didnt we check just a second ago?
         with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:

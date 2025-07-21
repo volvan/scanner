@@ -62,6 +62,15 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
 
         with DBWorker() as dbWorker:
             while not self.stop_signal:
+                # from psycopg2.extras import execute_values
+                # BATCH_ROWS = 200
+                # pending = []
+
+                # # inside _consume_hosts loop
+                # pending.append(values_tuple)
+                # if len(pending) >= BATCH_ROWS:
+                #     execute_values(cur, INSERT_SQL, pending)
+                #     pending.clear()
                 try:
                     # wrapper = {"record": ..., "delivery_tag": ...}
                     wrapper = db_hosts.get(timeout=1)
@@ -86,48 +95,59 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
                     # NACK via dispatcher
                     db_acks.put({"nack": True, "delivery_tag": wrapper["delivery_tag"]})
                 db_hosts.task_done()
-        # dbWorker.close_all() # TODO: should we be doing this here?
+        dbWorker.close_all() # TODO: should we be doing this here?
 
 
     def _consume_ports(self):
         """Consume port scan results from db_ports queue and insert into database."""
+        logger.debug("Starting on consuming ports in DBHandler")
         with DBWorker() as dbWorker:
-            try:
-                while not self.stop_signal:
-                    try:
-                        task = db_ports.get(timeout=1)
-                    except queue.Empty:
-                        continue
+            while not self.stop_signal:
+                try:
+                    # wrapper = {"record": ..., "delivery_tag": ...}
+                    wrapper = db_ports.get(timeout=1)
+                except queue.Empty:
+                    continue
 
-                    logger.debug(f"[DBHandler] Got port task: {task}")
+                # Extract from the wrapper
+                record = wrapper["record"] # what we insert to database
+                delivery_tag = wrapper["delivery_tag"]
+                ip_addr = record["ip"] # Used for debugger
+                port = record["port"] # Used for debugger
+                logger.debug(f"[DBHandler] Got host task: {ip_addr}, and port {port} with tag: {delivery_tag}")
 
+                try:
                     # Build a QueryModel for this port result
-                    queryModel: QueryModel = self.queryHandler.insert_port_result(task)
+                    queryModel: QueryModel = self.queryHandler.insert_port_result(record)
                     if queryModel is None:
-                        logger.debug(f"[DBHandler] No QueryModel for task, skipping: {task}")
+                        logger.debug(f"[DBHandler] No QueryModel for task, skipping: {record}")
                         db_ports.task_done()
                         continue
 
                     # If it's a closed port and we've never seen it before, skip inserting
-                    if task.get("port_state") == "closed":
-                        exists_qm = self.queryHandler.port_exists(task["ip"], task["port"])
+                    if record["port_state"] == "closed":
+                        exists_qm = self.queryHandler.port_exists(record["ip"], record["port"])
                         exists = dbWorker.execute_query_model(exists_qm)
+                        db_acks.put(delivery_tag) 
                         if not exists:
-                            logger.debug(f"[DBHandler] Skipping new-closed port {task['ip']}:{task['port']}")
+                            logger.debug(f"[DBHandler] Skipping new-closed port {record['ip']}:{record['port']}")
+                            db_acks.put(delivery_tag)
                             db_ports.task_done()
                             continue
-
                     # Execute the upsert/insert
-                    success = dbWorker.execute_query_model(queryModel)
-                    if success:
-                        logger.debug("[DBHandler] Port task committed to DB.")
-                    else:
-                        logger.error(f"[DBHandler] Port insert/update affected no rows: {task}")
+                    dbWorker.execute_query_model(queryModel)
+                    # Enqueue the delivery tag for the dispatcher thread to acknoledge
+                    db_acks.put(delivery_tag)
+                    logger.debug(f"[DBHandler] successfully committed ip: {ip_addr} to the database.")
 
-                    db_ports.task_done()
+                except Exception as e:
+                    logger.error(f"[DBHandler] Failed to commit ip: {ip_addr} to the database with error:{e}. ", exc_info=True)
+                    # NACK via dispatcher
+                    db_acks.put({"nack": True, "delivery_tag": wrapper["delivery_tag"]})
+                db_ports.task_done()
 
-            finally:
-                dbWorker.close_all()
+            # finally: # TODO: should be doing this here?
+            dbWorker.close_all()
 
 
     def stop(self):

@@ -54,6 +54,7 @@ def prompt_clear_logs():
 # ---------- Orchestrator ----------
 
 def run_debug_maintenance():
+    # TODO: have exclude option to skip the 3 main queues for port scan
 
     sys.stderr.write("\n=== Debug Maintenance ===\n")
     prompt_clear_logs()
