@@ -30,7 +30,7 @@ from models.QueryModel import QueryModel
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import DBHandler, db_hosts, db_ports
+from infrastructure.DBHandler import AckDispatcher, DBHandler, db_hosts, db_ports
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
 
 # Type annotations
@@ -214,7 +214,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
 
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
-        """Process a RabbitMQ task: scan IP, write to database, then acknowledge.
+        """Process a RabbitMQ task.
 
         Args:
             ch: RabbitMQ channel object.
@@ -227,74 +227,74 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         """
 
 
-        # Parse the message body into a task dictionary
+        # Parse the message body and validate it
         try:
             task:dict = json.loads(body)
-            ip_addr = task.get("ip")
-
+            ip_addr = task["ip"]
             # Check if the "ip" key exists and is valid
-            if not ip_addr:
-                raise ValueError("Missing 'ip' in task payload")
             if not isinstance(ip_addr, str):
                 raise ValueError("Invalid IP format: IP must be a string")
-
         except Exception as e:
             logger.warning(f"[DiscoveryScanner] Bad payload: {e}")
-            # Nack the message, marking it as failed and not requeued
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            # Insert to Fail Queue
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
                 message = {"error": "bad_payload", "raw": body.decode()}
                 rmq_fail_conn.enqueue_to_queue(message=message)
             return
         
         # Probe the host
+        start_ts = get_current_timestamp()
         try:
-
             # Log the IP address being processed
             logger.info(f"[DiscoveryScanner] Processing IP: {ip_addr}")
 
-            # Handle the scanning process for the IP address
-            self.handle_scan_process(ip_addr)
+            # Ping the IP
+            ping_res = self.ping_host(ip_addr)
+            logger.debug(f"[DiscoveryScanner] Scan result: {ping_res}")
 
-            # Add a small delay between tasks to control scan rate
-            time.sleep(SCAN_DELAY)
-
-            # Acknowledge the message as successfully processed # TODO: what if it wasint? later in the db pool?
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-
-        except json.JSONDecodeError as e:
-            # Handle invalid JSON format in the message body
-            logger.warning(f"[DiscoveryScanner] Failed to decode JSON: {e}")
-            try:
-                # Nack the message, marking it as failed and not requeued
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-            except Exception:
-                logger.warning("[DiscoveryScanner] Failed to nack message")
-
-            # Enqueue the error to the fail queue for further investigation
-            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-                message= {
-                    "error": "Invalid JSON",
-                    "raw_task": body.decode() if isinstance(body, bytes) else str(body)
-                }
-                rmq_fail_conn.enqueue_to_queue(message=message)
         except Exception as e:
-            # Catch any other exceptions during task processing
-            logger.error(f"[DiscoveryScanner] Error processing task: {e}")
-            try:
-                # Nack the message in case of a failure
-                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
-            except Exception:
-                logger.warning("[DiscoveryScanner] Failed to nack message")
+            logger.error(f"[DiscoveryScanner] Failed to ping host {ip_addr}: {e}", exc_info=True)
+            ping_res = {"probe_method": None, "probe_protocol": None,
+                    "host_status": "dead", "probe_duration": None}
+        
+        # Get the scan done timestamp
+        done_ts = get_current_timestamp()
 
-            # Enqueue the error details into the fail queue
-            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-                message= {
-                    "error": str(e),
-                    "raw_task": body.decode() if isinstance(body, bytes) else str(body)
-                }
-                rmq_fail_conn.enqueue_to_queue(message=message)
+        # Extract scan result details
+        record = {
+            "ip": ip_addr,
+            "probe_method": ping_res["probe_method"],
+            "probe_protocol": ping_res["probe_protocol"],
+            "host_status": ping_res["host_status"],
+            "probe_duration": ping_res["probe_duration"],
+            "scan_start_ts": start_ts,
+            "scan_done_ts": done_ts
+        }
 
+        # Route to alive/dead rmq queues
+        try:
+            host_state = ping_res["host_status"]
+            ip_status = {"ip": ip_addr, "status": host_state}
+            # Commit results to correct queue
+            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO: this queue is used as placeholder, could be any queue
+                queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
+                rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
+        except Exception as e:
+            logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} host result for {ip_addr}: {e}")
+
+        # Commit results to database
+        try:
+            db_hosts.put({
+                "record": record,
+                "delivery_tag": method.delivery_tag,
+                })
+            logger.debug(f"[DiscoveryScanner] Inserted to db_hosts queue the ip: {ip_addr} with tag: {method.delivery_tag}")
+        except Exception as e:
+            logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
+            
+        # Add a small delay between tasks to control scan rate
+        time.sleep(SCAN_DELAY)
 
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
@@ -314,6 +314,12 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
 
         # TODO: Change all occurrences of RMQ to be with context manager (with)
         rmq = RabbitMQ(queue_name)
+
+        # start the ACK dispatcher exactly once in THIS process
+        if not hasattr(self, "_ack_thread_started"):
+            AckDispatcher(rmq).start()
+            logger.debug("Ack Thread Started.")
+            self._ack_thread_started = True
 
         while True:
             method_frame, props, body = rmq.channel.basic_get(
@@ -442,63 +448,6 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         for p in self.active_processes:
             if p.is_alive():
                 p.join(timeout=1)
-
-
-
-    def handle_scan_process(self, ip_addr: str) -> None:
-        """Scan an IP address and enqueue the result to RabbitMQ and database queues.
-
-        Args:
-            ip_addr (str): IP address to scan.
-        """
-        start_ts = get_current_timestamp()
-        try:
-            ping_res = self.ping_host(ip_addr)
-            logger.debug(f"[DiscoveryScanner] Scan result: {ping_res}")
-        except Exception as e:
-            logger.error(f"[DiscoveryScanner] Failed to ping host {ip_addr}: {e}")
-            ping_res = {
-                "probe_method": None,
-                "probe_protocol": None,
-                "host_status": "dead",
-                "probe_duration": None,
-            }
-
-        done_ts = get_current_timestamp()
-
-        # Extract scan result details
-        record = {
-                "ip": ip_addr,
-                "probe_method": ping_res["probe_method"],
-                "probe_protocol": ping_res["probe_protocol"],
-                "host_status": ping_res.get["host_status"],
-                "probe_duration": ping_res["probe_duration"],
-                "scan_start_ts": start_ts,
-                "scan_done_ts": done_ts
-            }
-        host_state = ping_res["host_status"]
-        ip_status = {"ip": ip_addr, "status": host_state}
-
-        # Commit results to correct queue
-        try:
-            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO: this queue is used as placeholder, could be any queue
-                if host_state == "alive":
-                    rmq_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message=ip_status)
-                else:
-                    rmq_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message=ip_status)
-        except Exception as e:
-            logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} result for {ip_addr}: {e}")
-        
-        # Commit results to database
-        try:
-            db_hosts.put(record) # TODO: how to ack only if this is sucess..
-        except Exception as e:
-            logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
-        
-
-        
-
-
 
 
 

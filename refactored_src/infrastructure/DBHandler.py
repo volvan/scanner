@@ -26,7 +26,7 @@ from multiprocessing import JoinableQueue
 
 db_hosts: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Hosts' db table
 db_ports: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Ports' db table
-
+db_acks:  JoinableQueue = JoinableQueue() # Queue to ack the message after inserting to database
 
 class DBHandler: # TODO: rename.. Database_Handler? maybe..
 
@@ -55,27 +55,38 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
         self.port_thread.start() # TODO: start after thread?
 
     def _consume_hosts(self):
-        """Collects hosts from RabbitMQ and inserts them into the DB using DBWorker()"""
+        """Flush scan results from the in-memory queue db_hosts into the database.  
+
+        For every successful commit to the database, we enqueue the delivery tag to db_acks queue to be acked.
+        """
 
         with DBWorker() as dbWorker:
             while not self.stop_signal:
                 try:
-                    task = db_hosts.get(timeout=1)
+                    # wrapper = {"record": ..., "delivery_tag": ...}
+                    wrapper = db_hosts.get(timeout=1)
                 except queue.Empty:
                     continue
-
-                logger.debug(f"[DBHandler] Got host task: {task}")
-
-                queryModel: QueryModel = self.queryHandler.insert_host_result(task)
-                success = dbWorker.execute_query_model(queryModel)
                 
-                if success:
-                    logger.debug("[DBHandler] Host task committed to DB.")
-                    # TODO: should only ack after this was success
-                else:
-                    logger.error(f"[DBHandler] Host update affected no rows: {task}")
+                # Extract from the wrapper
+                record = wrapper["record"] # what we insert to database
+                delivery_tag = wrapper["delivery_tag"]
+                ip_addr = record["ip"] # Used for debugger
+                logger.debug(f"[DBHandler] Got host task: {ip_addr}, with tag: {delivery_tag}")
+
+                # Insert to the database
+                try:
+                    queryModel: QueryModel = self.queryHandler.insert_host_result(record)
+                    dbWorker.execute_query_model(queryModel)
+                    # Enqueue the delivery tag for the dispatcher thread to acknoledge
+                    db_acks.put(delivery_tag)
+                    logger.debug(f"[DBHandler] successfully committed ip: {ip_addr} to the database.")
+                except Exception as e:
+                    logger.error(f"[DBHandler] Failed to commit ip: {ip_addr} to the database with error:{e}. ", exc_info=True)
+                    # NACK via dispatcher
+                    db_acks.put({"nack": True, "delivery_tag": wrapper["delivery_tag"]})
                 db_hosts.task_done()
-        dbWorker.close_all()        
+        # dbWorker.close_all() # TODO: should we be doing this here?
 
 
     def _consume_ports(self):
@@ -127,3 +138,28 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
             self.host_thread.join(timeout=2)
         if self.port_thread:
             self.port_thread.join(timeout=2)
+
+class AckDispatcher(threading.Thread):
+    """Thread that consumes delivery_tags from db_acks and ACKs/NACKs safely.
+    
+    Done on this process RMQ channel.
+    Runs as a daemon thread, thus exits only when the process dies.
+    """
+    # TODO: Add an alert on db_acks.qsize() to notice if ACKs ever fall behind.
+    def __init__(self, rmq_conn: RabbitMQ):
+        super().__init__(daemon=True, name="Volva_AckDispatcher")
+        self.channel  = rmq_conn.channel
+
+    def run(self):
+        while True:
+            task = db_acks.get()
+            logger.debug(f"[AckDisp] Task recieved: {task}")
+
+            if isinstance(task, dict) and task.get("nack"):
+                tag = task["delivery_tag"]
+                self.channel.basic_nack(delivery_tag=tag, requeue=False)
+                logger.debug(f"[AckDisp] NACK tag: {tag}")
+            else:
+                self.channel.basic_ack(delivery_tag=task)
+                logger.debug(f"[AckDisp] ACK tag: {task}")
+            db_acks.task_done()
