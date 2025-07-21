@@ -1,6 +1,3 @@
-#----- Config imports -----#
-from config.scan_config import WORKERS
-
 #----- Standard library -----#
 import threading
 
@@ -60,12 +57,6 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
     def _consume_hosts(self):
         """Collects hosts from RabbitMQ and inserts them into the DB using DBWorker()"""
 
-        ### For testing purposes ###
-        # import os
-        # worker_pid = str(os.getpid())
-        # logger.critical(f'worker_pid {worker_pid} is _consume_hosts() and creating a DBWroker')
-        ### For testing purposes ###
-
         with DBWorker() as dbWorker:
             while not self.stop_signal:
                 try:
@@ -80,6 +71,7 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
                 
                 if success:
                     logger.debug("[DBHandler] Host task committed to DB.")
+                    # TODO: should only ack after this was success
                 else:
                     logger.error(f"[DBHandler] Host update affected no rows: {task}")
                 db_hosts.task_done()

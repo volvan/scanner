@@ -225,8 +225,10 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         Raises:
             ValueError: If the message payload does not contain an "ip" key.
         """
+
+
+        # Parse the message body into a task dictionary
         try:
-            # Parse the message body into a task dictionary
             task:dict = json.loads(body)
             ip_addr = task.get("ip")
 
@@ -235,6 +237,18 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
                 raise ValueError("Missing 'ip' in task payload")
             if not isinstance(ip_addr, str):
                 raise ValueError("Invalid IP format: IP must be a string")
+
+        except Exception as e:
+            logger.warning(f"[DiscoveryScanner] Bad payload: {e}")
+            # Nack the message, marking it as failed and not requeued
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
+                message = {"error": "bad_payload", "raw": body.decode()}
+                rmq_fail_conn.enqueue_to_queue(message=message)
+            return
+        
+        # Probe the host
+        try:
 
             # Log the IP address being processed
             logger.info(f"[DiscoveryScanner] Processing IP: {ip_addr}")
@@ -245,7 +259,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             # Add a small delay between tasks to control scan rate
             time.sleep(SCAN_DELAY)
 
-            # Acknowledge the message as successfully processed
+            # Acknowledge the message as successfully processed # TODO: what if it wasint? later in the db pool?
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except json.JSONDecodeError as e:
@@ -440,6 +454,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         start_ts = get_current_timestamp()
         try:
             ping_res = self.ping_host(ip_addr)
+            logger.debug(f"[DiscoveryScanner] Scan result: {ping_res}")
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to ping host {ip_addr}: {e}")
             ping_res = {
@@ -451,36 +466,40 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
 
         done_ts = get_current_timestamp()
 
+        # Extract scan result details
+        record = {
+                "ip": ip_addr,
+                "probe_method": ping_res["probe_method"],
+                "probe_protocol": ping_res["probe_protocol"],
+                "host_status": ping_res.get["host_status"],
+                "probe_duration": ping_res["probe_duration"],
+                "scan_start_ts": start_ts,
+                "scan_done_ts": done_ts
+            }
         host_state = ping_res["host_status"]
-        data = {"ip": ip_addr, "status": host_state}
+        ip_status = {"ip": ip_addr, "status": host_state}
 
+        # Commit results to correct queue
         try:
             with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO: this queue is used as placeholder, could be any queue
                 if host_state == "alive":
-                    rmq_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message=data)
+                    rmq_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message=ip_status)
                 else:
-                    rmq_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message=data)
+                    rmq_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message=ip_status)
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} result for {ip_addr}: {e}")
-
-
-
-        logger.debug(f"[DiscoveryScanner] Scan result: {ping_res}")
+        
+        # Commit results to database
         try:
-            # Extract scan result details
-            record = {
-                    "ip": ip_addr,
-                    "probe_method": ping_res.get("probe_method"),
-                    "probe_protocol": ping_res.get("probe_protocol"),
-                    "host_status": ping_res.get("host_status"),
-                    "probe_duration": ping_res.get("probe_duration"),
-                    "scan_start_ts": start_ts,
-                    "scan_done_ts": done_ts
-                }
-            # Enqueue all results
-            db_hosts.put(record)
+            db_hosts.put(record) # TODO: how to ack only if this is sucess..
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
+        
+
+        
+
+
+
 
 
     def ping_host(self, ip_addr: str) -> dict:

@@ -50,6 +50,7 @@ class DBWorker:
             ValueError: If database credentials are not set.
             Exception: If connection pool initialization fails.
         """
+        # TODO: move minconn and maxconn to scan_config
         # Validate credentials
         creds = [
             credentials_config.DB_NAME,

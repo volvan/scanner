@@ -78,12 +78,12 @@ class PortScanner: # TODO: rename PortScanner
         with RabbitMQ(ALL_PORTS_QUEUE) as rmq_ports_conn:
             try:
                 # 1) Run the Nmap scan
-                scanner = ProbeHandler(ip, str(port))
-                scan_result = scanner.scan()
+                scan_result = ProbeHandler(ip, str(port)).scan()
+                # scan_result = scanner.scan()
 
                 # Extract scan result details
                 record = {
-                    "type": "port_result",
+                    "type": "port_result", # TODO: why? is this ever used?
                     "ip": ip,
                     "port": port,
                     "port_state": scan_result["state"],
