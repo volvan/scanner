@@ -8,7 +8,7 @@ from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
 #----- Service imports -----#
-from infrastructure.DBHandler import DBHandler, db_ports, db_acks, AckDispatcher
+from infrastructure.DBHandler import DBHandler, db_ports, db_acks,db_hosts, AckDispatcher
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
@@ -139,14 +139,18 @@ class PortScanner: # TODO: rename PortScanner
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
+            logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
+             db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
             db_ports.join() # block until every port task_done()
             dbHandler.stop() # TODO: look at this better
             logger.warning("[PortScanner] Trying to stop database handler.")
             self.infraManager.dbHandler.stop() # TODO: validate this has to be
             db_acks.join() # every delivery‑tag ACKed/NACKed
+            logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
+             db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
 
 
-    def process_task(self, ip: str, port: int, queue_name: str, delivery_tag:int):
+    def process_task(self, ip: str, port: int, delivery_tag:int):
         """Probe an IP:port pair and enqueue the scan result as needed.
 
         Args:
@@ -181,7 +185,7 @@ class PortScanner: # TODO: rename PortScanner
 
                 # if state is unknown, route to fail queue 
                 if record["port_state"] == "unknown":
-                    logger.info(f"[PortManager] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {probe_res}\n\n")
+                    logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {probe_res}\n\n")
                     message = {"ip": ip, "port": port, "reason": "unknown_state"}
                     rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
                     # return # TODO: why?
@@ -190,14 +194,14 @@ class PortScanner: # TODO: rename PortScanner
                 try:
                     ip_addr = record["ip"] # For debugger
                     db_ports.put({"record": record, "delivery_tag": delivery_tag,})
-                    logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr} with tag: {delivery_tag}")
+                    logger.debug(f"[PortScanner|pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr} with tag: {delivery_tag}")
                 except Exception as e:
-                    logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
+                    logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
                     
                 # db_ports.put(record)
 
             except Exception as e:
-                logger.exception(f"[PortManager] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe_res}\n\n")
+                logger.exception(f"[PortScanner] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe_res}\n\n")
 
                 message = {
                         "error": str(e),
@@ -238,6 +242,8 @@ class PortScanner: # TODO: rename PortScanner
                     # self.process_task(task["ip"], task["port"], batch_queue)
                     # rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: remove
                 except Exception:
+                    logger.debug(task)
+                    logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
                     rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
 
                 time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))
@@ -258,7 +264,9 @@ class PortScanner: # TODO: rename PortScanner
         """
         
         if not resource_ok():
+            logger.warning("Memory limit reached; shutting down")
             sys.exit(1)
+            return
 
         logger.debug(f"[PortScanner] Starting batched port-scan on '{main_queue_name}'")
 
@@ -292,7 +300,6 @@ class PortScanner: # TODO: rename PortScanner
             p.start()
             self.active_processes.append(p)
 
-        # TODO: this is outside the while true loop, should it be? 
         for p in self.active_processes:
             if p.is_alive():
                 p.join(timeout=1)
