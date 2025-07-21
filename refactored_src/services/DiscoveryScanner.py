@@ -4,7 +4,7 @@ import itertools
 import json
 import multiprocessing
 import subprocess
-import sys
+import sys, os
 import time
 
 from external.ExternalManager import ExternalManager
@@ -30,7 +30,7 @@ from models.QueryModel import QueryModel
 #----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import AckDispatcher, DBHandler, db_hosts, db_ports
+from infrastructure.DBHandler import AckDispatcher, DBHandler, db_hosts, db_acks
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
 
 # Type annotations
@@ -125,9 +125,11 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
         finally:
             # self.logicManager.dbWorkerLogic.stop()
-            db_hosts.join()     # block until every host task_done()
-            db_ports.join()     # same for ports
+            db_hosts.join() # block until every host task_done()
             db_handler.stop()
+            logger.warning("[DiscoveryScanner] Trying to stop database handler.")
+            # self.infraManager.dbHandler.stop() # TODO: validate this has to be
+            db_acks.join() # every delivery‑tag ACKed/NACKed
 
 
     def new_targets(self) -> str:
@@ -242,12 +244,12 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
                 message = {"error": "bad_payload", "raw": body.decode()}
                 rmq_fail_conn.enqueue_to_queue(message=message)
             return
-        
+
         # Probe the host
         start_ts = get_current_timestamp()
         try:
             # Log the IP address being processed
-            logger.info(f"[DiscoveryScanner] Processing IP: {ip_addr}")
+            logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Probing IP: {ip_addr}")
 
             # Ping the IP
             ping_res = self.ping_host(ip_addr)
@@ -285,11 +287,8 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
 
         # Commit results to database
         try:
-            db_hosts.put({
-                "record": record,
-                "delivery_tag": method.delivery_tag,
-                })
-            logger.debug(f"[DiscoveryScanner] Inserted to db_hosts queue the ip: {ip_addr} with tag: {method.delivery_tag}")
+            db_hosts.put({"record": record, "delivery_tag": method.delivery_tag,})
+            logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr} with tag: {method.delivery_tag}")
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
             
@@ -318,7 +317,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         # start the ACK dispatcher exactly once in THIS process
         if not hasattr(self, "_ack_thread_started"):
             AckDispatcher(rmq).start()
-            logger.debug("Ack Thread Started.")
+            logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
             self._ack_thread_started = True
 
         while True:

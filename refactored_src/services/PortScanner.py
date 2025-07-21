@@ -8,7 +8,7 @@ from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
 #----- Service imports -----#
-from infrastructure.DBHandler import DBHandler, db_ports
+from infrastructure.DBHandler import DBHandler, db_ports, db_acks
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
@@ -139,7 +139,7 @@ class PortScanner: # TODO: rename PortScanner
                 try:
                     task = json.loads(body)
                     self.handle_scan_process(task["ip"], task["port"], batch_queue)
-                    rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+                    rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: remove
                 except Exception:
                     rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
 
@@ -230,9 +230,9 @@ class PortScanner: # TODO: rename PortScanner
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
+            db_ports.join() # block until every port task_done()
             dbHandler.stop() # TODO: look at this better, we shouldnt need this
-            # Stop streaming port inserts
-            # dbHandler.stop()
+            db_acks.join() # every delivery‑tag ACKed/NACKed
 
 
     def start_consuming(self, main_queue_name: str) -> None:
