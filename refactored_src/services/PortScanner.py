@@ -37,7 +37,6 @@ from utils.reservoir_randomize import reservoir_of_reservoirs
 from config.scan_config import (  # noqa: F401
     PRIORITY_PORTS_QUEUE,
     PORTS_FILE,
-    DEBUG_MODE,
     USE_PRIORITY_PORTS,
     ALL_PORTS_QUEUE,
     ALIVE_ADDR_QUEUE,
@@ -50,9 +49,9 @@ from config.scan_config import (  # noqa: F401
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
 
+# TODO: should be similar setup as ipscanner, then its easier to follow the flow by alot
 
-class PortScanner: # TODO: rename PortScanner 
-    # def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager ,logicManager: LogicManager):
+class PortScanner:
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
         self.externalManager = externalManager
         self.infraManager = infraManager
@@ -139,6 +138,7 @@ class PortScanner: # TODO: rename PortScanner
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
+            # TODO: look at this mess, compare with ip scanner
             logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
              db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
             db_ports.join() # block until every port task_done()
@@ -219,7 +219,6 @@ class PortScanner: # TODO: rename PortScanner
         Notes:
             This runs inside a spawned process. Each task is ACKed or NACKed after handling.
         """
-
 
         with RabbitMQ(batch_queue) as rmq_batch_conn:
             # start the ACK dispatcher exactly once in THIS process

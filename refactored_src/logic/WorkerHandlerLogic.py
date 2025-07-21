@@ -34,22 +34,24 @@ class WorkerHandlerLogic:
         Args:
             worker_id (int): Identifier for the worker.
         """
-        try:
-            logger.debug(f"[WorkerHandlerLogic] Worker {worker_id} starting...")
-            RabbitMQ.worker_consume(self.queue_name, self.process_callback)
-        except KeyboardInterrupt:
-            logger.warning(f"[WorkerHandlerLogic] Worker {worker_id} received KeyboardInterrupt. Exiting.")
-        except Exception as e:
-            logger.exception(f"Worker {worker_id} crashed: {e}")
-        finally:
+        with RabbitMQ(self.queue_name) as rmq_conn:
             try:
-                with RabbitMQ(self.queue_name) as rmq_conn:
-                    if rmq_conn.tasks_in_queue() == 0:
-                    # if rmq_conn.queue_empty(self.queue_name):
-                        logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
-                        rmq_conn.remove_queue()
-            except Exception as cleanup_err:
-                logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
+                logger.debug(f"[WorkerHandlerLogic] Worker {worker_id} starting...")
+                # RabbitMQ.worker_consume(self.queue_name, self.process_callback)
+                rmq_conn.worker_consume(self.queue_name, self.process_callback)
+            except KeyboardInterrupt:
+                logger.warning(f"[WorkerHandlerLogic] Worker {worker_id} received KeyboardInterrupt. Exiting.")
+            except Exception as e:
+                logger.exception(f"Worker {worker_id} crashed: {e}")
+            finally:
+                # try:
+                    # with RabbitMQ(self.queue_name) as rmq_conn:
+                if rmq_conn.tasks_in_queue() == 0:
+                # if rmq_conn.queue_empty(self.queue_name):
+                    logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
+                    rmq_conn.remove_queue()
+                # except Exception as cleanup_err:
+                #     logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
 
     def start(self):
         """Spawn multiple worker processes to handle scanning tasks."""

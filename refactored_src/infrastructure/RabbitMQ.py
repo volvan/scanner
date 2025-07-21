@@ -16,6 +16,8 @@ sys.excepthook = log_exception
 # TODO: add contaxt manager 
 # TODO: why so may connections?? 
 # TODO: 3 connections, then "[PortScanner] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function.. 
+# TODO: way too many connections, workers should be fine with passing its one connection through funcitons -- honestly it would be better if it was clear (the worker pipeline..)
+            # So maybe have a worker_pipeline funciton - like consumer, producer vibes
 
 class RabbitMQ: 
     """Low-level wrapper for RabbitMQ operations, including connection, queue management, and pub/sub."""
