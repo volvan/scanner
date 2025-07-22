@@ -46,15 +46,11 @@ The core component responsible for conducting the network scans. It spans in thr
 │       ├── test_block_handler.py
 │       ....
 └── src/
-    ├── __init__.py
+    ├── __init__.py             # Includes version release number
     ├── config/
     │   ├── __init__.py
-    │   ├── crypto_config.py
-    │   ├── database_config.py
-    │   ├── logging_config.json
-    │   ├── logging_config.py
-    │   ├── rmq_config.py
-    │   └── scan_config.py
+    │   ├── credentials_config.py
+    │   └── scan_config.py      # The configurations for the scanner
     │
     ├── database/
     │   ├── __init__.py

@@ -30,22 +30,11 @@ class WorkerHandler:
     """Spawns and manages multiple worker processes for IP scanning queues."""
 
     def __init__(self, queue_name: str, process_callback: object):
-        """Initialize a WorkerHandler instance.
-
-        Args:
-            queue_name (str): Name of the RabbitMQ queue to consume from.
-            process_callback (object): Function to call for processing tasks.
-        """
         self.queue_name = queue_name
         self.process_callback = process_callback
         self.workers_count = scan_config.WORKERS
 
     def _safe_worker(self, worker_id: int):
-        """Worker process logic with error handling.
-
-        Args:
-            worker_id (int): Identifier for the worker.
-        """
         try:
             logger.info(f"Worker {worker_id} starting...")
             RMQManager.worker_consume(self.queue_name, self.process_callback)
@@ -65,7 +54,6 @@ class WorkerHandler:
                 logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
 
     def start(self):
-        """Spawn multiple worker processes to handle scanning tasks."""
         workers = []
 
         for i in range(self.workers_count):
@@ -90,22 +78,12 @@ class WorkerHandler:
 
 
 class PortScanWorker:
-    """Consumes port tasks, probes IP:port combinations, and enqueues results."""
-
     def __init__(self):
         """Initialize PortScanWorker with a PortManager."""
         self.port_batch_handler = PortBatchHandler()
         self.manager = PortManager()
 
     def process_task(self, ch, method, properties, body):
-        """Handle and process a single IP:port task.
-
-        Args:
-            ch: RabbitMQ channel.
-            method: Delivery method info (contains routing key).
-            properties: Message properties.
-            body (bytes): Raw message body.
-        """
         try:
             # Parse the message body to extract the task details
             task = json.loads(body)
@@ -133,24 +111,12 @@ class PortScanWorker:
 
 
 class PortScanJobRunner:
-    """Spawns and manages persistent workers for port scanning."""
-
     def __init__(self, port_queue: str):
-        """Initialize PortScanJobRunner.
-
-        Args:
-            port_queue (str): Name of the queue ('all_ports' or 'priority_ports').
-        """
         self.batch_handler = PortBatchHandler()
         self.alive_ip_queue = scan_config.ALIVE_ADDR_QUEUE
         self.port_queue = port_queue
 
     def worker_loop(self, worker_id):
-        """Persistent worker loop to consume batches and scan ports.
-
-        Args:
-            worker_id (int): Worker identifier.
-        """
         try:
             logger.info(f"Worker {worker_id} starting...")
             worker = PortScanWorker()
@@ -174,7 +140,6 @@ class PortScanJobRunner:
             logger.exception(f"Worker {worker_id} encountered fatal error: {e}")
 
     def start(self):
-        """Start multiple persistent port scanning workers."""
         self.db_worker = DBWorker()
         self.db_worker.start()
         processes = []
@@ -197,7 +162,6 @@ class PortScanJobRunner:
 
 
 class DBWorker:
-    """Dedicated thread-based worker that flushes scan results to the database."""
 
     def __init__(self, enable_hosts=True, enable_ports=True):
         """Initialize DBWorker.
@@ -214,7 +178,6 @@ class DBWorker:
         self.enable_ports = enable_ports
 
     def start(self):
-        """Start host and/or port database writer threads."""
         self.stop_signal = False
         if self.enable_hosts:
             self.host_thread = threading.Thread(target=self._consume_hosts, daemon=True)
@@ -227,7 +190,6 @@ class DBWorker:
             logger.info("[DBWorker] Port thread started.")
 
     def _consume_hosts(self):
-        """Consume host scan results from db_hosts queue and insert into database."""
         while not self.stop_signal:
             try:
                 try:
@@ -250,7 +212,6 @@ class DBWorker:
                 logger.error("[DBWorker] Unexpected top-level host worker crash", exc_info=True)
 
     def _consume_ports(self):
-        """Consume port scan results from db_ports queue and insert into database."""
         while not self.stop_signal:
             try:
                 try:
@@ -283,7 +244,6 @@ class DBWorker:
                 logger.error("[DBWorker] Unexpected top-level port worker crash", exc_info=True)
 
     def stop(self):
-        """Signal database writer threads to stop and wait for them to exit."""
         self.stop_signal = True
         logger.info("[DBWorker] Stop signal sent. Waiting for threads to exit.")
         if self.host_thread:

@@ -1,6 +1,10 @@
 # Standard library
 from datetime import datetime, timezone
 
+# TODO[Emilia]: Review the timestamps, where they are used (it seems too many)..
+# TODO[Emilia]: get_current_timestamp() returns UTC, but format_timestamp() defaults to UTC again. 
+#               .. Should always return 'naive UTC' and psycopg2 casts, or always attach the tz .. atleast make it consistent for the datbase not to corrupt
+
 
 def get_current_timestamp() -> datetime:
     """Get the current UTC timestamp as a timezone-aware datetime object.

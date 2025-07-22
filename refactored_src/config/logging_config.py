@@ -1,18 +1,34 @@
 import sys
 import os
 import json
-import logging
+import logging, logging.config
 from logging.handlers import RotatingFileHandler
+from config.scan_config import CONFIG_PATH, LOG_DIR, LOG_TO_FILE, DEBUG_MODE
+
+
+class WorkerPIDFilter(logging.Filter):
+    def filter(self, record):
+        try:
+            worker_pid = str(os.getpid())
+            if not worker_pid: worker_pid = 'unknown'
+
+            record.worker_pid = worker_pid
+        except Exception:
+            record.worker_pid = 'unknown'
+        return True
+    
+def configure_logging(config_path: str):
+    with open(config_path) as f:
+        logging.config.dictConfig(json.load(f))
+
 
 # --- Load configuration ---
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/logging_config.json")
 
 with open(CONFIG_PATH, "r") as f:
     config = json.load(f)
 
-DEBUG_MODE = True
-SERVICE_TAG = "core_test"
-LOG_TO_FILE = True
+SERVICE_TAG = config.get("service_tag", "core")
+LOG_FILE_PATH = os.path.join(LOG_DIR, f"{SERVICE_TAG}.log")
 
 # --- Logger setup ---
 logger = logging.getLogger("GlobalHandler")
@@ -29,11 +45,10 @@ logger.addHandler(console_handler)
 
 # --- File Handler ---
 if LOG_TO_FILE:
-    log_dir = os.path.join(os.getcwd(), "logs")
-    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(LOG_DIR, exist_ok=True)
 
     file_handler = RotatingFileHandler(
-        os.path.join(log_dir, f"{SERVICE_TAG}.log"),
+        LOG_FILE_PATH,
         maxBytes=5 * 1024 * 1024,
         backupCount=3
     )

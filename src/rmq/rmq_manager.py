@@ -7,7 +7,9 @@ import requests  # type: ignore
 
 # Configuration
 from config import rmq_config
-from config.logging_config import log_exception, logger
+from config.logging_config import log_exception
+from config.logging_config import logger
+
 from config.scan_config import FAIL_QUEUE
 
 
@@ -37,6 +39,7 @@ class RMQManager:
         Raises:
             Exception: If connection establishment fails.
         """
+        logger.debug("RMQ - Calling _connect")
         try:
             credentials = pika.PlainCredentials(rmq_config.RMQ_USER, rmq_config.RMQ_PASS)
             heartbeat = int(os.getenv("RMQ_HEARTBEAT", "300"))
@@ -182,6 +185,7 @@ class RMQManager:
 
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
+        logger.debug("RMQ - Calling close")
         if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
             try:
                 self.connection.close()

@@ -45,8 +45,26 @@ def enqueue_new_targets(scanner: IPScanner):
     Default:
         Read from a file.
     """
+    ## For testing purposes ##
+    all = RMQManager('all_addr')
+    all.remove_queue()
+    all.close()
+
+    alive = RMQManager('alive_addr')
+    alive.remove_queue()
+    alive.close()
+
+    dead = RMQManager('dead_addr')
+    dead.remove_queue()
+    dead.close()
+
+    fail = RMQManager('fail_queue')
+    fail.remove_queue()
+    fail.close()
+
     queue_name = QUEUE_NAME
     rmq = RMQManager(queue_name)
+    
     tasks_remaining = rmq.tasks_in_queue()
     rmq.close()
 
@@ -63,21 +81,6 @@ def enqueue_new_targets(scanner: IPScanner):
     return filename, blocks
 
 
-def run_whois_reconnaissance(scanner: IPScanner):
-    """Run WHOIS reconnaissance on a target or from a file.
-
-    Modify this function for different use cases.
-
-    Options:
-        - CIDR's or IP Addresses from a file.
-        - A single CIDR string.
-        - A single IP address string.
-    """
-    # print(scanner.whois_reconnaissance(filename=ADDR_FILE))
-    # print(scanner.whois_reconnaissance(target=SINGLE_CIDR))
-    # print(scanner.whois_reconnaissance(target=SINGLE_ADDR))
-    pass
-
 
 def run_discovery(scanner: IPScanner):
     """Run the discovery scan (blocks until complete)."""
@@ -85,40 +88,10 @@ def run_discovery(scanner: IPScanner):
     scanner.start_consuming(QUEUE_NAME)
 
 
-def fetch_from_db_hosts():
-    """Fetch host information from the database.
-
-    Modify this function for different use cases.
-    """
-    db_manager = DatabaseManager()
-    result = db_manager.fetch_from_table(
-        table="Hosts",
-        columns=["ip_addr", "probe_method", "host_state"],
-        where="ip_addr = %s",
-        params=("130.208.246.9",)
-    )
-    print(result)
-    db_manager.close()
-
-
-def fetch_from_db_ports():
-    """Fetch port information from the database.
-
-    Modify this function for different use cases.
-    """
-    db_manager = DatabaseManager()
-    result = db_manager.fetch_from_table(
-        table="Ports",
-        columns=["ip_addr", "port", "port_state"],
-        where="ip_addr = %s AND port = %s",
-        params=("130.208.246.9", 443)
-    )
-    print(result)
-    db_manager.close()
-
 
 def main():
     """Main runner for IP discovery scan."""
+
     db_worker = DBWorker(enable_hosts=True, enable_ports=False)
     try:
         db_worker.start()

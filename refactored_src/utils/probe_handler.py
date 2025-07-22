@@ -7,11 +7,11 @@ from utils.timestamp import get_current_timestamp, duration_timestamp
 
 # Configuration
 from config.scan_config import NMAP_FLAGS, PROBE_TIMEOUT, SCAN_DELAY, UNPRIV_SCAN_FLAGS
-from config.logging_config import log_exception
-from config.logging_config import logger
+from config.logging_config import log_exception, logger
 
 sys.excepthook = log_exception
 
+# TODO[Emilia][P_low]: rename probes_port_scan
 
 class ProbeHandler:
     """Use Nmap to probe IP:port combinations and determine service state."""
@@ -31,7 +31,7 @@ class ProbeHandler:
                 universal_newlines=True,
                 timeout=PROBE_TIMEOUT
             )
-            logger.info(f"[ProbeHandler] Ran: {' '.join(command)}")
+            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}. The output: {output}")
             return output
         except subprocess.CalledProcessError as e:
             logger.warning(f"[ProbeHandler] Command failed: {' '.join(command)}")
