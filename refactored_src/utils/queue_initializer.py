@@ -13,6 +13,7 @@ sys.excepthook = log_exception
 
 
 class QueueInitializer:
+    """laterdo: Docstr."""
 
     # TODO[Emilia]: move to RMQ
     @classmethod

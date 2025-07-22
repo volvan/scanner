@@ -43,7 +43,7 @@ sys.excepthook = log_exception
 
 
 # Configuration
-from config.scan_config import (  # noqa: F401
+from config.scan_config import (  # noqa: F401, E402
     ALIVE_ADDR_QUEUE,
     ALL_ADDR_QUEUE,
     ADDR_FILE,
@@ -60,7 +60,10 @@ from config.scan_config import (  # noqa: F401
 
 
 class DiscoveryScanner:
+    """laterdo: Docstr."""
+
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
+        """laterdo: Docstr."""
         self.externalManager = externalManager
         self.infraManager = infraManager
 
@@ -69,7 +72,7 @@ class DiscoveryScanner:
         self.active_processes: list[Process] = []
 
     def launch_discovery_scan_pipeline(self):
-        """ The 'main' """
+        """ The 'main'."""
         # TODO[Franz]: should be refactored and logic reviewed
 
         db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)
@@ -268,7 +271,7 @@ class DiscoveryScanner:
                         f"timed out after {BATCH_TIMEOUT_SEC}s; routing to fail_queue."
                     )
                     try:
-                        logger.info(f'\n\n[DiscoveryScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
+                        logger.info('\n\n[DiscoveryScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
                         payload = json.loads(body)
                         rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE)
                     except Exception as e:
@@ -461,7 +464,7 @@ class DiscoveryScanner:
             ip_addr (str): IP address to probe.
 
         Returns:
-            dict: 
+            dict:
                 - 'probe_method' (str or None)
                 - 'probe_protocol' (str or None)
                 - 'host_status' ("alive" or "dead")

@@ -17,9 +17,10 @@ from models.QueryModel import QueryModel
 
 
 class QueryHandler:  # Database_manager old
-    """ .. """
+    """laterdo: Docstr."""
 
     def __init__(self) -> None:
+        """laterdo: Docstr."""
         pass
 
     def insert_summary(
@@ -43,8 +44,8 @@ class QueryHandler:  # Database_manager old
         versions_count: dict = None,
         cpe_count: dict = None,
     ) -> QueryModel:
-        """
-        Build an INSERT QueryModel for the summary table.
+        """Build an INSERT QueryModel for the summary table.
+
         Only the first four arguments are required; any others
         that are not None will be included.
         """
@@ -107,8 +108,7 @@ class QueryHandler:  # Database_manager old
     # So, TODO:[] Is this correctly implemented in code?
 
     def fetch_latest_summary_id(self, country: str) -> QueryModel:
-        """
-        Builds a SELECT QueryModel.
+        """Builds a SELECT QueryModel.
 
         Fetch the latest summary ID for a country.
         """

@@ -7,12 +7,17 @@ from .QueryHandler import QueryHandler
 
 
 class InfrastructureManager:
+    """laterdo: Docstr."""
+
     def __init__(self):
+        """laterdo: Docstr."""
         self.queryHandler = QueryHandler()
         self.dbHandler = DBHandler(self.queryHandler)
 
     def start_hosts(self):
+        """laterdo: Docstr."""
         return self.dbHandler.start_hosts()
 
     def start_port(self):
+        """laterdo: Docstr."""
         return self.dbHandler.start_ports()

@@ -13,10 +13,6 @@ from infrastructure.DBHandler import DBHandler, db_ports, db_acks, db_hosts, RMQ
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
-# ----- Model imports -----#
-from models.QueryModel import QueryModel
-
-
 # ----- OLD IMPORTS -----#
 import psutil
 
@@ -32,8 +28,6 @@ import os
 import random
 
 from config.logging_config import logger, log_exception
-
-from utils.batch_handler import PortBatchHandler
 from utils.ports_handler import read_ports_file
 from utils.timestamp import get_current_timestamp
 from utils.reservoir_randomize import reservoir_of_reservoirs
@@ -57,7 +51,10 @@ proc = psutil.Process(os.getpid())
 
 
 class PortScanner:
+    """laterdo: Docstr."""
+
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
+        """laterdo: Docstr."""
         self.externalManager = externalManager
         self.infraManager = infraManager
 
@@ -65,7 +62,7 @@ class PortScanner:
         self.batch_handler = PortBatchHandler()
 
     def launch_port_scan_pipeline(self):
-        """Main runner. 
+        """Main runner.
 
         Kick off a port scan, record timestamps, and use QueryModel for querying the DB.
         """

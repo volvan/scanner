@@ -30,11 +30,13 @@ class WorkerHandler:
     """Spawns and manages multiple worker processes for IP scanning queues."""
 
     def __init__(self, queue_name: str, process_callback: object):
+        """laterdo: Docstr."""
         self.queue_name = queue_name
         self.process_callback = process_callback
         self.workers_count = scan_config.WORKERS
 
     def _safe_worker(self, worker_id: int):
+        """laterdo: Docstr."""
         try:
             logger.info(f"Worker {worker_id} starting...")
             RMQManager.worker_consume(self.queue_name, self.process_callback)
@@ -54,6 +56,7 @@ class WorkerHandler:
                 logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
 
     def start(self):
+        """laterdo: Docstr."""
         workers = []
 
         for i in range(self.workers_count):
@@ -78,12 +81,15 @@ class WorkerHandler:
 
 
 class PortScanWorker:
+    """laterdo: Docstr."""
+
     def __init__(self):
         """Initialize PortScanWorker with a PortManager."""
         self.port_batch_handler = PortBatchHandler()
         self.manager = PortManager()
 
     def process_task(self, ch, method, properties, body):
+        """laterdo: Docstr."""
         try:
             # Parse the message body to extract the task details
             task = json.loads(body)
@@ -111,12 +117,16 @@ class PortScanWorker:
 
 
 class PortScanJobRunner:
+    """laterdo: Docstr."""
+
     def __init__(self, port_queue: str):
+        """laterdo: Docstr."""
         self.batch_handler = PortBatchHandler()
         self.alive_ip_queue = scan_config.ALIVE_ADDR_QUEUE
         self.port_queue = port_queue
 
     def worker_loop(self, worker_id):
+        """laterdo: Docstr."""
         try:
             logger.info(f"Worker {worker_id} starting...")
             worker = PortScanWorker()
@@ -140,6 +150,7 @@ class PortScanJobRunner:
             logger.exception(f"Worker {worker_id} encountered fatal error: {e}")
 
     def start(self):
+        """laterdo: Docstr."""
         self.db_worker = DBWorker()
         self.db_worker.start()
         processes = []
@@ -162,6 +173,7 @@ class PortScanJobRunner:
 
 
 class DBWorker:
+    """laterdo: Docstr."""
 
     def __init__(self, enable_hosts=True, enable_ports=True):
         """Initialize DBWorker.
@@ -178,6 +190,7 @@ class DBWorker:
         self.enable_ports = enable_ports
 
     def start(self):
+        """laterdo: Docstr."""
         self.stop_signal = False
         if self.enable_hosts:
             self.host_thread = threading.Thread(target=self._consume_hosts, daemon=True)
@@ -190,6 +203,7 @@ class DBWorker:
             logger.info("[DBWorker] Port thread started.")
 
     def _consume_hosts(self):
+        """laterdo: Docstr."""
         while not self.stop_signal:
             try:
                 try:
@@ -212,6 +226,7 @@ class DBWorker:
                 logger.error("[DBWorker] Unexpected top-level host worker crash", exc_info=True)
 
     def _consume_ports(self):
+        """laterdo: Docstr."""
         while not self.stop_signal:
             try:
                 try:
@@ -244,6 +259,7 @@ class DBWorker:
                 logger.error("[DBWorker] Unexpected top-level port worker crash", exc_info=True)
 
     def stop(self):
+        """laterdo: Docstr."""
         self.stop_signal = True
         logger.info("[DBWorker] Stop signal sent. Waiting for threads to exit.")
         if self.host_thread:

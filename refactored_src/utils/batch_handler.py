@@ -94,7 +94,7 @@ class IPBatchHandler:
             for m in deliveries:
                 rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
             logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
-        except Exception as e:
+        except Exception:
             self._requeue_deliveries(rmq=rmq_main, deliveries=deliveries, requeue=True)
             batch_queue = None
         rmq_main.close()
@@ -102,11 +102,11 @@ class IPBatchHandler:
         return batch_queue
 
     def _requeue_deliveries(rmq: RabbitMQ, deliveries: list[Basic.GetOk], requeue: bool = True,) -> None:
-        """Nack or requeue every message in deliveries"""
+        """Nack or requeue every message in deliveries."""
         for d in deliveries:
             try:
                 rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
-                logger.warning(f"[IPBatchHandler] Requeued message.")
+                logger.warning("[IPBatchHandler] Requeued message.")
             except Exception as ex:
                 logger.warning(f"[IPBatchHandler] Failed to requeue message: {ex}")
 

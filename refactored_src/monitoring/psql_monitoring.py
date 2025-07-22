@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-monitor_postgres.py
+"""monitor_postgres.py.
 
 – Total connections (active/idle/others)
 – Connections by application_name
@@ -21,24 +20,25 @@ import sys
 import time
 import argparse
 import psycopg2
-from psycopg2 import sql
 from dotenv import load_dotenv
 
 DEFAULT_TIMEOUT = 1.5
 
 
 def clear_screen():
+    """laterdo: Docstr."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def fetch_conn_stats(conn):
+    """laterdo: Docstr."""
     with conn.cursor() as cur:
         # total & breakdown
         cur.execute("""
             SELECT state,
-                   count(*) 
-              FROM pg_stat_activity 
-             WHERE datname = %s 
+                   count(*)
+              FROM pg_stat_activity
+             WHERE datname = %s
              GROUP BY state
         """, (conn.info.dbname,))
         rows = cur.fetchall()
@@ -50,12 +50,13 @@ def fetch_conn_stats(conn):
 
 
 def fetch_by_app(conn):
+    """laterdo: Docstr."""
     with conn.cursor() as cur:
         cur.execute("""
-            SELECT application_name, count(*) 
-              FROM pg_stat_activity 
-             WHERE datname = %s 
-               AND application_name <> '' 
+            SELECT application_name, count(*)
+              FROM pg_stat_activity
+             WHERE datname = %s
+               AND application_name <> ''
              GROUP BY application_name
              ORDER BY 2 DESC
         """, (conn.info.dbname,))
@@ -63,14 +64,16 @@ def fetch_by_app(conn):
 
 
 def fetch_my_listens(conn):
+    """laterdo: Docstr."""
     with conn.cursor() as cur:
         cur.execute("SELECT unnest(pg_listening_channels())")
         return [r[0] for r in cur.fetchall()]
 
 
 def main():
+    """laterdo: Docstr."""
     load_dotenv()
-    def env(k): return os.getenv(k) or ''
+    def env(k): return os.getenv(k) or ''  # noqa: E704
     parser = argparse.ArgumentParser()
     parser.add_argument("--host")
     parser.add_argument("--port", type=int)
@@ -143,4 +146,5 @@ def main():
 
 
 if __name__ == "__main__":
+    """laterdo: Docstr."""
     main()

@@ -1,7 +1,6 @@
 # Standard library
 import os
 import threading
-from multiprocessing import JoinableQueue
 from psycopg2.pool import PoolError
 
 # Utility Handlers
@@ -102,7 +101,7 @@ class DBWorker:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Deconstructer that takes care of closing the connection before deconstructing"""
+        """Deconstructer that takes care of closing the connection before deconstructing."""
         # If we have already returned or closed this connection, skip.
         if getattr(self, '_returned', False):
             return
@@ -165,9 +164,7 @@ class DBWorker:
             raise
 
     def query(self, query: str, params=None) -> list[tuple]:
-        """
-        Execute a SELECT statement and return all rows.
-        """
+        """Execute a SELECT statement and return all rows."""
         # TODO[Franz]: should be in worker or manager?
         # Franz: Same answer as above
         # E: sure thang, but this is deadcode i think?
@@ -186,8 +183,7 @@ class DBWorker:
         params=None,
         fetch: bool = False
     ) -> (list[tuple] | int):
-        """
-        Generic SQL execution. If fetch=True, returns rows; otherwise returns affected rowcount.
+        """Generic SQL execution. If fetch=True, returns rows; otherwise returns affected rowcount.
 
         Args:
             query: SQL query string.
@@ -221,6 +217,7 @@ class DBWorker:
             raise
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
+        """laterdo: Docstr."""
         # TODO[Franz]: should be in worker or manager?
         # Franz: Same answer as above
         # E: well, why is this seperate function if it only returns execute_sql() ?

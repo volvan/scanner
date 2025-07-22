@@ -27,7 +27,7 @@ def memory_ok(process: psutil.Process | None = None) -> bool:
 def resource_ok(process: psutil.Process | None = None, interval: float = 0.5) -> bool:
     """Check if current memory AND CPU usage is under configured limit.
 
-    Returns: 
+    Returns:
         bool: True if resources are under limit, False otherwise.
     """
     return cpu_ok(interval) and memory_ok(process)

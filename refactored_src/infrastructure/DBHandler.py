@@ -30,6 +30,7 @@ db_acks: JoinableQueue = JoinableQueue()  # Queue to ack the message after inser
 
 
 class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
+    """laterdo: Docstr."""
 
     def __init__(self, queryHandler: QueryHandler):
         """Initialize.."""
@@ -56,7 +57,7 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe.
         logger.debug("[DBHandler] Port thread started.")
 
     def _consume_hosts(self):
-        """Flush scan results from the in-memory queue db_hosts into the database.  
+        """Flush scan results from the in-memory queue db_hosts into the database.
 
         For every successful commit to the database, we enqueue the delivery tag to db_acks queue to be acked.
         """
@@ -151,6 +152,7 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe.
             dbWorker.close_all()
 
     def stop(self):
+        """laterdo: Docstr."""
         logger.debug("[DBHandler] stop() called.")
         self.stop_signal = True
         logger.info("[DBHandler] Stop signal sent. Waiting for threads to exit.")
@@ -166,6 +168,7 @@ class RMQAckThread(threading.Thread):
     Done on this process RMQ channel.
     Runs as a daemon thread, thus exits only when the process dies.
     """
+
     # TODO:[] This is the patch that could be and maybe should be better implemented
     #       .. The issue trying to fix here is that: tasks were being dequeued from the queue, and then ack'ed. But it didnt yet write to database.
     #       .. Meaning that if the program stops or errors accured, the tasks get lost becouse they had been acked..
@@ -174,10 +177,12 @@ class RMQAckThread(threading.Thread):
     #       .. Its used in Discovery and Port scanner under '_drain_and_exit' + db_acks thread at the top + db_acks.put(delivery_tag) in some places
 
     def __init__(self, rmq_conn: RabbitMQ):
+        """laterdo: Docstr."""
         super().__init__(daemon=True, name="Volva_RMQAckThread")
         self.channel = rmq_conn.channel
 
     def run(self):
+        """laterdo: Docstr."""
         # TODO[Maybe, if this horrible patch goes to production]: Add an alert on db_acks.qsize() to notice if ACKs ever fall behind.
         while True:
             task = db_acks.get()

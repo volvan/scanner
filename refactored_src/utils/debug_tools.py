@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def _confirm(prompt: str) -> bool:
+    """laterdo: Docstr."""
     # helper
     sys.stderr.write(f"{prompt} (y/N): ")
     sys.stderr.flush()
@@ -16,6 +17,7 @@ def _confirm(prompt: str) -> bool:
 
 
 def prompt_delete_all_queues() -> None:
+    """laterdo: Docstr."""
     if not _confirm("Delete ALL RMQ queues?"):
         sys.stderr.write("Aborted.\n")
         return
@@ -40,6 +42,7 @@ def prompt_delete_all_queues() -> None:
 
 
 def prompt_clear_logs():
+    """laterdo: Docstr."""
     if not _confirm(f"Clear log file {LOG_FILE_PATH}?"):
         sys.stderr.write("Aborted.\n")
         return
@@ -54,6 +57,7 @@ def prompt_clear_logs():
 # ---------- Orchestrator ----------
 
 def run_debug_maintenance():
+    """laterdo: Docstr."""
     # TODO[Emilia]: have exclude option to skip the 3 main queues for port scan
 
     sys.stderr.write("\n=== Debug Maintenance ===\n")

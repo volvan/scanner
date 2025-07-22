@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-monitor_rabbitmq.py
+""" monitor_rabbitmq.py.
 
 Polls RabbitMQ’s Management HTTP API and displays:
   - total connections
@@ -28,16 +27,19 @@ DEFAULT_TIMEOUT = 1.5
 
 
 def clear_screen():
+    """laterdo: Docstr."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def fetch_count(url, auth):
+    """laterdo: Docstr."""
     resp = requests.get(url, auth=auth, timeout=DEFAULT_TIMEOUT)
     resp.raise_for_status()
     return len(resp.json())
 
 
 def main():
+    """laterdo: Docstr."""
     # Load .env
     load_dotenv()
 
@@ -101,4 +103,5 @@ def main():
 
 
 if __name__ == "__main__":
+    """laterdo: Docstr."""
     main()

@@ -45,7 +45,7 @@ def enqueue_new_targets(scanner: IPScanner):
     Default:
         Read from a file.
     """
-    ## For testing purposes ##
+    # For testing purposes #
     all = RMQManager('all_addr')
     all.remove_queue()
     all.close()

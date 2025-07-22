@@ -9,7 +9,9 @@ from config.scan_config import CONFIG_PATH, LOG_DIR, LOG_TO_FILE, DEBUG_MODE
 
 class WorkerPIDFilter(logging.Filter):
     """laterdo: Docstr."""
+
     def filter(self, record):
+        """laterdo: Docstr."""
         try:
             worker_pid = str(os.getpid())
             if not worker_pid:
@@ -22,6 +24,7 @@ class WorkerPIDFilter(logging.Filter):
 
 
 def configure_logging(config_path: str):
+    """laterdo: Docstr."""
     with open(config_path) as f:
         logging.config.dictConfig(json.load(f))
 
