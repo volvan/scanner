@@ -50,7 +50,7 @@ class QueryHandler:  # Database_manager old
         that are not None will be included.
         """
         # required columns
-        cols = [  # TODO[Emilia]: rename req_columns
+        req_columns = [
             "country",
             "discovery_scan_start_ts",
             "discovery_scan_done_ts",
@@ -64,7 +64,7 @@ class QueryHandler:  # Database_manager old
         ]
 
         # optional columns
-        optional_fields = [  # TODO[Emilia]: rename opt_columns
+        opt_columns = [
             ("port_scan_start_ts", port_start_ts),
             ("port_scan_done_ts", port_done_ts),
             ("scanned_ports", scanned_ports),
@@ -79,14 +79,14 @@ class QueryHandler:  # Database_manager old
             ("versions_count", versions_count),
             ("cpe_count", cpe_count),
         ]
-        for col, val in optional_fields:
+        for col, val in opt_columns:
             if val is not None:
-                cols.append(col)
+                req_columns.append(col)
                 vals.append(val)
 
         # build SQL
-        col_list = ", ".join(cols)
-        placeholders = ", ".join(["%s"] * len(cols))
+        col_list = ", ".join(req_columns)
+        placeholders = ", ".join(["%s"] * len(req_columns))
         sql_text = (
             f"INSERT INTO summary ({col_list}) "
             f"VALUES ({placeholders})"
@@ -208,12 +208,11 @@ class QueryHandler:  # Database_manager old
         logger.debug(f"[DatabaseManager] insert_port_result task payload: {task!r}")
 
         # Ensure required fields are present
-        # TODO[Emilia]: rename to req_columns
-        required = [
+        req_columns = [
             'ip', 'port', 'port_state', 'port_service', 'port_protocol',
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
         ]
-        if not all(k in task for k in required):
+        if not all(k in task for k in req_columns):
             return None
 
         encrypted = encrypt_ip(task['ip'])
