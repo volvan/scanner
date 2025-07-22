@@ -14,7 +14,7 @@ sys.excepthook = log_exception
 
 class QueueInitializer:
 
-    # TODO: move to RMQ
+    # TODO[Emilia]: move to RMQ
     @classmethod
     def enqueue_items(cls, queue_name: str, key: str, val: Iterable[str]) -> None:
         """Enqueue IP addresses into a queue one at a time.
@@ -23,7 +23,7 @@ class QueueInitializer:
             queue_name (str): Name of the RabbitMQ IP queue.
             val (Iterable[str]): Iterable of IP address strings.
         """
-        with RabbitMQ(queue_name) as rmq_conn: # TODO: should not open and close a connection per batch hello hellooo haha..
+        with RabbitMQ(queue_name) as rmq_conn: # TODO[Emilia]: should not open and close a connection per batch hello hellooo haha..
             count = 0 # for debugger
             for val in val:
                 rmq_conn.enqueue_to_queue(message={key: val})

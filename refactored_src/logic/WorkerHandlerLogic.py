@@ -15,7 +15,7 @@ from config.logging_config import logger
 
 class WorkerHandlerLogic:
     """Spawns and manages multiple worker processes for IP scanning queues."""
-    # TODO: is this only used in DiscoveryScanner? if so, what workers are used in port scan???
+    # TODO[Emilia]: is this only used in DiscoveryScanner? if so, what workers are used in port scan???
 
     def __init__(self, queue_name: str, process_callback: object):
         """Initialize a WorkerHandler instance.
@@ -55,7 +55,7 @@ class WorkerHandlerLogic:
 
     def start(self):
         """Spawn multiple worker processes to handle scanning tasks."""
-        # TODO: this is only called when small IPscanning mode, not batch, should it be like that?
+        # TODO[Emilia]: this is only called when small IPscanning mode, not batch, should it be like that?
         workers: List[Process] = []
 
         for i in range(self.workers_count):

@@ -9,7 +9,7 @@ from config.logging_config import logger, log_exception
 
 sys.excepthook = log_exception
 
-# TODO: really a separate file?
+# TODO[Emilia]: really a separate file?
 
 def read_ports_file(ports_file: str):
     """Read and parse a ports file into two separate port lists.

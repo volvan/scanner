@@ -13,7 +13,7 @@ from config.logging_config import log_exception, logger
 
 sys.excepthook = log_exception
 
-# TODO: rename probes_discovery_scan
+# TODO[Emilia]: rename probes_discovery_scan
 
 class PingHandler:
     """Performs ICMP and TCP-based discovery pings to determine host liveness."""

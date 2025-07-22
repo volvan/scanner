@@ -12,7 +12,7 @@ from config.logging_config import logger
 # Models
 from models.QueryModel import QueryModel
 
-# TODO: add context manager
+# TODO[Emilia]: add context manager
 
 class QueryHandler: # Database_manager old
     """ .. """
@@ -47,7 +47,7 @@ class QueryHandler: # Database_manager old
         that are not None will be included.
         """
         # required columns
-        cols = [ # TODO: rename req_columns
+        cols = [ # TODO[Emilia]: rename req_columns
             "country",
             "discovery_scan_start_ts",
             "discovery_scan_done_ts",
@@ -61,7 +61,7 @@ class QueryHandler: # Database_manager old
         ]
 
         # optional columns
-        optional_fields = [ # TODO: rename opt_columns
+        optional_fields = [ # TODO[Emilia]: rename opt_columns
             ("port_scan_start_ts",  port_start_ts),
             ("port_scan_done_ts",   port_done_ts),
             ("scanned_ports",       scanned_ports),
@@ -97,7 +97,7 @@ class QueryHandler: # Database_manager old
         )
 
 
-    #TODO: Verify that this is not dead code
+    #TODO[Franz]: Verify that this is not dead code
     def fetch_latest_summary_id(self, country: str) -> QueryModel:
         """
         Builds a SELECT QueryModel.
@@ -114,7 +114,7 @@ class QueryHandler: # Database_manager old
         return QueryModel(query=sql, params=(country,), fetch=True)
 
 
-    #TODO: Verify that this is not dead code
+    #TODO[Franz]: Verify that this is not dead code
     def update_summary(
         self,
         *,
@@ -202,7 +202,7 @@ class QueryHandler: # Database_manager old
         logger.debug(f"[DatabaseManager] insert_port_result task payload: {task!r}")
 
         # Ensure required fields are present
-        required = [ # TODO: rename to req_columns
+        required = [ # TODO[Emilia]: rename to req_columns
             'ip', 'port', 'port_state', 'port_service', 'port_protocol',
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
         ]

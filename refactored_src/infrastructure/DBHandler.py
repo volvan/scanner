@@ -28,7 +28,9 @@ db_hosts: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Hosts' d
 db_ports: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Ports' db table
 db_acks:  JoinableQueue = JoinableQueue() # Queue to ack the message after inserting to database
 
-class DBHandler: # TODO: rename.. Database_Handler? maybe..
+
+"""# Franz: ekki priority"""
+class DBHandler: # TODO[Franz]: rename.. Database_Handler? maybe..
 
     def __init__(self, queryHandler: QueryHandler):
         """Initialize.."""
@@ -52,7 +54,8 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
         self.stop_signal = False
 
         self.port_thread = threading.Thread(target=self._consume_ports, daemon=True)
-        self.port_thread.start() # TODO: start after thread?
+        self.port_thread.start() # TODO[remove?]: start after thread? 
+
 
     def _consume_hosts(self):
         """Flush scan results from the in-memory queue db_hosts into the database.  
@@ -94,7 +97,8 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
                     # NACK via dispatcher
                     db_acks.put({"nack": True, "delivery_tag": wrapper["delivery_tag"]})
                 db_hosts.task_done()
-        dbWorker.close_all() # TODO: should we be doing this here?
+        dbWorker.close_all() # TODO[Franz]: should we be doing this here? 
+        """# Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)"""
 
 
     def _consume_ports(self):
@@ -145,7 +149,8 @@ class DBHandler: # TODO: rename.. Database_Handler? maybe..
                     db_acks.put({"nack": True, "delivery_tag": wrapper["delivery_tag"]})
                 db_ports.task_done()
 
-            # finally: # TODO: should be doing this here?
+            # finally: # TODO[Franz]: should be doing this here? 
+            """# Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)"""
             dbWorker.close_all()
 
 
@@ -164,7 +169,7 @@ class RMQAckThread(threading.Thread):
     Done on this process RMQ channel.
     Runs as a daemon thread, thus exits only when the process dies.
     """
-    # TODO: Add an alert on db_acks.qsize() to notice if ACKs ever fall behind.
+    # TODO[Emilia]: Add an alert on db_acks.qsize() to notice if ACKs ever fall behind.
     def __init__(self, rmq_conn: RabbitMQ):
         super().__init__(daemon=True, name="Volva_RMQAckThread")
         self.channel  = rmq_conn.channel

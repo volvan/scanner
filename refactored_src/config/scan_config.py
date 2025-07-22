@@ -1,4 +1,4 @@
-import os # TODO: fix fetch from RIX everywhere..
+import os # TODO[Emilia]: fix fetch from RIX everywhere..
 
 
 # --- Global settings and configurations ---------------------
@@ -35,7 +35,7 @@ SCAN_NATION = "IS"                                                    # Scan Nat
 FETCH_RIX = False                                                     # If True, fetch IPs from RIX.is
 TARGETS_FILE_PATH = os.path.join(BASE_DIR, "..", "targets")           # Stored under src/targets/ and used when FETCH_RIX is False
 ADDR_FILE = "blocks.txt"                                              # File containing IP/CIDR blocks to scan
-# TODO: rename ADDR_FILE to TARGETS_FILE
+# TODO[Franz]: rename ADDR_FILE to TARGETS_FILE
 
 # ─── RabbitMQ queue names (centralized for easy updates) ─────────────────────
 ALL_ADDR_QUEUE        = f"{SCAN_NATION}.all_addr"                       # The queue used for IP discovery

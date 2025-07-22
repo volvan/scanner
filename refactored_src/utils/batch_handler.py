@@ -45,7 +45,7 @@ class IPBatchHandler:
             - Bad or invalid messages are routed to the fail queue.
             - If no valid tasks are found, messages are requeued.
         """
-        # TODO: Change rmq_main to be with context manager (with)
+        # TODO[Franz]: Change rmq_main to be with context manager (with)
         rmq_main = RabbitMQ(main_queue_name)
 
         tasks: list[dict] = []
@@ -100,7 +100,7 @@ class IPBatchHandler:
 
         return batch_queue
     
-        # TODO: SOMethign like this
+        # TODO[Emilia]: SOMethign like this
     def _requeue_deliveries(rmq: RabbitMQ, deliveries: list[Basic.GetOk], requeue: bool = True,) -> None:
         """Nack or requeue every message in deliveries"""
         for d in deliveries:
@@ -126,7 +126,7 @@ class PortBatchHandler:
         Returns:
             bool: True if more batches can be created, False otherwise.
         """
-        # TODO: should really be a seperate function? 
+        # TODO[Remove][Franz](old function used in _tests/): should really be a seperate function? 
 
         return len(self.used_ports) < scan_config.BATCH_AMOUNT
 
@@ -212,7 +212,8 @@ class PortBatchHandler:
             return None
         self.used_ports.add(port)
 
-        ips = self.load_all_ips_once(ip_queue) # TODO: this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes?will it be requeued or gone?
+        # TODO[Emilia]: this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes?will it be requeued or gone?
+        ips = self.load_all_ips_once(ip_queue) 
         if not ips:
             logger.warning("[PortBatchHandler] No alive IPs to batch against.")
             return None

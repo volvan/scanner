@@ -49,7 +49,7 @@ from config.scan_config import (  # noqa: F401
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
 
-# TODO: should be similar setup as ipscanner, then its easier to follow the flow by alot
+# TODO[Emilia][Franz]: should be similar setup as ipscanner, then its easier to follow the flow by alot
 
 class PortScanner:
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
@@ -66,10 +66,11 @@ class PortScanner:
         Kick off a port scan, record timestamps, and use QueryModel for querying the DB.
         """
 
-        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler) # TODO: do we need this here also? 
+        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler) # TODO[[Franz][skoða](yes we do, we use it right below.): do we need this here also? 
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
-            dbHandler.start_ports() # TODO: has it not been called already?
+            dbHandler.start_ports() # TODO[Franz][skoða]: has it not been called already?
+            """Franz: No it has not."""
 
             # 1) choose which RMQ queue to seed
             queue_name = PRIORITY_PORTS_QUEUE if USE_PRIORITY_PORTS else ALL_PORTS_QUEUE
@@ -94,11 +95,11 @@ class PortScanner:
             all_ports, priority_ports = read_ports_file(PORTS_FILE)
             scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
             if scanned_ports is None: 
-                pass #TODO: implement error handling here insted of in query_handler if empty
+                pass #TODO[Emilia]: implement error handling here insted of in query_handler if empty
 
             # 7) persist summary via QueryModel
             try:
-                with DBWorker() as dbWorker: # TODO: rename db_conn (like all with rmq start with rmq_conn)
+                with DBWorker() as dbWorker: # TODO[Franz]: rename db_conn (like all with rmq start with rmq_conn)
                     # Build QueryModel for port-summary
                     latest_summary_id = self.infraManager.queryHandler.fetch_latest_summary_id(
                         country=SCAN_NATION
@@ -138,13 +139,13 @@ class PortScanner:
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
-            # TODO: look at this mess, compare with ip scanner
+            # TODO[Emilia]: look at this mess, compare with ip scanner
             logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
              db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
             db_ports.join() # block until every port task_done()
-            dbHandler.stop() # TODO: look at this better
+            dbHandler.stop() # TODO[Franz]: look at this better
             logger.warning("[PortScanner] Trying to stop database handler.")
-            self.infraManager.dbHandler.stop() # TODO: validate this has to be
+            self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
             db_acks.join() # every delivery‑tag ACKed/NACKed
             logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
              db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
@@ -170,7 +171,7 @@ class PortScanner:
 
                 # Extract scan result details
                 record = {
-                    "type": "port_result", # TODO: why? is this ever used?
+                    "type": "port_result", # TODO[Emilia]: why? is this ever used?
                     "ip": ip,
                     "port": port,
                     "port_state": probe_res["state"],
@@ -188,7 +189,7 @@ class PortScanner:
                     logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {probe_res}\n\n")
                     message = {"ip": ip, "port": port, "reason": "unknown_state"}
                     rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
-                    # return # TODO: why?
+                    # return # TODO[remove]: why?
 
                 # Commit results to database
                 try:
@@ -239,7 +240,7 @@ class PortScanner:
                     task = json.loads(body)
                     self.process_task(task["ip"], task["port"],delivery_tag=method_frame.delivery_tag)
                     # self.process_task(task["ip"], task["port"], batch_queue)
-                    # rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: remove
+                    # rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO[remove]: remove
                 except Exception:
                     logger.debug(task)
                     logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")

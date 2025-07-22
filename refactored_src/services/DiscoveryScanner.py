@@ -59,7 +59,7 @@ from config.scan_config import (  # noqa: F401
 
 
 
-class DiscoveryScanner: # TODO: rename DiscoveryScanner 
+class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner 
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
         self.externalManager = externalManager
         self.infraManager = infraManager
@@ -68,20 +68,22 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
-    def launch_discovery_scan_pipeline(self): #  TODO: move to DiscoveryScanner
+    def launch_discovery_scan_pipeline(self): #  TODO[remove]: move to DiscoveryScanner
         """ The 'main' """
-        # TODO: should be refactored and logic reviewed
+        # TODO[Franz]: should be refactored and logic reviewed
 
-        db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)  # TODO: deprecated?!
+        db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)  # TODO[Franz]: deprecated?!
+        """Franz: No it is in use right below?"""
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
-            db_handler.start_hosts() # TODO: critical - we already have started this thread right??
+            db_handler.start_hosts() # TODO[Franz]: critical - we already have started this thread right??
+            """Franz: No we have not."""
 
             # Check how many tasks in queue
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 tasks_remaining = rmq_conn.tasks_in_queue()
             # If tasks are already in queue, stop the program 
-            # TODO: should not stop the program but assign workers and consume from the queue.. right?
+            # TODO[Franz]: should not stop the program but assign workers and consume from the queue.. right?
             if tasks_remaining > 0:
                 logger.warning(f"[DiscoveryScanner] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
                 return
@@ -106,7 +108,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
 
             # Scan is concluded. Write the summary table
             try:
-                # TODO: should be renamed and / or moved..
+                # TODO[Emilia]: should be renamed and / or moved..
                 with DBWorker() as dbWorker:
                     queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
                         country=SCAN_NATION,
@@ -130,10 +132,10 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             db_hosts.join() # block until every host task_done()
             db_handler.stop()
 
-            # TODO: this is a broken patch.. 
+            # TODO[Franz]: this is a broken patch.. 
             db_acks.join() # every delivery‑tag ACKed/NACKed
 
-            # self.infraManager.dbHandler.stop() # TODO: validate this has to be
+            # self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
             
             logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
 
@@ -202,7 +204,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             host_state = ping_res["host_status"]
             ip_status = {"ip": ip_addr, "status": host_state}
             # Commit results to correct queue
-            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO: this queue is used as placeholder, could be any queue
+            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO[Emilia]: this queue is used as placeholder, could be any queue
                 queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
                 rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
         except Exception as e:
@@ -234,11 +236,11 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         props: BasicProperties
         body: bytes
 
-        # TODO: Change all occurrences of RMQ to be with context manager (with)
+        # TODO[Franz]: Change all occurrences of RMQ to be with context manager (with)
         rmq = RabbitMQ(queue_name)
 
         # start the ACK dispatcher exactly once in THIS process
-        # TODO: only a patch, DO NOT USE IN PRODUCTION
+        # TODO[Emilia]: only a patch, DO NOT USE IN PRODUCTION
         if not hasattr(self, "_ack_thread_started"):
             RMQAckThread(rmq).start()
             logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
@@ -304,7 +306,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         
         logger.debug("[IPScan Init] Starting host discovery...")
 
-        # TODO: didnt we check just a second ago?
+        # TODO[Franz]: didnt we check just a second ago?
         with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
             logger.debug(f"[DiscoveryScanner] {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'")
@@ -313,7 +315,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
             WorkerHandlerLogic(
                 queue_name=ALL_ADDR_QUEUE,
-                process_callback=self.process_task # TODO: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
+                process_callback=self.process_task # TODO[Franz]: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
             ).start()
 
             return
@@ -321,7 +323,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
         logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
 
         while True:
-            # TODO: WorkerHandlerLogic should be used, not creating the same logic in code.. reuse the code pls.. 
+            # TODO[Franz]: WorkerHandlerLogic should be used, not creating the same logic in code.. reuse the code pls.. 
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 remaining = rmq_conn.tasks_in_queue()
 
@@ -390,7 +392,7 @@ class DiscoveryScanner: # TODO: rename DiscoveryScanner
             ValueError: If neither address or filename is provided.
         """
         try:
-            # TODO: move this to the check thats in beguinning
+            # TODO[Franz]: move this to the check thats in beguinning
             # if not ALL_ADDR_QUEUE:
             #     raise ValueError("Queue name must be provided")
             

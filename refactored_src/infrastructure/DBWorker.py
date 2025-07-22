@@ -20,12 +20,6 @@ from models.QueryModel import QueryModel
 from psycopg2.extensions import connection
 
 
-# TODO: what and why, comment pls
-enter_worker_pids = {}
-close_worker_pids = {}
-exit_worker_pids = {}
-
-
 
 class DBWorker:
     """Dedicated thread-based worker that flushes scan results to the database.
@@ -50,7 +44,8 @@ class DBWorker:
             ValueError: If database credentials are not set.
             Exception: If connection pool initialization fails.
         """
-        # TODO: move minconn and maxconn to scan_config
+        # TODO[Franz](answer in first todo): move minconn and maxconn to scan_config 
+        """On it"""
         # Validate credentials
         creds = [
             credentials_config.DB_NAME,
@@ -158,7 +153,11 @@ class DBWorker:
         Returns:
             int: Number of affected rows.
         """
-        # TODO: should be in worker or manager?
+        # TODO[Franz][here]: should be in worker or manager?
+        """ 
+            Franz: Should be in worker, the DBHandler (what you call manager I assume) handles higher level DB Operations such as creating workers not lower-level actions
+            like executing queries, the workers should perform the action.
+        """
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -174,7 +173,7 @@ class DBWorker:
         """
         Execute a SELECT statement and return all rows.
         """
-        # TODO: should be in worker or manager?
+        # TODO[Franz](answer at `TODO[Franz][here]`): should be in worker or manager?
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -201,7 +200,7 @@ class DBWorker:
         Returns:
             List[Tuple] or int
         """
-        # TODO: should be in worker or manager?
+        # TODO[Franz](answer at `TODO[Franz][here]`): should be in worker or manager?
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -227,7 +226,7 @@ class DBWorker:
 
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
-        # TODO: should be in worker or manager?
+        # TODO[Franz](answer at `TODO[Franz][here]`): should be in worker or manager?
         logger.debug("[DBWorker] execute_query_model() called")
         return self.execute_sql(model.query, model.params, fetch=model.fetch)
         
