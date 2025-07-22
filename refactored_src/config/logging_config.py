@@ -8,6 +8,7 @@ from config.scan_config import CONFIG_PATH, LOG_DIR, LOG_TO_FILE, DEBUG_MODE
 
 
 class WorkerPIDFilter(logging.Filter):
+    """laterdo: Docstr."""
     def filter(self, record):
         try:
             worker_pid = str(os.getpid())
