@@ -1,5 +1,6 @@
 # Standard library
-import itertools, ipaddress
+import itertools
+import ipaddress
 from typing import Iterable
 
 # Utility Handlers
@@ -14,7 +15,8 @@ from models.QueryModel import QueryModel
 
 # TODO[Emilia]: add context manager
 
-class QueryHandler: # Database_manager old
+
+class QueryHandler:  # Database_manager old
     """ .. """
 
     def __init__(self) -> None:
@@ -47,7 +49,7 @@ class QueryHandler: # Database_manager old
         that are not None will be included.
         """
         # required columns
-        cols = [ # TODO[Emilia]: rename req_columns
+        cols = [  # TODO[Emilia]: rename req_columns
             "country",
             "discovery_scan_start_ts",
             "discovery_scan_done_ts",
@@ -61,20 +63,20 @@ class QueryHandler: # Database_manager old
         ]
 
         # optional columns
-        optional_fields = [ # TODO[Emilia]: rename opt_columns
-            ("port_scan_start_ts",  port_start_ts),
-            ("port_scan_done_ts",   port_done_ts),
-            ("scanned_ports",       scanned_ports),
-            ("total_ips_scanned",   total_ips_scanned),
-            ("total_ips_active",    total_ips_active),
+        optional_fields = [  # TODO[Emilia]: rename opt_columns
+            ("port_scan_start_ts", port_start_ts),
+            ("port_scan_done_ts", port_done_ts),
+            ("scanned_ports", scanned_ports),
+            ("total_ips_scanned", total_ips_scanned),
+            ("total_ips_active", total_ips_active),
             ("total_ports_scanned", total_ports_scanned),
-            ("total_ports_open",    total_ports_open),
-            ("open_ports_count",    open_ports_count),
-            ("products_count",      products_count),
-            ("services_count",      services_count),
-            ("os_count",            os_count),
-            ("versions_count",      versions_count),
-            ("cpe_count",           cpe_count),
+            ("total_ports_open", total_ports_open),
+            ("open_ports_count", open_ports_count),
+            ("products_count", products_count),
+            ("services_count", services_count),
+            ("os_count", os_count),
+            ("versions_count", versions_count),
+            ("cpe_count", cpe_count),
         ]
         for col, val in optional_fields:
             if val is not None:
@@ -96,19 +98,18 @@ class QueryHandler: # Database_manager old
             fetch=False
         )
 
-
-    #TODO[Franz]: Verify that this is not dead code
-    # E: Note, it either is or should be used in launch_x_scan 
+    # TODO[Franz]: Verify that this is not dead code
+    # E: Note, it either is or should be used in launch_x_scan
     #   - Becouse after the scan is done, it should check the latest summary ID WHERE country is NATION..
-    #   .. and if it does not have port_scan_done_ts -> It should update that summary row with the port scan data 
-    #   .. If it however does have port_scan_done_ts -> It means something is wrong but should just create a new summary row.. 
-    #   - Note that for the host discovery scan, it should always just create a new row. 
-    # So, TODO:[] Is this correctly implemented in code? 
+    #   .. and if it does not have port_scan_done_ts -> It should update that summary row with the port scan data
+    #   .. If it however does have port_scan_done_ts -> It means something is wrong but should just create a new summary row..
+    #   - Note that for the host discovery scan, it should always just create a new row.
+    # So, TODO:[] Is this correctly implemented in code?
 
     def fetch_latest_summary_id(self, country: str) -> QueryModel:
         """
         Builds a SELECT QueryModel.
-        
+
         Fetch the latest summary ID for a country.
         """
         sql = (
@@ -120,8 +121,8 @@ class QueryHandler: # Database_manager old
         )
         return QueryModel(query=sql, params=(country,), fetch=True)
 
+    # TODO[Franz]: Verify that this is not dead code
 
-    #TODO[Franz]: Verify that this is not dead code
     def update_summary(
         self,
         *,
@@ -131,7 +132,7 @@ class QueryHandler: # Database_manager old
         scanned_ports: list[str] = None,
     ) -> QueryModel:
         """Builds an UPDATE QueryModel.
-        
+
         Patch the existing summary row with port-scan timestamps and scanned_ports.
         """
 
@@ -145,7 +146,6 @@ class QueryHandler: # Database_manager old
         params = (port_start_ts, port_done_ts, scanned_ports, summary_id)
 
         return QueryModel(query=sql, params=params, fetch=False)
-
 
     def insert_host_result(self, task: dict) -> QueryModel:
         """Update a host scan result in the Hosts table.
@@ -195,10 +195,9 @@ class QueryHandler: # Database_manager old
 
         return queryModel
 
-
     def insert_port_result(self, task: dict) -> QueryModel:
         """Build an UPSERT QueryModel for a port scan result.
-        
+
         Insert or update a port scan result in the Ports table.
 
         Args:
@@ -210,7 +209,7 @@ class QueryHandler: # Database_manager old
 
         # Ensure required fields are present
         # TODO[Emilia]: rename to req_columns
-        required = [ 
+        required = [
             'ip', 'port', 'port_state', 'port_service', 'port_protocol',
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
         ]
@@ -253,14 +252,13 @@ class QueryHandler: # Database_manager old
         )
         return QueryModel(query=sql, params=params, fetch=False)
 
-
     def new_host(
         self,
         whois_data: dict,
         ips: Iterable[str],
     ) -> QueryModel:
         """Prepare a batch UPSERT of WHOIS data for one or more IPs.
-        
+
         Seed the Hosts table with WHOIS data for one or more IP addresses.
 
         Args:
@@ -276,7 +274,7 @@ class QueryHandler: # Database_manager old
         if not ips:
             logger.warning("[Query_Handler] No IPs provided to seed WHOIS.")
             return None
-        
+
         # Building whois data
         rows: list[tuple] = []
         scan_ts = get_current_timestamp()
@@ -348,14 +346,13 @@ class QueryHandler: # Database_manager old
 
         return QueryModel(query, params, fetch=False)
 
-    
     def port_exists(
         self,
         ip: str,
         port: int
     ) -> QueryModel:
         """Build a SELECT QueryModel to check if a port record exists.
-        
+
         Check if a port scan result already exists for a given IP and port, with retries.
 
         Args:

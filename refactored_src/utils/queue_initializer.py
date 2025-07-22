@@ -23,8 +23,8 @@ class QueueInitializer:
             queue_name (str): Name of the RabbitMQ IP queue.
             val (Iterable[str]): Iterable of IP address strings.
         """
-        with RabbitMQ(queue_name) as rmq_conn: # TODO[Emilia]: should not open and close a connection per batch hello hellooo haha..
-            count = 0 # for debugger
+        with RabbitMQ(queue_name) as rmq_conn:  # TODO[Emilia]: should not open and close a connection per batch hello hellooo haha..
+            count = 0  # for debugger
             for val in val:
                 rmq_conn.enqueue_to_queue(message={key: val})
                 logger.debug("[enqueue_items] enqueued (key, val): (%s, %s)", key, val)

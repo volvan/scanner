@@ -1,5 +1,7 @@
-import psutil, os
+import psutil
+import os
 from config.scan_config import CPU_LIMIT, MEM_LIMIT
+
 
 def cpu_ok(interval: float = 0.5) -> bool:
     """Check if current CPU usage is under the configured limit.
@@ -8,6 +10,7 @@ def cpu_ok(interval: float = 0.5) -> bool:
         bool: True if CPU usage is below CPU_LIMIT, False otherwise.
     """
     return psutil.cpu_percent(interval=interval) < CPU_LIMIT
+
 
 def memory_ok(process: psutil.Process | None = None) -> bool:
     """Check if current memory usage is below the configured limit.
@@ -20,9 +23,10 @@ def memory_ok(process: psutil.Process | None = None) -> bool:
 
     return proc.memory_info().rss < MEM_LIMIT
 
+
 def resource_ok(process: psutil.Process | None = None, interval: float = 0.5) -> bool:
     """Check if current memory AND CPU usage is under configured limit.
-    
+
     Returns: 
         bool: True if resources are under limit, False otherwise.
     """

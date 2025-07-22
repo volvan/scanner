@@ -15,6 +15,7 @@ sys.excepthook = log_exception
 
 # TODO[Emilia][P_low]: rename probes_discovery_scan
 
+
 class PingHandler:
     """Performs ICMP and TCP-based discovery pings to determine host liveness."""
 

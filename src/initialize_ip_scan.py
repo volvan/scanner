@@ -64,7 +64,7 @@ def enqueue_new_targets(scanner: IPScanner):
 
     queue_name = QUEUE_NAME
     rmq = RMQManager(queue_name)
-    
+
     tasks_remaining = rmq.tasks_in_queue()
     rmq.close()
 
@@ -81,12 +81,10 @@ def enqueue_new_targets(scanner: IPScanner):
     return filename, blocks
 
 
-
 def run_discovery(scanner: IPScanner):
     """Run the discovery scan (blocks until complete)."""
     logger.info("[IPScan Init] Starting host discovery...")
     scanner.start_consuming(QUEUE_NAME)
-
 
 
 def main():

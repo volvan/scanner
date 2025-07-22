@@ -1,14 +1,14 @@
-#----- Config imports -----#
+# ----- Config imports -----#
 from config.scan_config import WORKERS
 
-#----- Standard library -----#
+# ----- Standard library -----#
 from multiprocessing import Process
 from typing import List
 
-#----- Service imports -----#
+# ----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 
-#----- Logger import -----#
+# ----- Logger import -----#
 from config.logging_config import logger
 
 # TODO[Franz]: Cant we have more use of workerhandlerlogic? or something? this is messy and hard to follow the proceses..
@@ -17,6 +17,8 @@ from config.logging_config import logger
 # - If direct Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
 # - If batch Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
 # - Then there is also something funny happening in _drain_and_exit in both scanners..
+
+
 class WorkerHandlerLogic:
     """Spawns and manages multiple worker processes for IP scanning queues."""
 
@@ -48,9 +50,9 @@ class WorkerHandlerLogic:
                 logger.exception(f"Worker {worker_id} crashed: {e}")
             finally:
                 # try:
-                    # with RabbitMQ(self.queue_name) as rmq_conn:
+                # with RabbitMQ(self.queue_name) as rmq_conn:
                 if rmq_conn.tasks_in_queue() == 0:
-                # if rmq_conn.queue_empty(self.queue_name):
+                    # if rmq_conn.queue_empty(self.queue_name):
                     logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
                     rmq_conn.remove_queue()
                 # except Exception as cleanup_err:

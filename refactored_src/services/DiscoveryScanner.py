@@ -4,7 +4,8 @@ import itertools
 import json
 import multiprocessing
 import subprocess
-import sys, os
+import sys
+import os
 import time
 
 from external.ExternalManager import ExternalManager
@@ -24,10 +25,10 @@ from utils.block_handler import read_block, whois_block
 from utils.resource_status import resource_ok
 from utils.ping_handler import PingHandler
 
-#----- Model imports -----#
+# ----- Model imports -----#
 from models.QueryModel import QueryModel
 
-#----- Service imports -----#
+# ----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
 from infrastructure.DBHandler import RMQAckThread, DBHandler, db_hosts, db_acks, db_ports
@@ -36,7 +37,7 @@ from logic.WorkerHandlerLogic import WorkerHandlerLogic
 # Type annotations
 from pika.adapters.blocking_connection import BlockingChannel
 
-#----- Logger import -----#
+# ----- Logger import -----#
 from config.logging_config import logger, log_exception
 sys.excepthook = log_exception
 
@@ -67,7 +68,7 @@ class DiscoveryScanner:
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
-    def launch_discovery_scan_pipeline(self): 
+    def launch_discovery_scan_pipeline(self):
         """ The 'main' """
         # TODO[Franz]: should be refactored and logic reviewed
 
@@ -79,7 +80,7 @@ class DiscoveryScanner:
             # Check how many tasks in queue
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 tasks_remaining = rmq_conn.tasks_in_queue()
-            # If tasks are already in queue, stop the program 
+            # If tasks are already in queue, stop the program
             # TODO[Franz]: should not stop the program but assign workers and consume from the queue.. right?
             if tasks_remaining > 0:
                 logger.warning(f"[DiscoveryScanner] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
@@ -89,11 +90,11 @@ class DiscoveryScanner:
             filename = self.new_targets()
             if not filename:
                 return
-            
+
             blocks = read_block(filename)
             if blocks is None:
                 return
-            
+
             # Record the scan-start timestamp
             discovery_start_ts = get_current_timestamp()
 
@@ -119,23 +120,21 @@ class DiscoveryScanner:
             except Exception as e:
                 logger.error(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Failed to write discovery summary: {e}")
 
-
         except Exception as e:
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
         finally:
             # self.logicManager.dbWorkerLogic.stop()
             logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
-            
-            db_hosts.join() # block until every host task_done()
+
+            db_hosts.join()  # block until every host task_done()
             db_handler.stop()
 
             # TODO[Franz]: this is a broken patch.. more in DBHandler.RMQAckThread
-            db_acks.join() # every delivery‑tag ACKed/NACKed
+            db_acks.join()  # every delivery‑tag ACKed/NACKed
 
             # self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
-            
-            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
 
+            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
         """Process a RabbitMQ task.
@@ -150,10 +149,9 @@ class DiscoveryScanner:
             ValueError: If the message payload does not contain an "ip" key.
         """
 
-
         # Parse the message body and validate it
         try:
-            task:dict = json.loads(body)
+            task: dict = json.loads(body)
             ip_addr = task["ip"]
             # Check if the "ip" key exists and is valid
             if not isinstance(ip_addr, str):
@@ -180,8 +178,8 @@ class DiscoveryScanner:
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to ping host {ip_addr}: {e}", exc_info=True)
             ping_res = {"probe_method": None, "probe_protocol": None,
-                    "host_status": "dead", "probe_duration": None}
-        
+                        "host_status": "dead", "probe_duration": None}
+
         # Get the scan done timestamp
         done_ts = get_current_timestamp()
 
@@ -201,7 +199,7 @@ class DiscoveryScanner:
             host_state = ping_res["host_status"]
             ip_status = {"ip": ip_addr, "status": host_state}
             # Commit results to correct queue
-            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO[Emilia]: this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
+            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn:  # TODO[Emilia]: this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
                 queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
                 # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue // If its unknown -> fail queue
                 rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
@@ -210,11 +208,11 @@ class DiscoveryScanner:
 
         # Commit results to database
         try:
-            db_hosts.put({"record": record, "delivery_tag": method.delivery_tag,})
+            db_hosts.put({"record": record, "delivery_tag": method.delivery_tag, })
             logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr} with tag: {method.delivery_tag}")
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
-            
+
         # Add a small delay between tasks to control scan rate
         time.sleep(SCAN_DELAY)
 
@@ -228,7 +226,7 @@ class DiscoveryScanner:
             A new DiscoveryScanner instance is created for each process to avoid
             sharing DB or RMQ connections across forks.
         """
-        
+
         # Adding type annotations for variables for clarity
         method_frame: Basic.GetOk
         props: BasicProperties
@@ -255,7 +253,7 @@ class DiscoveryScanner:
             try:
                 # Spawn a short-lived process for this one task
                 task_proc = multiprocessing.Process(
-                    target=self.process_task, 
+                    target=self.process_task,
                     args=(rmq.channel, method_frame, props, body),
                 )
                 task_proc.start()
@@ -272,7 +270,7 @@ class DiscoveryScanner:
                     try:
                         logger.info(f'\n\n[DiscoveryScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
                         payload = json.loads(body)
-                        rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE) 
+                        rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE)
                     except Exception as e:
                         logger.error(f"[DiscoveryScanner] Failed to enqueue timed-out task: {e}")
                     finally:
@@ -301,7 +299,7 @@ class DiscoveryScanner:
             logger.warning("Memory limit reached; shutting down")
             sys.exit(1)
             return
-        
+
         logger.debug("[IPScan Init] Starting host discovery...")
 
         # TODO[Franz]: didnt we check just a second ago?
@@ -313,7 +311,7 @@ class DiscoveryScanner:
             logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
             WorkerHandlerLogic(
                 queue_name=ALL_ADDR_QUEUE,
-                process_callback=self.process_task 
+                process_callback=self.process_task
                 # TODO[Emilia]: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
                 # E: I think I already changed it, need to verify so I'll do it
             ).start()
@@ -357,7 +355,7 @@ class DiscoveryScanner:
                 logger.warning("Memory high; pausing batch creation")
                 time.sleep(5)
                 continue
-            
+
             batch_id = next(self.batch_id_generator)
             batch_queue = IPBatchHandler(batch_id, remaining).create_batch(ALL_ADDR_QUEUE)
             if not batch_queue:
@@ -374,7 +372,6 @@ class DiscoveryScanner:
         for p in self.active_processes:
             if p.is_alive():
                 p.join(timeout=1)
-
 
     def new_targets(self) -> str:
         """Extract IP addresses, randomize them, and enqueue into batches.
@@ -394,7 +391,7 @@ class DiscoveryScanner:
             # TODO[Franz]: move this to the check thats in beginning ( serviceManager)
             # if not ALL_ADDR_QUEUE:
             #     raise ValueError("Queue name must be provided")
-            
+
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 if not rmq_conn.queue_exists():
                     rmq_conn.declare_queue()
@@ -418,7 +415,6 @@ class DiscoveryScanner:
 
             whois_info = whois_block(target=None, filename=filename)
 
-
             def chunked(iterator, size=BATCH_SIZE):  # noqa: D103
                 it = iter(iterator)
                 while True:
@@ -437,13 +433,13 @@ class DiscoveryScanner:
                     if queryModel is None:
                         logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
                         continue
-                    
+
                     success = dbWorker.execute_query_model(queryModel)
                     if not success:
                         logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
                         continue
 
-                    # Insert to RMQ 
+                    # Insert to RMQ
 
                     QueueInitializer.enqueue_items(queue_name=ALL_ADDR_QUEUE, key="ip", val=batch)
 
@@ -457,7 +453,6 @@ class DiscoveryScanner:
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Error in new_targets: {e}")
             return None
-
 
     def ping_host(self, ip_addr: str) -> dict:
         """Probe a host using ICMP, TCP-SYN, and TCP-ACK in sequence.
@@ -490,14 +485,14 @@ class DiscoveryScanner:
 
             if res and res[0] == "alive":
                 # For testing
-                if method != 'icmp_ping': logger.debug(f'\nmethod: {method} for {ip_addr} was successful!!!');
+                if method != 'icmp_ping':
+                    logger.debug(f'\nmethod: {method} for {ip_addr} was successful!!!')
                 return {
                     "probe_method": method,
                     "probe_protocol": proto,
                     "host_status": "alive",
                     "probe_duration": float(res[1]) if res and res[1] is not None else None,
                 }
-
 
             time.sleep(SCAN_DELAY)
 
@@ -508,5 +503,3 @@ class DiscoveryScanner:
             "host_status": "dead",
             "probe_duration": None,
         }
-
-

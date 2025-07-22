@@ -1,5 +1,6 @@
 from typing import Tuple
 
+
 class QueryModel:
     """
     Encapsulates a SQL statement, its bound parameters,

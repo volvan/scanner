@@ -1,39 +1,35 @@
 
-#----- Manager imports -----#
+# ----- Manager imports -----#
 from infrastructure.InfrastructureManager import InfrastructureManager
 from external.ExternalManager import ExternalManager
 
-#----- Service imports -----#
+# ----- Service imports -----#
 from .PortScanner import PortScanner
 from .DiscoveryScanner import DiscoveryScanner
 
 from config.logging_config import logger
 
 
-
 class ServiceManager:
     def __init__(self):
         # Managers
-        self.externalManager = ExternalManager() # TODO[Franz] needed? - (nope, I will remove it)
+        self.externalManager = ExternalManager()  # TODO[Franz] needed? - (nope, I will remove it)
         self.infraManager = InfrastructureManager()
 
         # Service Instances
         self.discoveryScanner = DiscoveryScanner(self.externalManager, self.infraManager)
         self.portScanner = PortScanner(self.externalManager, self.infraManager)
 
-    #----- DiscoveryScanner Methods -----#
+    # ----- DiscoveryScanner Methods -----#
     def start_ip_scan(self):
         # TODO[Franz](good idea): here should call a checker, that checks all config vars, to make sure they are correct and there.
         #       .. Then remove the endless redundant checks in code
         logger.info('Just started ServiceManager.launch_discovery_scan_pipeline()')
         self.discoveryScanner.launch_discovery_scan_pipeline()
 
-    #----- PortScanner Methods -----#
+    # ----- PortScanner Methods -----#
     def start_port_scan(self):
         # TODO[Franz](good idea): here should call a checker, that checks all config vars, to make sure they are correct and there.
         #       .. Then remove the endless redundant checks in code
         logger.info('Just started ServiceManager.launch_port_scan_pipeline()')
         self.portScanner.launch_port_scan_pipeline()
-
-    
-    

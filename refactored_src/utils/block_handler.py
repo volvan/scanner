@@ -200,7 +200,7 @@ def whois_block(target: str = None, filename: str = None) -> dict:
 
     # for every cidr incomming do whois
     for cidr in cidr_list:
-        try:            
+        try:
             # base_ip = cidr.split('/', 1)[0]
             base_ip = cidr.split('/')[0]
             result = IPWhois(base_ip).lookup_rdap()
