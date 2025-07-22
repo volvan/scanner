@@ -10,7 +10,7 @@ import sys
 from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
 from config.scan_config import DEBUG_MODE
 
-# TODO[remove]?: 
+# TODO[Remove]?: 
 # option 1  - Run "Host Discovery Scan"
 # oprtion 2 - run "Port Scan"
 # option 3  - run scan (ip and then port scan)

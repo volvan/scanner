@@ -2,7 +2,7 @@ from typing import Tuple, Union, List
 
 # TODO[Emilia]: review all docstring
 
-# TODO[remove]: add context manager
+# TODO[Remove]: add context manager
 """Franz: But why would we add a context manager to a model?"""
 
 class QueryModel:

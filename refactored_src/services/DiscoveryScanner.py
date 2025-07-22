@@ -68,7 +68,7 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
-    def launch_discovery_scan_pipeline(self): #  TODO[remove]: move to DiscoveryScanner
+    def launch_discovery_scan_pipeline(self): #  TODO[Remove]: move to DiscoveryScanner
         """ The 'main' """
         # TODO[Franz]: should be refactored and logic reviewed
 

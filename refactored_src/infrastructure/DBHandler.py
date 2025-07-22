@@ -54,7 +54,7 @@ class DBHandler: # TODO[Franz]: rename.. Database_Handler? maybe..
         self.stop_signal = False
 
         self.port_thread = threading.Thread(target=self._consume_ports, daemon=True)
-        self.port_thread.start() # TODO[remove?]: start after thread? 
+        self.port_thread.start() # TODO[Remove?]: start after thread? 
 
 
     def _consume_hosts(self):

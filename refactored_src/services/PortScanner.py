@@ -189,7 +189,7 @@ class PortScanner:
                     logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {probe_res}\n\n")
                     message = {"ip": ip, "port": port, "reason": "unknown_state"}
                     rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
-                    # return # TODO[remove]: why?
+                    # return # TODO[Remove]: why?
 
                 # Commit results to database
                 try:
@@ -240,7 +240,7 @@ class PortScanner:
                     task = json.loads(body)
                     self.process_task(task["ip"], task["port"],delivery_tag=method_frame.delivery_tag)
                     # self.process_task(task["ip"], task["port"], batch_queue)
-                    # rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO[remove]: remove
+                    # rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO[Remove]: remove
                 except Exception:
                     logger.debug(task)
                     logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")

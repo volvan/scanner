@@ -133,7 +133,7 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Unexpected error while consuming: {e}")
         # finally:
-        #     self.close() # TODO[remove]?: self.exit()
+        #     self.close() # TODO[Remove]?: self.exit()
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
@@ -163,7 +163,7 @@ class RabbitMQ:
         #         manager.close()
         #     except Exception:
         #         pass
-        #TODO[remove]?: Add contaxt manager
+        #TODO[Remove]?: Add contaxt manager
         try:
             with RabbitMQ(queue_name) as rmq_conn:
                 logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
