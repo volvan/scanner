@@ -50,11 +50,11 @@ Development happens on these branches, followed by the patterns `type/#/descript
 It's main development branch (the "main") is the ´dev´ branch. 
 
 | Branch Type   | Pattern        | Base     | Purpose                                                | Review / PR? |
-| ------------- | -------------- | -------- | ------------------------------------------------------ | ------- |
-| Feature       | `feature/#/*`  |  `dev`    | Adds new features.                                    | No      |
-| Enhancement   | `bugfix/#/*`   |  `dev`    | Code enhanced.                                        | No      |
-| Bugfix        | `bugfix/#/*`   |  `dev`    | Fixes known bugs.                                     | No      |
-| Documentation | `docs/*`       |  `dev`    | Docs only—no code changes.                            | No      |
+| ------------- | -------------- | -------- | ------------------------------------------------------ | ------------ |
+| Feature       | `feature/#/*`  |  `dev`    | Adds new features.                                    |      No      |
+| Enhancement   | `enhancement/#/*`   |  `dev`    | Code enhanced.                                   |      No      |
+| Bugfix        | `bugfix/#/*`   |  `dev`    | Fixes known bugs.                                     |      No      |
+| Documentation | `docs/*`       |  `dev`    | Docs only—no code changes.                            |      No      |
 
 
 ## Versioning & Release Notes
