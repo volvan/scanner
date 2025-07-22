@@ -1,22 +1,19 @@
-#----- Standard library imports -----#
-import multiprocessing, time
+# ----- Standard library imports -----#
+import multiprocessing
+import time
 from multiprocessing import Process
 
-#----- Type annotation imports -----#
+# ----- Type annotation imports -----#
 from external.ExternalManager import ExternalManager
-from infrastructure.InfrastructureManager import InfrastructureManager 
+from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
-#----- Service imports -----#
-from infrastructure.DBHandler import DBHandler, db_ports, db_acks,db_hosts, RMQAckThread
+# ----- Service imports -----#
+from infrastructure.DBHandler import DBHandler, db_ports, db_acks, db_hosts, RMQAckThread
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
-#----- Model imports -----#
-from models.QueryModel import QueryModel
-
-
-#----- OLD IMPORTS -----#
+# ----- OLD IMPORTS -----#
 import psutil
 
 from utils.queue_initializer import QueueInitializer
@@ -25,11 +22,12 @@ from utils.resource_status import resource_ok
 from utils.probe_handler import ProbeHandler
 
 
-import sys, json, os, random
+import sys
+import json
+import os
+import random
 
 from config.logging_config import logger, log_exception
-
-from utils.batch_handler import PortBatchHandler
 from utils.ports_handler import read_ports_file
 from utils.timestamp import get_current_timestamp
 from utils.reservoir_randomize import reservoir_of_reservoirs
@@ -51,22 +49,25 @@ proc = psutil.Process(os.getpid())
 
 # TODO[Emilia][Franz]: should be similar setup as ipscanner, then its easier to follow the flow by alot
 
+
 class PortScanner:
+    """laterdo: Docstr."""
+
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
+        """laterdo: Docstr."""
         self.externalManager = externalManager
         self.infraManager = infraManager
 
         self.active_processes: list[Process] = []
         self.batch_handler = PortBatchHandler()
 
-
     def launch_port_scan_pipeline(self):
-        """Main runner. 
-        
+        """Main runner.
+
         Kick off a port scan, record timestamps, and use QueryModel for querying the DB.
         """
 
-        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler) 
+        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler)
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
             dbHandler.start_ports()
@@ -93,12 +94,12 @@ class PortScanner:
             # 6) prepare scanned_ports list
             all_ports, priority_ports = read_ports_file(PORTS_FILE)
             scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
-            if scanned_ports is None: 
-                pass #TODO[Emilia]: implement error handling here insted of in query_handler if empty
+            if scanned_ports is None:
+                pass  # TODO[Emilia]: implement error handling here insted of in query_handler if empty
 
             # 7) persist summary via QueryModel
             try:
-                with DBWorker() as dbWorker: # TODO[Franz]: rename db_conn (like all with rmq start with rmq_conn)
+                with DBWorker() as dbWorker:  # TODO[Franz]: rename db_conn (like all with rmq start with rmq_conn)
                     # Build QueryModel for port-summary
                     latest_summary_id = self.infraManager.queryHandler.fetch_latest_summary_id(
                         country=SCAN_NATION
@@ -140,17 +141,16 @@ class PortScanner:
         finally:
             # TODO[Emilia]: look at this mess, compare with ip scanner
             logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
-             db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
-            db_ports.join() # block until every port task_done()
-            dbHandler.stop() # TODO[Franz]: look at this better
+                         db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
+            db_ports.join()  # block until every port task_done()
+            dbHandler.stop()  # TODO[Franz]: look at this better
             logger.warning("[PortScanner] Trying to stop database handler.")
-            self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
-            db_acks.join() # every delivery‑tag ACKed/NACKed
+            self.infraManager.dbHandler.stop()  # TODO[Franz]: validate this has to be
+            db_acks.join()  # every delivery‑tag ACKed/NACKed
             logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
-             db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
+                         db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
 
-
-    def process_task(self, ip: str, port: int, delivery_tag:int, queue_name:str):
+    def process_task(self, ip: str, port: int, delivery_tag: int, queue_name: str):
         """Probe an IP:port pair and enqueue the scan result as needed.
 
         Args:
@@ -170,7 +170,7 @@ class PortScanner:
 
                 # Extract scan result details
                 record = {
-                    "type": "port_result", # TODO[Emilia]: why? is this ever used?
+                    "type": "port_result",  # TODO[Emilia]: why? is this ever used?
                     "ip": ip,
                     "port": port,
                     "port_state": probe_res["state"],
@@ -183,20 +183,20 @@ class PortScanner:
                     "duration": probe_res["duration"],
                 }
 
-                # if state is unknown, route to fail queue 
+                # if state is unknown, route to fail queue
                 if record["port_state"] == "unknown":
                     logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {probe_res}\n\n")
                     message = {"ip": ip, "port": port, "reason": "unknown_state"}
                     rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
-                    # return 
-                    # # TODO[]: why return? 
+                    # return
+                    # # TODO[]: why return?
                     # Franz: Remove?
                     # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
 
                 # Commit results to database
                 try:
-                    ip_addr = record["ip"] # For debugger
-                    db_ports.put({"record": record, "delivery_tag": delivery_tag,})
+                    ip_addr = record["ip"]  # For debugger
+                    db_ports.put({"record": record, "delivery_tag": delivery_tag, })
                     logger.debug(f"[PortScanner|pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr} with tag: {delivery_tag}")
                 except Exception as e:
                     logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
@@ -225,7 +225,7 @@ class PortScanner:
 
             while True:
                 method_frame, props, body = rmq_batch_conn.channel.basic_get(
-                    queue=batch_queue, 
+                    queue=batch_queue,
                     auto_ack=False
                 )
                 if not method_frame:
@@ -236,13 +236,11 @@ class PortScanner:
                 except Exception:
                     logger.debug(task)
                     logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
-                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
+                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
 
-                time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX)) # TODO[]: Why? isint this cousing unnessisary latency or not?
+                time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO[]: Why? isint this cousing unnessisary latency or not?
 
             rmq_batch_conn.remove_queue()
-
-
 
     def start_consuming(self, main_queue_name: str) -> None:
         """Start the main port scanning loop using batched multiprocessing.
@@ -254,7 +252,7 @@ class PortScanner:
             Spawns new processes for each port-batch queue up to MAX_BATCH_PROCESSES.
             Waits if memory usage or active processes reach limits.
         """
-        
+
         if not resource_ok():
             logger.warning("Memory limit reached; shutting down")
             sys.exit(1)
@@ -296,7 +294,6 @@ class PortScanner:
             if p.is_alive():
                 p.join(timeout=1)
 
-
     def new_targets(self, queue_name: str, filename: str = None) -> None:
         """Seed a queue with randomized ports read from a file.
 
@@ -315,15 +312,15 @@ class PortScanner:
             if all_ports is None or priority_ports is None:
                 logger.warning("[PortScanner] Could not parse ports file.")
                 return
-            
+
             if queue_name == ALL_PORTS_QUEUE:
-                
+
                 # Randomize the ports
                 all_ports_iter = reservoir_of_reservoirs(all_ports)
                 if not all_ports_iter:
                     logger.critical(f"[PortScanner] Port list for '{queue_name}' is empty.")
                     return
-                
+
                 # Enqueue ports to RMQ
                 QueueInitializer.enqueue_items(queue_name=ALL_PORTS_QUEUE, key="port", val=all_ports_iter)
                 logger.info(f"[PortScanner] Seeded {ALL_PORTS_QUEUE} with randomized ports.")
@@ -335,7 +332,7 @@ class PortScanner:
                 if not priority_ports_iter:
                     logger.critical(f"[PortScanner] Port list for '{queue_name}' is empty.")
                     return
-                
+
                 # Enqueue ports to RMQ
                 QueueInitializer.enqueue_items(queue_name=PRIORITY_PORTS_QUEUE, key="port", val=priority_ports_iter)
                 logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")

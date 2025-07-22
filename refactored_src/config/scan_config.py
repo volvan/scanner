@@ -1,9 +1,9 @@
-import os # TODO[Emilia]: fix fetch from RIX everywhere..
+import os  # TODO[Emilia]: fix fetch from RIX everywhere..
 
 
 # --- Global settings and configurations ---------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(os.path.dirname(BASE_DIR)) 
+ROOT_DIR = os.path.dirname(os.path.dirname(BASE_DIR))
 
 
 # --- Monitoring (logs) configurations ---------------------
@@ -38,12 +38,12 @@ ADDR_FILE = "blocks.txt"                                              # File con
 # TODO[Franz]: rename ADDR_FILE to TARGETS_FILE
 
 # ─── RabbitMQ queue names (centralized for easy updates) ─────────────────────
-ALL_ADDR_QUEUE        = f"{SCAN_NATION}.all_addr"                       # The queue used for IP discovery
-ALIVE_ADDR_QUEUE      = f"{SCAN_NATION}.alive_addr"
-DEAD_ADDR_QUEUE       = f"{SCAN_NATION}.dead_addr"
-FAIL_QUEUE            = f"{SCAN_NATION}.fail_queue"
-ALL_PORTS_QUEUE       = f"{SCAN_NATION}.all_ports"
-PRIORITY_PORTS_QUEUE  = f"{SCAN_NATION}.priority_ports"
+ALL_ADDR_QUEUE = f"{SCAN_NATION}.all_addr"                       # The queue used for IP discovery
+ALIVE_ADDR_QUEUE = f"{SCAN_NATION}.alive_addr"
+DEAD_ADDR_QUEUE = f"{SCAN_NATION}.dead_addr"
+FAIL_QUEUE = f"{SCAN_NATION}.fail_queue"
+ALL_PORTS_QUEUE = f"{SCAN_NATION}.all_ports"
+PRIORITY_PORTS_QUEUE = f"{SCAN_NATION}.priority_ports"
 
 
 # ─── Port scan phase specific ──────────────────────────────────────────────

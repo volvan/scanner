@@ -46,16 +46,16 @@ class IPBatchHandler:
             - If no valid tasks are found, messages are requeued.
         """
         # TODO[Franz]: Change rmq_main to be with context manager (with)
-        # TODO[]: Cleanup this function, I can hardly follow the logic 
+        # TODO[]: Cleanup this function, I can hardly follow the logic
         rmq_main = RabbitMQ(main_queue_name)
 
         tasks: list[dict] = []
         deliveries: list = []
 
         for _ in range(scan_config.BATCH_SIZE):
-            response: tuple[Basic.GetOk | None, BasicProperties, bytes]  = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
+            response: tuple[Basic.GetOk | None, BasicProperties, bytes] = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
 
-            method_frame:Basic.GetOk | None
+            method_frame: Basic.GetOk | None
             properties: BasicProperties
             body: bytes
             method_frame, properties, body = response
@@ -69,7 +69,7 @@ class IPBatchHandler:
                     tasks.append(msg)
                 else:
                     try:
-                        rmq_main.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
+                        rmq_main.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
                     except Exception as ex:
                         logger.warning("[IPBatchHandler] Failed to nack bad payload: %s", ex)
             except Exception:
@@ -77,11 +77,11 @@ class IPBatchHandler:
                     rmq_main.enqueue_to_queue(message={"raw": body.decode()}, queue_name=scan_config.FAIL_QUEUE)
                 except Exception as enqueue_ex:
                     logger.error(f"[IPBatchHandler] Failed to enqueue to fail_queue: {enqueue_ex}")
-                rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
+                rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
 
         if not tasks:
             logger.warning("[IPBatchHandler] No valid tasks found; skipping batch creation.")
-            self._requeue_deliveries(rmq=rmq_main, deliveries= deliveries, requeue= True)
+            self._requeue_deliveries(rmq=rmq_main, deliveries=deliveries, requeue=True)
             rmq_main.close()
             return None
 
@@ -92,25 +92,23 @@ class IPBatchHandler:
                 for task in tasks:
                     rmq_batch_conn.enqueue_to_queue(message=task)
             for m in deliveries:
-                rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag) # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
+                rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
             logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
-        except Exception as e:
-                self._requeue_deliveries(rmq=rmq_main, deliveries= deliveries, requeue= True)
-                batch_queue = None
+        except Exception:
+            self._requeue_deliveries(rmq=rmq_main, deliveries=deliveries, requeue=True)
+            batch_queue = None
         rmq_main.close()
 
         return batch_queue
-    
 
     def _requeue_deliveries(rmq: RabbitMQ, deliveries: list[Basic.GetOk], requeue: bool = True,) -> None:
-        """Nack or requeue every message in deliveries"""
+        """Nack or requeue every message in deliveries."""
         for d in deliveries:
             try:
-                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue) # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
-                logger.warning(f"[IPBatchHandler] Requeued message.")
+                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
+                logger.warning("[IPBatchHandler] Requeued message.")
             except Exception as ex:
                 logger.warning(f"[IPBatchHandler] Failed to requeue message: {ex}")
-
 
 
 class PortBatchHandler:
@@ -127,8 +125,8 @@ class PortBatchHandler:
         Returns:
             bool: True if more batches can be created, False otherwise.
         """
-        # TODO[Franz] should really be a seperate function? 
-        # Franz: old function used in _tests/) 
+        # TODO[Franz] should really be a seperate function?
+        # Franz: old function used in _tests/)
         # E: If its only used in _test/ Its a dead code and may be removed.
 
         return len(self.used_ports) < scan_config.BATCH_AMOUNT
@@ -216,7 +214,7 @@ class PortBatchHandler:
         self.used_ports.add(port)
 
         # TODO[Emilia]: this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
-        ips = self.load_all_ips_once(ip_queue) 
+        ips = self.load_all_ips_once(ip_queue)
         if not ips:
             logger.warning("[PortBatchHandler] No alive IPs to batch against.")
             return None

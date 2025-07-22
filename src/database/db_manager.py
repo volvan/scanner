@@ -1,5 +1,6 @@
-#----- Temp fix imports -----#
-import os, threading
+# ----- Temp fix imports -----#
+import os
+import threading
 
 
 # Standard library
@@ -60,7 +61,7 @@ class DatabaseManager:
         # HOTFIX: Only one thread can initialize or reinitialize the pool at a time
         with cls._pool_lock:
             # HOTFIX: If no pool yet, or if we've forked into a new process (diff PID) then initialize or reinitialize the pool
-            if cls._pool is None or cls._pool_pid != os.getpid(): 
+            if cls._pool is None or cls._pool_pid != os.getpid():
                 try:
                     cls._pool = ThreadedConnectionPool(
                         minconn,
@@ -89,7 +90,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"[DatabaseManager] Failed to acquire connection: {e}")
             raise
-
 
     def close(self) -> None:
         """Return the database connection back to the pool, or close it if returning fails."""

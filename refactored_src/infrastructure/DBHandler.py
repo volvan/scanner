@@ -1,35 +1,36 @@
-#----- Standard library -----#
+# ----- Standard library -----#
 import threading
 
-#----- Type annotation imports -----#
+# ----- Type annotation imports -----#
 # from data.DataManager import DataManager
 import queue
 
-#----- Model imports -----#
+# ----- Model imports -----#
 from models.QueryModel import QueryModel
 
-#----- Service imports -----#
+# ----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
 # from infrastructure.DBHandler import db_hosts
 
-#----- Logger import -----#
+# ----- Logger import -----#
 from config.logging_config import logger
 
 
-#----- TEMP OLD IMPORTS -----#
+# ----- TEMP OLD IMPORTS -----#
 from infrastructure.QueryHandler import QueryHandler
 
 # In-memory queues for DBWorker
 from multiprocessing import JoinableQueue
 
 
-db_hosts: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Hosts' db table
-db_ports: JoinableQueue = JoinableQueue() # Queue for inserting to the 'Ports' db table
-db_acks:  JoinableQueue = JoinableQueue() # Queue to ack the message after inserting to database
+db_hosts: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Hosts' db table
+db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' db table
+db_acks: JoinableQueue = JoinableQueue()  # Queue to ack the message after inserting to database
 
 
-class DBHandler: # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
+class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
+    """laterdo: Docstr."""
 
     def __init__(self, queryHandler: QueryHandler):
         """Initialize.."""
@@ -55,9 +56,8 @@ class DBHandler: # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
         self.port_thread.start()
         logger.debug("[DBHandler] Port thread started.")
 
-
     def _consume_hosts(self):
-        """Flush scan results from the in-memory queue db_hosts into the database.  
+        """Flush scan results from the in-memory queue db_hosts into the database.
 
         For every successful commit to the database, we enqueue the delivery tag to db_acks queue to be acked.
         """
@@ -77,11 +77,11 @@ class DBHandler: # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
                     wrapper = db_hosts.get(timeout=1)
                 except queue.Empty:
                     continue
-                
+
                 # Extract from the wrapper
-                record = wrapper["record"] # what we insert to database
+                record = wrapper["record"]  # what we insert to database
                 delivery_tag = wrapper["delivery_tag"]
-                ip_addr = record["ip"] # Used for debugger
+                ip_addr = record["ip"]  # Used for debugger
                 logger.debug(f"[DBHandler] Got host task: {ip_addr}, with tag: {delivery_tag}")
 
                 # Insert to the database
@@ -96,9 +96,8 @@ class DBHandler: # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
                     # NACK via dispatcher
                     db_acks.put({"nack": True, "delivery_tag": wrapper["delivery_tag"]})
                 db_hosts.task_done()
-        dbWorker.close_all() # TODO[Franz]: should we be doing this here? 
-                             # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
-
+        dbWorker.close_all()  # TODO[Franz]: should we be doing this here?
+        # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
 
     def _consume_ports(self):
         """Consume port scan results from db_ports queue and insert into database."""
@@ -112,10 +111,10 @@ class DBHandler: # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
                     continue
 
                 # Extract from the wrapper
-                record = wrapper["record"] # what we insert to database
+                record = wrapper["record"]  # what we insert to database
                 delivery_tag = wrapper["delivery_tag"]
-                ip_addr = record["ip"] # Used for debugger
-                port = record["port"] # Used for debugger
+                ip_addr = record["ip"]  # Used for debugger
+                port = record["port"]  # Used for debugger
                 logger.debug(f"[DBHandler] Got host task: {ip_addr}, and port {port} with tag: {delivery_tag}")
 
                 try:
@@ -130,7 +129,7 @@ class DBHandler: # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
                     if record["port_state"] == "closed":
                         exists_qm = self.queryHandler.port_exists(record["ip"], record["port"])
                         exists = dbWorker.execute_query_model(exists_qm)
-                        db_acks.put(delivery_tag) 
+                        db_acks.put(delivery_tag)
                         if not exists:
                             logger.debug(f"[DBHandler] Skipping new-closed port {record['ip']}:{record['port']}")
                             db_acks.put(delivery_tag)
@@ -148,12 +147,12 @@ class DBHandler: # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
                     db_acks.put({"nack": True, "delivery_tag": wrapper["delivery_tag"]})
                 db_ports.task_done()
 
-            # finally: # TODO[Franz]: should be doing this here? 
-                       # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
+            # finally: # TODO[Franz]: should be doing this here?
+                # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
             dbWorker.close_all()
 
-
     def stop(self):
+        """laterdo: Docstr."""
         logger.debug("[DBHandler] stop() called.")
         self.stop_signal = True
         logger.info("[DBHandler] Stop signal sent. Waiting for threads to exit.")
@@ -162,24 +161,28 @@ class DBHandler: # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
         if self.port_thread:
             self.port_thread.join(timeout=2)
 
+
 class RMQAckThread(threading.Thread):
     """Thread that consumes delivery_tags from db_acks and ACKs/NACKs safely.
-    
+
     Done on this process RMQ channel.
     Runs as a daemon thread, thus exits only when the process dies.
     """
+
     # TODO:[] This is the patch that could be and maybe should be better implemented
-    #       .. The issue trying to fix here is that: tasks were being dequeued from the queue, and then ack'ed. But it didnt yet write to database. 
-    #       .. Meaning that if the program stops or errors accured, the tasks get lost becouse they had been acked.. 
-    #       .. It should be that they are ack'ed OR nack'ed AFTER probe and write to database. 
-    #       .. This patch tried to create a seperate thread with the tasks to ack or nack them.. 
+    #       .. The issue trying to fix here is that: tasks were being dequeued from the queue, and then ack'ed. But it didnt yet write to database.
+    #       .. Meaning that if the program stops or errors accured, the tasks get lost becouse they had been acked..
+    #       .. It should be that they are ack'ed OR nack'ed AFTER probe and write to database.
+    #       .. This patch tried to create a seperate thread with the tasks to ack or nack them..
     #       .. Its used in Discovery and Port scanner under '_drain_and_exit' + db_acks thread at the top + db_acks.put(delivery_tag) in some places
 
     def __init__(self, rmq_conn: RabbitMQ):
+        """laterdo: Docstr."""
         super().__init__(daemon=True, name="Volva_RMQAckThread")
-        self.channel  = rmq_conn.channel
+        self.channel = rmq_conn.channel
 
     def run(self):
+        """laterdo: Docstr."""
         # TODO[Maybe, if this horrible patch goes to production]: Add an alert on db_acks.qsize() to notice if ACKs ever fall behind.
         while True:
             task = db_acks.get()

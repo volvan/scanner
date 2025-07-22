@@ -1,5 +1,23 @@
 # Report Generator
 
+## Hierarcy overview 
+
+```t
+├── report_generator/
+│   ├── db_handler.py       # 
+│   ├── email_handler.py    # 
+│   ├── generate_report.py  #
+│   ├── latex_utils.py      #
+│   ├── main.py             #
+│   ├── queries.py          #
+│   ├── README.md
+│   ├── report_config.py    #
+│   └── templates/          #
+│       ├── admin.tex
+│       └── supervisor.tex
+```
+
+
 The report generation process runs in **four main phases**:
 
 ### 1. Prepare Phase – Aggregate Data via SQL

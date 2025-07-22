@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-monitor_rabbitmq.py
+""" monitor_rabbitmq.py.
 
 Polls RabbitMQ’s Management HTTP API and displays:
   - total connections
@@ -26,15 +25,21 @@ from dotenv import load_dotenv
 
 DEFAULT_TIMEOUT = 1.5
 
+
 def clear_screen():
+    """laterdo: Docstr."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
+
 def fetch_count(url, auth):
+    """laterdo: Docstr."""
     resp = requests.get(url, auth=auth, timeout=DEFAULT_TIMEOUT)
     resp.raise_for_status()
     return len(resp.json())
 
+
 def main():
+    """laterdo: Docstr."""
     # Load .env
     load_dotenv()
 
@@ -46,16 +51,16 @@ def main():
     p = argparse.ArgumentParser(
         description="Monitor RabbitMQ connections & channels via HTTP API"
     )
-    p.add_argument("--host",     help="RabbitMQ host (defaults to RMQ_HOST or 127.0.0.1)")
+    p.add_argument("--host", help="RabbitMQ host (defaults to RMQ_HOST or 127.0.0.1)")
     p.add_argument(
         "--port",
         type=int,
         help="RabbitMQ Management HTTP API port (defaults to 15672)"
     )
-    p.add_argument("--user",     help="API username (defaults to RMQ_USER)")
+    p.add_argument("--user", help="API username (defaults to RMQ_USER)")
     p.add_argument("--password", help="API password (defaults to RMQ_PASS)")
-    p.add_argument("--vhost",    default="/",  help="Virtual host to monitor")
-    p.add_argument("--interval", default=DEFAULT_TIMEOUT,    type=int, help="Refresh interval (s)")
+    p.add_argument("--vhost", default="/", help="Virtual host to monitor")
+    p.add_argument("--interval", default=DEFAULT_TIMEOUT, type=int, help="Refresh interval (s)")
     args = p.parse_args()
 
     host = args.host or env_host or "127.0.0.1"
@@ -72,13 +77,13 @@ def main():
 
     base_url = f"http://{host}:{port}/api"
     auth = HTTPBasicAuth(user, password)
-    url_conn    = f"{base_url}/connections"
+    url_conn = f"{base_url}/connections"
     url_channel = f"{base_url}/channels"
 
     try:
         while True:
             try:
-                total_conns    = fetch_count(url_conn, auth)
+                total_conns = fetch_count(url_conn, auth)
                 total_channels = fetch_count(url_channel, auth)
             except Exception as e:
                 clear_screen()
@@ -96,5 +101,7 @@ def main():
     except KeyboardInterrupt:
         print("\nExiting.")
 
+
 if __name__ == "__main__":
+    """laterdo: Docstr."""
     main()

@@ -32,7 +32,7 @@ PRIORITY_PORTS_QUEUE = os.getenv("PRIORITY_PORTS_QUEUE", "priority_ports")
 
 # ─── Discovery scan phase specific ─────────────────────────────────────────
 # FETCH_RIX = os.getenv("FETCH_RIX", "false").lower() == "true"         # If True, fetch IPs from RIX.is
-FETCH_RIX = False         
+FETCH_RIX = False
 QUEUE_NAME = ALL_ADDR_QUEUE                                           # The queue used for IP discovery
 ADDR_FILE = os.getenv("ADDR_FILE", "blocks.txt")                      # File containing IP/CIDR blocks
 SCAN_METHOD = os.getenv("SCAN_METHOD", "default")                     # Discovery method (e.g., tcp_syn_ping)
@@ -46,10 +46,10 @@ WORKERS = int(os.getenv("WORKERS", 250))  # Testing
 SCAN_DELAY = float(os.getenv("SCAN_DELAY", 0.5))                      # Delay (sec) between scan attempts
 THRESHOLD = int(os.getenv("THRESHOLD", 30))                           # Direct vs batch mode threshold
 # BATCH_SIZE = int(os.getenv("BATCH_SIZE", 500))                        # Tasks per batch & DB insert size
-BATCH_SIZE = int(os.getenv("BATCH_SIZE", 16)) # Testing
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", 16))  # Testing
 
 # MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 100))      # Max concurrent batch-forked processes
-MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 5)) # Testing
+MAX_BATCH_PROCESSES = int(os.getenv("MAX_BATCH_PROCESSES", 5))  # Testing
 
 # ─── Port scan phase specific ──────────────────────────────────────────────
 PORTS_FILE = os.getenv("PORTS_FILE", "ports.txt")

@@ -11,6 +11,7 @@ sys.excepthook = log_exception
 
 # TODO[Emilia]: really a separate file?
 
+
 def read_ports_file(ports_file: str):
     """Read and parse a ports file into two separate port lists.
 

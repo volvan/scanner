@@ -1,7 +1,6 @@
 # Standard library
 import os
 import threading
-from multiprocessing import JoinableQueue
 from psycopg2.pool import PoolError
 
 # Utility Handlers
@@ -20,17 +19,15 @@ from models.QueryModel import QueryModel
 from psycopg2.extensions import connection
 
 
-
 class DBWorker:
     """Dedicated thread-based worker that flushes scan results to the database.
 
     Uses shared connection pool.
     """
-    
+
     _pool: ThreadedConnectionPool = None
     _pool_lock = threading.Lock()
     _pool_pid = None
-
 
     @classmethod
     def initialize_pool(cls, minconn: int = 1, maxconn: int = 50) -> None:
@@ -44,8 +41,8 @@ class DBWorker:
             ValueError: If database credentials are not set.
             Exception: If connection pool initialization fails.
         """
-        # TODO[Franz]: move minconn and maxconn to scan_config 
-        
+        # TODO[Franz]: move minconn and maxconn to scan_config
+
         # Validate credentials
         creds = [
             credentials_config.DB_NAME,
@@ -84,7 +81,7 @@ class DBWorker:
         self._returned = False
 
         if DBWorker._pool_pid != os.getpid():
-            if DBWorker._pool: # gently close the inherited sockets
+            if DBWorker._pool:  # gently close the inherited sockets
                 DBWorker._pool.closeall()
             DBWorker.initialize_pool()
 
@@ -103,13 +100,12 @@ class DBWorker:
         """Support context manager entry (with-statement)."""
         return self
 
-
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Deconstructer that takes care of closing the connection before deconstructing"""
+        """Deconstructer that takes care of closing the connection before deconstructing."""
         # If we have already returned or closed this connection, skip.
         if getattr(self, '_returned', False):
             return
-        
+
         # self._returned = True
         # if DBWorker._pool_pid != os.getpid():
         #     if DBWorker._pool: # gently close the inherited sockets
@@ -136,7 +132,6 @@ class DBWorker:
             except Exception as e2:
                 logger.error(f"[DBWorker] Failed to close connection outright: {e2}")
 
-
     @classmethod
     def close_all(cls) -> None:
         """Close all pooled connections (e.g., at application shutdown)."""
@@ -144,7 +139,6 @@ class DBWorker:
             cls._pool.closeall()
             cls._pool = None
             logger.info("[DBWorker] Connection pool closed")
-
 
     def execute(self, query: str, params=None) -> int:
         """
@@ -154,11 +148,11 @@ class DBWorker:
             int: Number of affected rows.
         """
         # TODO[Franz]: should be in worker or manager?
-        
+
         # Franz: Should be in worker, the DBHandler (what you call manager I assume) handles higher level DB Operations such as creating workers not lower-level actions
         #       like executing queries, the workers should perform the action.
-        # E: On another note, I think this is deadcode. 
-    
+        # E: On another note, I think this is deadcode.
+
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -169,11 +163,8 @@ class DBWorker:
             self._conn.rollback()
             raise
 
-
     def query(self, query: str, params=None) -> list[tuple]:
-        """
-        Execute a SELECT statement and return all rows.
-        """
+        """Execute a SELECT statement and return all rows."""
         # TODO[Franz]: should be in worker or manager?
         # Franz: Same answer as above
         # E: sure thang, but this is deadcode i think?
@@ -186,15 +177,13 @@ class DBWorker:
             self._conn.rollback()
             raise
 
-
     def execute_sql(
         self,
         query: str,
         params=None,
         fetch: bool = False
     ) -> (list[tuple] | int):
-        """
-        Generic SQL execution. If fetch=True, returns rows; otherwise returns affected rowcount.
+        """Generic SQL execution. If fetch=True, returns rows; otherwise returns affected rowcount.
 
         Args:
             query: SQL query string.
@@ -227,12 +216,11 @@ class DBWorker:
             logger.exception(f"[DBWorker] execute_sql failed: {e}")
             raise
 
-
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
+        """laterdo: Docstr."""
         # TODO[Franz]: should be in worker or manager?
         # Franz: Same answer as above
-        # E: well, why is this seperate function if it only returns execute_sql() ? 
+        # E: well, why is this seperate function if it only returns execute_sql() ?
 
         logger.debug("[DBWorker] execute_query_model() called")
         return self.execute_sql(model.query, model.params, fetch=model.fetch)
-        
