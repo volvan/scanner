@@ -58,8 +58,7 @@ from config.scan_config import (  # noqa: F401
 )
 
 
-
-class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner 
+class DiscoveryScanner:
     def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
         self.externalManager = externalManager
         self.infraManager = infraManager
@@ -68,16 +67,14 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
-    def launch_discovery_scan_pipeline(self): #  TODO[Remove]: move to DiscoveryScanner
+    def launch_discovery_scan_pipeline(self): 
         """ The 'main' """
         # TODO[Franz]: should be refactored and logic reviewed
 
-        db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)  # TODO[Franz]: deprecated?!
-        """Franz: No it is in use right below?"""
+        db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
-            db_handler.start_hosts() # TODO[Franz]: critical - we already have started this thread right??
-            """Franz: No we have not."""
+            db_handler.start_hosts()
 
             # Check how many tasks in queue
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
@@ -108,7 +105,7 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
 
             # Scan is concluded. Write the summary table
             try:
-                # TODO[Emilia]: should be renamed and / or moved..
+                # TODO[Franz]: this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
                 with DBWorker() as dbWorker:
                     queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
                         country=SCAN_NATION,
@@ -132,7 +129,7 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
             db_hosts.join() # block until every host task_done()
             db_handler.stop()
 
-            # TODO[Franz]: this is a broken patch.. 
+            # TODO[Franz]: this is a broken patch.. more in DBHandler.RMQAckThread
             db_acks.join() # every delivery‑tag ACKed/NACKed
 
             # self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
@@ -204,8 +201,9 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
             host_state = ping_res["host_status"]
             ip_status = {"ip": ip_addr, "status": host_state}
             # Commit results to correct queue
-            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO[Emilia]: this queue is used as placeholder, could be any queue
+            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn: # TODO[Emilia]: this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
                 queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
+                # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue // If its unknown -> fail queue
                 rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} host result for {ip_addr}: {e}")
@@ -240,7 +238,7 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
         rmq = RabbitMQ(queue_name)
 
         # start the ACK dispatcher exactly once in THIS process
-        # TODO[Emilia]: only a patch, DO NOT USE IN PRODUCTION
+        # only a patch, DO NOT USE IN PRODUCTION - The ACK issue mentioned in DBHandler
         if not hasattr(self, "_ack_thread_started"):
             RMQAckThread(rmq).start()
             logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
@@ -315,7 +313,9 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
             logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
             WorkerHandlerLogic(
                 queue_name=ALL_ADDR_QUEUE,
-                process_callback=self.process_task # TODO[Franz]: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
+                process_callback=self.process_task 
+                # TODO[Emilia]: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
+                # E: I think I already changed it, need to verify so I'll do it
             ).start()
 
             return
@@ -323,7 +323,6 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
         logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
 
         while True:
-            # TODO[Franz]: WorkerHandlerLogic should be used, not creating the same logic in code.. reuse the code pls.. 
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 remaining = rmq_conn.tasks_in_queue()
 
@@ -392,7 +391,7 @@ class DiscoveryScanner: # TODO[Emilia]: rename DiscoveryScanner
             ValueError: If neither address or filename is provided.
         """
         try:
-            # TODO[Franz]: move this to the check thats in beguinning
+            # TODO[Franz]: move this to the check thats in beginning ( serviceManager)
             # if not ALL_ADDR_QUEUE:
             #     raise ValueError("Queue name must be provided")
             

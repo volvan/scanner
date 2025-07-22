@@ -14,7 +14,7 @@ from config.logging_config import logger
 class ServiceManager:
     def __init__(self):
         # Managers
-        self.externalManager = ExternalManager() # TODO[Franz](nope, I will remove it): needed?
+        self.externalManager = ExternalManager() # TODO[Franz] needed? - (nope, I will remove it)
         self.infraManager = InfrastructureManager()
 
         # Service Instances
@@ -23,15 +23,15 @@ class ServiceManager:
 
     #----- DiscoveryScanner Methods -----#
     def start_ip_scan(self):
-        # TODO[Franz]: here should call a checker, that checks all config vars, to make sure they are correct and there.
-        # TODO[Franz](good idea): Then remove the endless redundant checks in code
+        # TODO[Franz](good idea): here should call a checker, that checks all config vars, to make sure they are correct and there.
+        #       .. Then remove the endless redundant checks in code
         logger.info('Just started ServiceManager.launch_discovery_scan_pipeline()')
         self.discoveryScanner.launch_discovery_scan_pipeline()
 
     #----- PortScanner Methods -----#
     def start_port_scan(self):
-        # TODO[Franz]: here should call a checker, that checks all config vars, to make sure they are correct and there.
-        # TODO[Franz](good idea): Then remove the endless redundant checks in code
+        # TODO[Franz](good idea): here should call a checker, that checks all config vars, to make sure they are correct and there.
+        #       .. Then remove the endless redundant checks in code
         logger.info('Just started ServiceManager.launch_port_scan_pipeline()')
         self.portScanner.launch_port_scan_pipeline()
 

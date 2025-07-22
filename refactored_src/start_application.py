@@ -10,14 +10,20 @@ import sys
 from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
 from config.scan_config import DEBUG_MODE
 
-# TODO[Remove]?: 
-# option 1  - Run "Host Discovery Scan"
-# oprtion 2 - run "Port Scan"
-# option 3  - run scan (ip and then port scan)
+# TODO:[Franz] 
+#   option 1  - Run "Host Discovery Scan"
+#   oprtion 2 - run "Port Scan"
+#   option 3  - run scan (ip and then port scan)
+
+# Franz: Remove?
+# E: No.. When running the program it will do so automatically (by script) so one should not need to run it themselfs. 
+#      .. Becouse of that, it needs to have some global constant, like "SCAN = ip, port, ip_port"
+#      .. -> meaning either run only host discovery, only port or ip and then right after the port scan.
+
+
+
 
 # Should only run this file to start Völva
-
-
 
 configure_logging(CONFIG_PATH)
 

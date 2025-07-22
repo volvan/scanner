@@ -44,8 +44,8 @@ class DBWorker:
             ValueError: If database credentials are not set.
             Exception: If connection pool initialization fails.
         """
-        # TODO[Franz](answer in first todo): move minconn and maxconn to scan_config 
-        """On it"""
+        # TODO[Franz]: move minconn and maxconn to scan_config 
+        
         # Validate credentials
         creds = [
             credentials_config.DB_NAME,
@@ -70,7 +70,7 @@ class DBWorker:
                     password=credentials_config.DB_PASS,
                     host=credentials_config.DB_HOST,
                     port=credentials_config.DB_PORT,
-                    application_name="scanner_dbworker",
+                    application_name="Volva_dbworker",
                 )
                 cls._pool_pid = os.getpid()
                 # logger.critical(f"[DBWorker] Connection pool created for worker_pid {worker_pid}.")
@@ -153,11 +153,12 @@ class DBWorker:
         Returns:
             int: Number of affected rows.
         """
-        # TODO[Franz][here]: should be in worker or manager?
-        """ 
-            Franz: Should be in worker, the DBHandler (what you call manager I assume) handles higher level DB Operations such as creating workers not lower-level actions
-            like executing queries, the workers should perform the action.
-        """
+        # TODO[Franz]: should be in worker or manager?
+        
+        # Franz: Should be in worker, the DBHandler (what you call manager I assume) handles higher level DB Operations such as creating workers not lower-level actions
+        #       like executing queries, the workers should perform the action.
+        # E: On another note, I think this is deadcode. 
+    
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -173,7 +174,10 @@ class DBWorker:
         """
         Execute a SELECT statement and return all rows.
         """
-        # TODO[Franz](answer at `TODO[Franz][here]`): should be in worker or manager?
+        # TODO[Franz]: should be in worker or manager?
+        # Franz: Same answer as above
+        # E: sure thang, but this is deadcode i think?
+
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -200,7 +204,6 @@ class DBWorker:
         Returns:
             List[Tuple] or int
         """
-        # TODO[Franz](answer at `TODO[Franz][here]`): should be in worker or manager?
         try:
             with self._conn.cursor() as cur:
                 cur.execute(query, params)
@@ -226,7 +229,10 @@ class DBWorker:
 
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
-        # TODO[Franz](answer at `TODO[Franz][here]`): should be in worker or manager?
+        # TODO[Franz]: should be in worker or manager?
+        # Franz: Same answer as above
+        # E: well, why is this seperate function if it only returns execute_sql() ? 
+
         logger.debug("[DBWorker] execute_query_model() called")
         return self.execute_sql(model.query, model.params, fetch=model.fetch)
         

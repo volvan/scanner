@@ -66,11 +66,10 @@ class PortScanner:
         Kick off a port scan, record timestamps, and use QueryModel for querying the DB.
         """
 
-        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler) # TODO[[Franz][skoða](yes we do, we use it right below.): do we need this here also? 
+        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler) 
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
-            dbHandler.start_ports() # TODO[Franz][skoða]: has it not been called already?
-            """Franz: No it has not."""
+            dbHandler.start_ports()
 
             # 1) choose which RMQ queue to seed
             queue_name = PRIORITY_PORTS_QUEUE if USE_PRIORITY_PORTS else ALL_PORTS_QUEUE
@@ -151,7 +150,7 @@ class PortScanner:
              db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
 
 
-    def process_task(self, ip: str, port: int, delivery_tag:int):
+    def process_task(self, ip: str, port: int, delivery_tag:int, queue_name:str):
         """Probe an IP:port pair and enqueue the scan result as needed.
 
         Args:
@@ -164,7 +163,7 @@ class PortScanner:
             - If the port is closed but already known in the database, it is also inserted.
             - Unknown scan states are routed to the 'fail_queue'.
         """
-        with RabbitMQ(ALL_PORTS_QUEUE) as rmq_ports_conn:
+        with RabbitMQ(queue_name) as rmq_ports_conn:
             try:
                 # 1) Run the Nmap scan
                 probe_res = ProbeHandler(ip, str(port)).scan()
@@ -189,7 +188,10 @@ class PortScanner:
                     logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {probe_res}\n\n")
                     message = {"ip": ip, "port": port, "reason": "unknown_state"}
                     rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
-                    # return # TODO[Remove]: why?
+                    # return 
+                    # # TODO[]: why return? 
+                    # Franz: Remove?
+                    # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
 
                 # Commit results to database
                 try:
@@ -198,17 +200,10 @@ class PortScanner:
                     logger.debug(f"[PortScanner|pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr} with tag: {delivery_tag}")
                 except Exception as e:
                     logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
-                    
-                # db_ports.put(record)
 
             except Exception as e:
                 logger.exception(f"[PortScanner] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe_res}\n\n")
-
-                message = {
-                        "error": str(e),
-                        "ip": ip,
-                        "port": port
-                    }
+                message = {"error": str(e), "ip": ip, "port": port}
                 rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
 
     def _drain_and_exit(self, batch_queue: str) -> None:
@@ -235,18 +230,15 @@ class PortScanner:
                 )
                 if not method_frame:
                     break
-
                 try:
                     task = json.loads(body)
-                    self.process_task(task["ip"], task["port"],delivery_tag=method_frame.delivery_tag)
-                    # self.process_task(task["ip"], task["port"], batch_queue)
-                    # rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO[Remove]: remove
+                    self.process_task(ip=task["ip"], port=task["port"], delivery_tag=method_frame.delivery_tag, queue_name=batch_queue)
                 except Exception:
                     logger.debug(task)
                     logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
-                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
+                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
 
-                time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))
+                time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX)) # TODO[]: Why? isint this cousing unnessisary latency or not?
 
             rmq_batch_conn.remove_queue()
 

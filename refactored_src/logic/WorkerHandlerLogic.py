@@ -11,11 +11,14 @@ from infrastructure.RabbitMQ import RabbitMQ
 #----- Logger import -----#
 from config.logging_config import logger
 
-
-
+# TODO[Franz]: Cant we have more use of workerhandlerlogic? or something? this is messy and hard to follow the proceses..
+# - If direct IP scanning mode: [WorkerHandlerLogic] - there the logic for workers is
+# - If batch IP scanning mode: [DiscoveryScanner.start_consuming (while True loop)] - there the logic is..
+# - If direct Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
+# - If batch Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
+# - Then there is also something funny happening in _drain_and_exit in both scanners..
 class WorkerHandlerLogic:
     """Spawns and manages multiple worker processes for IP scanning queues."""
-    # TODO[Emilia]: is this only used in DiscoveryScanner? if so, what workers are used in port scan???
 
     def __init__(self, queue_name: str, process_callback: object):
         """Initialize a WorkerHandler instance.
@@ -55,7 +58,6 @@ class WorkerHandlerLogic:
 
     def start(self):
         """Spawn multiple worker processes to handle scanning tasks."""
-        # TODO[Emilia]: this is only called when small IPscanning mode, not batch, should it be like that?
         workers: List[Process] = []
 
         for i in range(self.workers_count):

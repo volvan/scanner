@@ -2,8 +2,8 @@
 from .DBHandler import DBHandler
 from .QueryHandler import QueryHandler
 
-# TODO[Franz]: !!!? : no one is closing Database_Handler 
-"""The __exit__() method for proper deconstruction is missing, I will add it """
+# TODO[Franz]: !!!? no one is closing Database_Handler 
+# Franz: The __exit__() method for proper deconstruction is missing, I will add it
 
 class InfrastructureManager:
     def __init__(self):

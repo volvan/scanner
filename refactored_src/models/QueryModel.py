@@ -1,9 +1,4 @@
-from typing import Tuple, Union, List
-
-# TODO[Emilia]: review all docstring
-
-# TODO[Remove]: add context manager
-"""Franz: But why would we add a context manager to a model?"""
+from typing import Tuple
 
 class QueryModel:
     """

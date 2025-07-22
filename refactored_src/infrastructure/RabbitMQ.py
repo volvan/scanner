@@ -12,13 +12,12 @@ from config.scan_config import FAIL_QUEUE
 
 sys.excepthook = log_exception
 
-# TODO[Emilia] 
-# TODO: rename RMQ_Handler
-# TODO: add contaxt manager 
-# TODO: why so may connections?? 
-# TODO: 3 connections, then "[PortScanner] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function.. 
-# TODO: way too many connections, workers should be fine with passing its one connection through funcitons -- honestly it would be better if it was clear (the worker pipeline..)
-            # So maybe have a worker_pipeline funciton - like consumer, producer vibes
+# TODO:[Emilia][P_low] rename RMQ_Handler
+# TODO:[Emilia] add contaxt manager 
+# NOTE: 3 connections, then "[PortScanner] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function.. 
+# TODO:[] way too many connections, workers should be fine with passing its one connection through funcitons 
+#       -- honestly it would be better if it was clear (the worker pipeline..)
+        # So maybe (TODO)have a worker_pipeline funciton - like consumer, producer vibes
 
 class RabbitMQ: 
     """Low-level wrapper for RabbitMQ operations, including connection, queue management, and pub/sub."""
@@ -62,7 +61,8 @@ class RabbitMQ:
             )
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
-            self.declare_queue() # TODO[Emilia]: should really always try to declare queue?? 
+            # TODO[Emilia]: should really always try to declare queue?? 
+            self.declare_queue()
             logger.debug("RMQ - Calling _connect")
         except Exception as e:
             logger.error(f"[RabbitMQ] Connection error: {e}")
@@ -116,9 +116,6 @@ class RabbitMQ:
 
         Args:
             callback (object): Function to process each message.
-
-        Raises:
-            ValueError: If no callback is provided.
         """
         if callback is None:
             raise ValueError("A callback function must be provided.")
@@ -133,13 +130,15 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Unexpected error while consuming: {e}")
         # finally:
-        #     self.close() # TODO[Remove]?: self.exit()
+        #     self.close() vs self.exit() 
+        # TODO:[Emilia] This was self.close() BUT is that needed? 
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
         logger.debug("[RabbitMQ] Reconnecting to RabbitMQ...")
         try:
-            self.close() # TODO[Emilia]: self.exit() ---- wait, can this work? 
+            # TODO[Emilia]: ---- wait, can this work? 
+            self.close() # or self.exit() 
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during reconnect close: {e}")
         self._connect()
@@ -151,19 +150,8 @@ class RabbitMQ:
         Args:
             queue_name (str): Name of the queue to consume from.
             callback (object): Callback function to process each message.
-        """
-        # try:
-        #     manager = RabbitMQ(queue_name)
-        #     logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
-        #     manager.start_consuming(callback)
-        # except Exception as e:
-        #     logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
-        # finally:
-        #     try:
-        #         manager.close()
-        #     except Exception:
-        #         pass
-        #TODO[Remove]?: Add contaxt manager
+        """ 
+        #TODO[]: Does this need to open rmq connection? Verify..
         try:
             with RabbitMQ(queue_name) as rmq_conn:
                 logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
@@ -215,10 +203,10 @@ class RabbitMQ:
 
         If the queue is not empty, move tasks to 'fail_queue' before deletion.
         """
+
         # TODO[Emilia]: what is happening here though? in all this function....
         try:
             if self.tasks_in_queue() == 0:
-            # if self.queue_empty(self.queue_name):
                 logger.debug(f"[RabbitMQ] {self.queue_name} is empty. Deleting.")
                 self.channel.queue_delete(queue=self.queue_name)
                 return
@@ -226,7 +214,7 @@ class RabbitMQ:
             logger.warning(f"[RabbitMQ] {self.queue_name} is not empty. Draining to 'fail_queue'.")
             leftovers = []
             while True:
-                method_frame, _, body = self.channel.basic_get(queue=self.queue_name, auto_ack=True) # IS this not dangerous? what if anything happens while here? lost tasks or?
+                method_frame, _, body = self.channel.basic_get(queue=self.queue_name, auto_ack=True) # TODO:[] IS this not dangerous? auto acking all? what if anything happens while here? lost tasks or?
                 if not method_frame:
                     break
                 try:
@@ -237,12 +225,9 @@ class RabbitMQ:
 
             self.channel.queue_delete(queue=self.queue_name)
 
-        # TODO[Emilia]: Contaxt manager
-        #     self.exit()
+            # self.exit()
+            # self.close() # TODO[Emilia]: why close?
 
-            # self.close() # TODO[Emilia]: why? 
-
-            # with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
             # TODO[Emilia]: check on this.. sometimes does not delete all queues, atleast batch 1 sometimes still exists after the run is done.
             logger.info(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
             for task in leftovers:
@@ -252,7 +237,7 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{self.queue_name}': {e}")
     
-    # TODO[Emilia]: enqueue_to_queue rename to something descriptive
+    # TODO[Emilia][P_low]: enqueue_to_queue rename to something descriptive
     def enqueue_to_queue(self, message: dict, queue_name: str = None):
         """Publish a JSON message to the queue.
 
@@ -303,7 +288,7 @@ class RabbitMQ:
             if hasattr(self, "connection") and not self.connection.is_closed:
             # if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
                 self.connection.close()
-        except Exception as e: # TODO[Emilia]: error msg: "Error closing connection: hasattr expected 2 arguments, got 3"
+        except Exception as e: 
             logger.error(f"[RabbitMQ] Error closing connection: {e}")
 
     # TODO[Emilia]: Context manager

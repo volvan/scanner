@@ -98,6 +98,13 @@ class QueryHandler: # Database_manager old
 
 
     #TODO[Franz]: Verify that this is not dead code
+    # E: Note, it either is or should be used in launch_x_scan 
+    #   - Becouse after the scan is done, it should check the latest summary ID WHERE country is NATION..
+    #   .. and if it does not have port_scan_done_ts -> It should update that summary row with the port scan data 
+    #   .. If it however does have port_scan_done_ts -> It means something is wrong but should just create a new summary row.. 
+    #   - Note that for the host discovery scan, it should always just create a new row. 
+    # So, TODO:[] Is this correctly implemented in code? 
+
     def fetch_latest_summary_id(self, country: str) -> QueryModel:
         """
         Builds a SELECT QueryModel.
@@ -202,7 +209,8 @@ class QueryHandler: # Database_manager old
         logger.debug(f"[DatabaseManager] insert_port_result task payload: {task!r}")
 
         # Ensure required fields are present
-        required = [ # TODO[Emilia]: rename to req_columns
+        # TODO[Emilia]: rename to req_columns
+        required = [ 
             'ip', 'port', 'port_state', 'port_service', 'port_protocol',
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
         ]
