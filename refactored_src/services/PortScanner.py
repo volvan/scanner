@@ -140,8 +140,8 @@ class PortScanner:
             sys.exit(1)
         finally:
             # TODO[Emilia]: look at this mess, compare with ip scanner
-            db_ports.join()  # block until every port task_done()
             dbHandler.stop()  # TODO[Franz]: look at this better
+            db_ports.join()  # block until every port task_done()
             self.infraManager.dbHandler.stop()  # TODO[Franz]: validate this has to be
             # db_acks.join()  # every delivery‑tag ACKed/NACKed
             logger.debug("[DBHandler] queues: hosts=%d ports=%d", db_hosts.qsize(), db_ports.qsize())
@@ -185,19 +185,13 @@ class PortScanner:
                     logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {probe_res}\n\n")
                     message = {"ip": ip, "port": port, "reason": "unknown_state"}
                     rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
-                    # return
+                    return
                     # # TODO[]: why return?
                     # Franz: Remove?
                     # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
-
-                # Commit results to database
-                # try:
-                    # ip_addr = record["ip"]  # For debugger
-                    # db_ports.put({"record": record, "delivery_tag": delivery_tag, })
+                
+                # 3) Enqueue all results (open, filtered, and closed)
                 db_ports.put({"record": record})
-                    # logger.debug(f"[PortScanner|pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr} with tag: {delivery_tag}")
-                # except Exception as e:
-                    # logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
 
             except Exception as e:
                 logger.exception(f"[PortScanner] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe_res}\n\n")
@@ -215,14 +209,9 @@ class PortScanner:
         """
 
         with RabbitMQ(batch_queue) as rmq_batch_conn:
-            # start the ACK dispatcher exactly once in THIS process
-            # if not hasattr(self, "_ack_thread_started"):
-                # RMQAckThread(rmq_batch_conn).start()
-                # logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
-                # self._ack_thread_started = True
 
             while True:
-                method_frame, props, body = rmq_batch_conn.channel.basic_get(
+                method_frame, _, body = rmq_batch_conn.channel.basic_get(
                     queue=batch_queue,
                     auto_ack=False
                 )
@@ -230,11 +219,9 @@ class PortScanner:
                     break
                 try:
                     task = json.loads(body)
-                    rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag, requeue=False)
                     self.process_task(ip=task["ip"], port=task["port"], queue_name=batch_queue)
-                    # self.process_task(ip=task["ip"], port=task["port"], delivery_tag=method_frame.delivery_tag, queue_name=batch_queue)
+                    rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
                 except Exception:
-                    logger.debug(task)
                     logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
                     rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
                     # rmq_batch_conn.channel.basic_nack(requeue=False)  # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
@@ -277,10 +264,10 @@ class PortScanner:
             if not batch_queue:
                 with RabbitMQ(main_queue_name) as rmq_conn:
                     remaining = rmq_conn.tasks_in_queue()
-
-                if remaining == 0 and not self.active_processes:
-                    logger.debug("[PortScanner] All port batches completed.")
-                    break
+                    # if remaining == 0:
+                    if remaining == 0 and not self.active_processes:
+                        logger.debug("[PortScanner] All port batches completed.")
+                        break
 
                 logger.debug("[PortScanner] Waiting for a free slot to spawn next batch...")
                 time.sleep(2)

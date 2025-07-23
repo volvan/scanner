@@ -80,14 +80,14 @@ class DBWorker:
         """Acquire a database connection from the pool."""
         self._returned = False
 
-        if DBWorker._pool_pid != os.getpid():
-            if DBWorker._pool:  # gently close the inherited sockets
-                DBWorker._pool.closeall()
-            DBWorker.initialize_pool()
+#        if DBWorker._pool_pid != os.getpid():
+#            if DBWorker._pool:  # gently close the inherited sockets
+#                DBWorker._pool.closeall()
+#            DBWorker.initialize_pool()
 
-        elif DBWorker._pool is None:
+        if DBWorker._pool is None or DBWorker._pool_pid != os.getpid():
+            DBWorker._pool = None
             DBWorker.initialize_pool()
-
         try:
             self._conn: connection = DBWorker._pool.getconn()
             logger.debug("[DBWorker] Acquired DB connection from pool.")
@@ -106,12 +106,12 @@ class DBWorker:
         if getattr(self, '_returned', False):
             return
 
-        # self._returned = True
+        # Mark that it has been returned
+        self._returned = True
         # if DBWorker._pool_pid != os.getpid():
         #     if DBWorker._pool: # gently close the inherited sockets
         #         DBWorker._pool.closeall()
 
-        # Mark that it has been returned
         if DBWorker._pool is None:
             logger.warning("[DBWorker] close() called but pool not initialized.")
             raise AssertionError('Issues in [DBWorker].close() for "if DBWorker._pool is None:"')
@@ -148,7 +148,6 @@ class DBWorker:
             int: Number of affected rows.
         """
         # TODO[Franz]: should be in worker or manager?
-
         # Franz: Should be in worker, the DBHandler (what you call manager I assume) handles higher level DB Operations such as creating workers not lower-level actions
         #       like executing queries, the workers should perform the action.
         # E: On another note, I think this is deadcode.

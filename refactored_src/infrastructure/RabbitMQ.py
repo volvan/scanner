@@ -228,9 +228,13 @@ class RabbitMQ:
             # self.close() # TODO[Emilia]: why close?
 
             # TODO[Emilia]: check on this.. sometimes does not delete all queues, atleast batch 1 sometimes still exists after the run is done.
-            logger.info('\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
-            for task in leftovers:
-                self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=task)
+            # logger.info('\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
+            # for task in leftovers:
+            #     self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=task)
+            with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
+                logger.info(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
+                for task in leftovers:
+                    rmq_fail_conn.enqueue_to_queue(message=task)
 
             logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{self.queue_name}'.")
         except Exception as e:
