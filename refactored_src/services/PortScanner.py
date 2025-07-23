@@ -144,7 +144,7 @@ class PortScanner:
             db_ports.join()  # block until every port task_done()
             self.infraManager.dbHandler.stop()  # TODO[Franz]: validate this has to be
             # db_acks.join()  # every delivery‑tag ACKed/NACKed
-            logger.debug("[DBHandler] queues: hosts=%d ports=%d", db_hosts.qsize(), db_ports.qsize())
+            logger.debug(f"[PortScanner] Current running processes for db_ports: {db_ports.qsize()} ")
 
     # def process_task(self, ip: str, port: int, delivery_tag: int, queue_name: str):
     def process_task(self, ip: str, port: int, queue_name: str):
@@ -191,7 +191,7 @@ class PortScanner:
                     # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
                 
                 # 3) Enqueue all results (open, filtered, and closed)
-                db_ports.put({"record": record})
+                db_ports.put(record)
 
             except Exception as e:
                 logger.exception(f"[PortScanner] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe_res}\n\n")
@@ -264,8 +264,8 @@ class PortScanner:
             if not batch_queue:
                 with RabbitMQ(main_queue_name) as rmq_conn:
                     remaining = rmq_conn.tasks_in_queue()
-                    # if remaining == 0:
-                    if remaining == 0 and not self.active_processes:
+                    if remaining == 0:
+                    # if remaining == 0 and not self.active_processes:
                         logger.debug("[PortScanner] All port batches completed.")
                         break
 

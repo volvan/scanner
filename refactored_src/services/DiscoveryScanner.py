@@ -129,7 +129,7 @@ class DiscoveryScanner:
             db_hosts.join()  # block until every host task_done()
             db_handler.stop()
             # self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
-            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ")
+            logger.debug(f"[DiscoveryScanner] Current running processes for db_hosts: {db_hosts.qsize()} ")
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
         """Process a RabbitMQ task.
