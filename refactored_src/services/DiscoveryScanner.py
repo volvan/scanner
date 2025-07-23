@@ -31,7 +31,7 @@ from models.QueryModel import QueryModel
 # ----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import RMQAckThread, DBHandler, db_hosts, db_acks, db_ports
+from infrastructure.DBHandler import DBHandler, db_hosts, db_ports
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
 
 # Type annotations
@@ -127,17 +127,17 @@ class DiscoveryScanner:
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
         finally:
             # self.logicManager.dbWorkerLogic.stop()
-            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
+            # logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
 
             db_hosts.join()  # block until every host task_done()
             db_handler.stop()
 
             # TODO[Franz]: this is a broken patch.. more in DBHandler.RMQAckThread
-            db_acks.join()  # every delivery‑tag ACKed/NACKed
+            # db_acks.join()  # every delivery‑tag ACKed/NACKed
 
             # self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
 
-            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
+            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} ")
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
         """Process a RabbitMQ task.
@@ -240,10 +240,10 @@ class DiscoveryScanner:
 
         # start the ACK dispatcher exactly once in THIS process
         # only a patch, DO NOT USE IN PRODUCTION - The ACK issue mentioned in DBHandler
-        if not hasattr(self, "_ack_thread_started"):
-            RMQAckThread(rmq).start()
-            logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
-            self._ack_thread_started = True
+        # if not hasattr(self, "_ack_thread_started"):
+        #     RMQAckThread(rmq).start()
+        #     logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
+        #     self._ack_thread_started = True
 
         while True:
             method_frame, props, body = rmq.channel.basic_get(
