@@ -9,7 +9,7 @@ from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
 # ----- Service imports -----#
-from infrastructure.DBHandler import DBHandler, db_ports, db_acks, db_hosts, RMQAckThread
+from infrastructure.DBHandler import DBHandler, db_ports, db_hosts
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
@@ -140,17 +140,14 @@ class PortScanner:
             sys.exit(1)
         finally:
             # TODO[Emilia]: look at this mess, compare with ip scanner
-            logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
-                         db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
             db_ports.join()  # block until every port task_done()
             dbHandler.stop()  # TODO[Franz]: look at this better
-            logger.warning("[PortScanner] Trying to stop database handler.")
             self.infraManager.dbHandler.stop()  # TODO[Franz]: validate this has to be
-            db_acks.join()  # every delivery‑tag ACKed/NACKed
-            logger.debug("[DBHandler] queues: hosts=%d ports=%d acks=%d",
-                         db_hosts.qsize(), db_ports.qsize(), db_acks.qsize())
+            # db_acks.join()  # every delivery‑tag ACKed/NACKed
+            logger.debug("[DBHandler] queues: hosts=%d ports=%d", db_hosts.qsize(), db_ports.qsize())
 
-    def process_task(self, ip: str, port: int, delivery_tag: int, queue_name: str):
+    # def process_task(self, ip: str, port: int, delivery_tag: int, queue_name: str):
+    def process_task(self, ip: str, port: int, queue_name: str):
         """Probe an IP:port pair and enqueue the scan result as needed.
 
         Args:
@@ -194,12 +191,13 @@ class PortScanner:
                     # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
 
                 # Commit results to database
-                try:
-                    ip_addr = record["ip"]  # For debugger
-                    db_ports.put({"record": record, "delivery_tag": delivery_tag, })
-                    logger.debug(f"[PortScanner|pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr} with tag: {delivery_tag}")
-                except Exception as e:
-                    logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
+                # try:
+                    # ip_addr = record["ip"]  # For debugger
+                    # db_ports.put({"record": record, "delivery_tag": delivery_tag, })
+                db_ports.put({"record": record})
+                    # logger.debug(f"[PortScanner|pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr} with tag: {delivery_tag}")
+                # except Exception as e:
+                    # logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
 
             except Exception as e:
                 logger.exception(f"[PortScanner] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe_res}\n\n")
@@ -218,10 +216,10 @@ class PortScanner:
 
         with RabbitMQ(batch_queue) as rmq_batch_conn:
             # start the ACK dispatcher exactly once in THIS process
-            if not hasattr(self, "_ack_thread_started"):
-                RMQAckThread(rmq_batch_conn).start()
-                logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
-                self._ack_thread_started = True
+            # if not hasattr(self, "_ack_thread_started"):
+                # RMQAckThread(rmq_batch_conn).start()
+                # logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
+                # self._ack_thread_started = True
 
             while True:
                 method_frame, props, body = rmq_batch_conn.channel.basic_get(
@@ -232,11 +230,14 @@ class PortScanner:
                     break
                 try:
                     task = json.loads(body)
-                    self.process_task(ip=task["ip"], port=task["port"], delivery_tag=method_frame.delivery_tag, queue_name=batch_queue)
+                    rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag, requeue=False)
+                    self.process_task(ip=task["ip"], port=task["port"], queue_name=batch_queue)
+                    # self.process_task(ip=task["ip"], port=task["port"], delivery_tag=method_frame.delivery_tag, queue_name=batch_queue)
                 except Exception:
                     logger.debug(task)
                     logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
-                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
+                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
+                    # rmq_batch_conn.channel.basic_nack(requeue=False)  # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
 
                 time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO[]: Why? isint this cousing unnessisary latency or not?
 
