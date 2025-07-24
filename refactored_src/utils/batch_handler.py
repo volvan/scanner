@@ -52,7 +52,7 @@ class IPBatchHandler:
         tasks: list[dict] = []
         deliveries: list = []
 
-        for _ in range(scan_config.BATCH_SIZE):
+        for _ in range(scan_config.BATCH_SIZE): # Create a batch with BATCH_SIZE amount of tasks
             response: tuple[Basic.GetOk | None, BasicProperties, bytes] = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
 
             method_frame: Basic.GetOk | None
@@ -129,7 +129,7 @@ class PortBatchHandler:
         # Franz: old function used in _tests/)
         # E: If its only used in _test/ Its a dead code and may be removed.
 
-        return len(self.used_ports) < scan_config.BATCH_AMOUNT
+        return len(self.used_ports) < scan_config.BATCH_AMOUNT # TODO: If its correct that this is deadcode then the 'BATCH_AMOUNT' is also to be removed (or used in the correct place)
 
     def load_all_ips_once(self, ip_queue: str) -> list[str]:
         """Load and cache all alive IPs from a RabbitMQ queue.
@@ -219,7 +219,7 @@ class PortBatchHandler:
             logger.warning("[PortBatchHandler] No alive IPs to batch against.")
             return None
 
-        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port"
+        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO[emilia]: Look at this
         batch_name = f"{prefix}_{port}"
 
         with RabbitMQ(batch_name) as rmq_conn:

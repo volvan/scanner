@@ -9,7 +9,7 @@ from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
 # ----- Service imports -----#
-from infrastructure.DBHandler import DBHandler, db_ports, db_hosts
+from infrastructure.DBHandler import DBHandler, db_ports
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 

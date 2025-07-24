@@ -7,6 +7,7 @@ from psycopg2.pool import PoolError
 
 # Configuration
 from config import credentials_config
+from config.scan_config import DB_MAX_CONN, DB_MIN_CONN
 from config.logging_config import logger
 
 # Services
@@ -30,18 +31,13 @@ class DBWorker:
     _pool_pid = None
 
     @classmethod
-    def initialize_pool(cls, minconn: int = 1, maxconn: int = 50) -> None:
+    def initialize_pool(cls) -> None:
         """Initialize the shared PostgreSQL connection pool.
-
-        Args:
-            minconn (int): Minimum number of connections in the pool.
-            maxconn (int): Maximum number of connections in the pool.
 
         Raises:
             ValueError: If database credentials are not set.
             Exception: If connection pool initialization fails.
         """
-        # TODO[Franz]: move minconn and maxconn to scan_config
 
         # Validate credentials
         creds = [
@@ -60,8 +56,8 @@ class DBWorker:
             # logger.critical(f'worker_pid {worker_pid} successfully started creating an connection')
             try:
                 cls._pool = ThreadedConnectionPool(
-                    minconn,
-                    maxconn,
+                    minconn=DB_MIN_CONN, # Min connections to PSQL
+                    maxconn=DB_MAX_CONN, # Max connections to PSQL
                     dbname=credentials_config.DB_NAME,
                     user=credentials_config.DB_USER,
                     password=credentials_config.DB_PASS,
