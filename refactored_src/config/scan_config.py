@@ -26,7 +26,6 @@ CPU_LIMIT = 70                                                        # CPU (per
 # ------------------------------------------------------------------------------
 
 
-
 # ----- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN ------------------
 SCAN_NATION = "IS"                                                    # The Nation-code that is being scanned
 FETCH_RIX = False                                                     # (DEF: True)  - If True, fetch IPs from RIX.is
@@ -62,7 +61,6 @@ BATCH_AMOUNT = 100                                                    # Concurre
 BATCH_TIMEOUT_SEC = 300                                               # Max time allowed per batch queue        # TODO: IF this is what i think it is, its the max time a process can live when its working on a batch.. if so it should be implemented in port scan also right? or that all processes (in batch or not) should have a timeout? the name of this const is atleast not descriptive
 PROBE_TIMEOUT = int(os.getenv("PROBE_TIMEOUT", "60"))                 # Allow override of the subprocess timeout via environment variable       # TODO: What is this? dont tell me its processes that are host scanning and they have 60 seconds to live? or? and why in the world is it casting a str to int? is there a reason for it?
 # ------------------------------------------------------------------------------
-
 
 
 

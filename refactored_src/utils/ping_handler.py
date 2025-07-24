@@ -14,7 +14,7 @@ from config.logging_config import log_exception, logger
 sys.excepthook = log_exception
 
 # TODO[Emilia][P_low]: rename probes_discovery_scan
-
+# TODO: If we are really dismissing filtered and unknown, why spend time looking for it and returning it? 
 
 class PingHandler:
     """Performs ICMP and TCP-based discovery pings to determine host liveness."""

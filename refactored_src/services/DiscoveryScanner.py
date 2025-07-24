@@ -475,15 +475,18 @@ class DiscoveryScanner:
                 logger.warning(f"[DiscoveryScanner] {method} to {ip_addr} crashed: {e}")
                 res = None
 
-            if res and res[0] == "alive":
-                # For testing
-                if method != 'icmp_ping':
-                    logger.debug(f'\nmethod: {method} for {ip_addr} was successful!!!')
+
+            if not res or len(res) !=2 or type(res[1]) != float: 
+                logger.error(f"[DiscoveryScanner] Port probe returned invalid data for ip: {ip_addr}, in method: {method}.")
+                continue
+
+            if res[0] == "alive":
+
                 return {
                     "probe_method": method,
                     "probe_protocol": proto,
                     "host_status": "alive",
-                    "probe_duration": float(res[1]) if res and res[1] is not None else None,
+                    "probe_duration": float(res[1]) if res and res[1] is not None else None, # TODO: well.. look at this better..
                 }
 
             time.sleep(SCAN_DELAY)

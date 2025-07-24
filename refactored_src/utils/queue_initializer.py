@@ -24,6 +24,7 @@ class QueueInitializer:
             queue_name (str): Name of the RabbitMQ IP queue.
             val (Iterable[str]): Iterable of IP address strings.
         """
+        # TODO: the same logic is being done in line 225 in batch_handler (marked with '# HERE') - could be optimised and used there also
         with RabbitMQ(queue_name) as rmq_conn:  # TODO[Emilia]: should not open and close a connection per batch hello hellooo haha..
             count = 0  # for debugger
             for val in val:

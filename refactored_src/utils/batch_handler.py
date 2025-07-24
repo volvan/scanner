@@ -138,7 +138,7 @@ class PortBatchHandler:
             ip_queue (str): Name of the queue containing alive IP addresses.
 
         Returns:
-            list[str]: List of alive IP addresses.
+            list[str]: List of alive IP addresses. # TODO: This will be very consuming as a list right? Its 900k ips loaded, all at once, for all ports
 
         Notes:
             IPs are immediately re-published back into the queue after draining.
@@ -148,10 +148,10 @@ class PortBatchHandler:
             return self.ips_cache
 
         with RabbitMQ(ip_queue) as rmq_conn:
-            all_ips: list[str] = []
+            all_ips: list[str] = [] # Should it really be a list?
 
             while True:
-                method, _, body = rmq_conn.channel.basic_get(queue=ip_queue, auto_ack=True)
+                method, _, body = rmq_conn.channel.basic_get(queue=ip_queue, auto_ack=True) # TODO: auto_ack=True, what if its false? isint it then requeued?
                 if not method:
                     break
                 try:
@@ -162,7 +162,7 @@ class PortBatchHandler:
                 except Exception:
                     logger.warning(f"[PortBatchHandler] Bad IP payload: {body}")
 
-            for ip in all_ips:
+            for ip in all_ips: # Is this the most optimal and best solution? To ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
                 rmq_conn.enqueue_to_queue(message={"ip": ip})
 
         self.ips_cache = all_ips
@@ -222,9 +222,11 @@ class PortBatchHandler:
         prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO[emilia]: Look at this
         batch_name = f"{prefix}_{port}"
 
+        # HERE
         with RabbitMQ(batch_name) as rmq_conn:
             count = 0
-            for ip in reservoir_of_reservoirs(ips):
+            encrypted_ips = reservoir_of_reservoirs(ips)
+            for ip in encrypted_ips:
                 rmq_conn.enqueue_to_queue(message={"ip": ip, "port": port})
                 count += 1
         logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {count} tasks.")
