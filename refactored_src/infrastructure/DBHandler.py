@@ -115,6 +115,7 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe.
                             continue
 
                     # Execute the upsert/insert
+                    # TODO: Sometimes open (ip,port) are not added in the database.. 
                     success = dbWorker.execute_query_model(queryModel)
                     if success:
                         logger.debug("[DBHandler] Port task committed to DB.")

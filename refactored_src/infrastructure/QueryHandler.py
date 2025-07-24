@@ -205,7 +205,7 @@ class QueryHandler:  # Database_manager old
                 'ip', 'port', 'port_state', 'port_service', 'port_protocol',
                 'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'.
         """
-        logger.debug(f"[DatabaseManager] insert_port_result task payload: {task!r}")
+        logger.debug(f"[QueryHandler] insert_port_result task payload: {task!r}")
 
         # Ensure required fields are present
         req_columns = [
