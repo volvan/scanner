@@ -196,9 +196,7 @@ class QueryHandler:  # Database_manager old
         return queryModel
 
     def insert_port_result(self, task: dict) -> QueryModel:
-        """Build an UPSERT QueryModel for a port scan result.
-
-        Insert or update a port scan result in the Ports table.
+        """Build an UPSERT QueryModel for a port scan result in the Ports database table.
 
         Args:
             task (dict): A task dictionary with keys:
@@ -213,10 +211,11 @@ class QueryHandler:  # Database_manager old
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
         ]
         if not all(k in task for k in req_columns):
+            logger.warning(f"[QueryHandler] insert_port_result task payload did not include required columns in task: {task!r}")
             return None
 
         encrypted = encrypt_ip(task['ip'])
-        now_ts = get_current_timestamp()
+        now_ts = get_current_timestamp() # TODO: isint this passed in the dict? If not, isint it still being created elsewhere? (the timestamp)
         sql = (
             "INSERT INTO Ports ("
             " ip_addr, port, port_state, port_service, port_protocol,"
@@ -248,7 +247,11 @@ class QueryHandler:  # Database_manager old
             now_ts,
             now_ts,
             float(task['duration']),
-        )
+        ) # TODO: these params are wrong.. 
+        #                               (port_first_seen_ts, port_last_seen_ts, port_scan_duration_sec)
+        #   But its inserting           (now_ts,             now_ts,            float(task['duration'])
+        # And task duration isint even in the INSERT statement.. 
+        
         return QueryModel(query=sql, params=params, fetch=False)
 
     def new_host(
@@ -345,22 +348,15 @@ class QueryHandler:  # Database_manager old
 
         return QueryModel(query, params, fetch=False)
 
-    def port_exists(
-        self,
-        ip: str,
-        port: int
-    ) -> QueryModel:
-        """Build a SELECT QueryModel to check if a port record exists.
-
-        Check if a port scan result already exists for a given IP and port, with retries.
+    def port_exists(self, ip: str, port: int) -> QueryModel:
+        """Build a SELECT QueryModel to check if a port record exists for a given (IP, port) pair.
 
         Args:
             ip (str): IP address.
             port (int): Port number.
-            retry_limit (int): Number of retry attempts on failure.
 
         Returns:
-            bool: True if the port exists, False otherwise.
+            ...
         """
         encrypted = encrypt_ip(ip)
         sql = (

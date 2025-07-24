@@ -52,7 +52,7 @@ class IPBatchHandler:
         tasks: list[dict] = []
         deliveries: list = []
 
-        for _ in range(scan_config.BATCH_SIZE):
+        for _ in range(scan_config.BATCH_SIZE): # Create a batch with BATCH_SIZE amount of tasks
             response: tuple[Basic.GetOk | None, BasicProperties, bytes] = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
 
             method_frame: Basic.GetOk | None
@@ -129,7 +129,7 @@ class PortBatchHandler:
         # Franz: old function used in _tests/)
         # E: If its only used in _test/ Its a dead code and may be removed.
 
-        return len(self.used_ports) < scan_config.BATCH_AMOUNT
+        return len(self.used_ports) < scan_config.BATCH_AMOUNT # TODO: If its correct that this is deadcode then the 'BATCH_AMOUNT' is also to be removed (or used in the correct place)
 
     def load_all_ips_once(self, ip_queue: str) -> list[str]:
         """Load and cache all alive IPs from a RabbitMQ queue.
@@ -138,7 +138,7 @@ class PortBatchHandler:
             ip_queue (str): Name of the queue containing alive IP addresses.
 
         Returns:
-            list[str]: List of alive IP addresses.
+            list[str]: List of alive IP addresses. # TODO: This will be very consuming as a list right? Its 900k ips loaded, all at once, for all ports
 
         Notes:
             IPs are immediately re-published back into the queue after draining.
@@ -148,10 +148,10 @@ class PortBatchHandler:
             return self.ips_cache
 
         with RabbitMQ(ip_queue) as rmq_conn:
-            all_ips: list[str] = []
+            all_ips: list[str] = [] # Should it really be a list?
 
             while True:
-                method, _, body = rmq_conn.channel.basic_get(queue=ip_queue, auto_ack=True)
+                method, _, body = rmq_conn.channel.basic_get(queue=ip_queue, auto_ack=True) # TODO: auto_ack=True, what if its false? isint it then requeued?
                 if not method:
                     break
                 try:
@@ -162,7 +162,7 @@ class PortBatchHandler:
                 except Exception:
                     logger.warning(f"[PortBatchHandler] Bad IP payload: {body}")
 
-            for ip in all_ips:
+            for ip in all_ips: # Is this the most optimal and best solution? To ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
                 rmq_conn.enqueue_to_queue(message={"ip": ip})
 
         self.ips_cache = all_ips
@@ -219,12 +219,14 @@ class PortBatchHandler:
             logger.warning("[PortBatchHandler] No alive IPs to batch against.")
             return None
 
-        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port"
+        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO[emilia]: Look at this
         batch_name = f"{prefix}_{port}"
 
+        # HERE
         with RabbitMQ(batch_name) as rmq_conn:
             count = 0
-            for ip in reservoir_of_reservoirs(ips):
+            encrypted_ips = reservoir_of_reservoirs(ips)
+            for ip in encrypted_ips:
                 rmq_conn.enqueue_to_queue(message={"ip": ip, "port": port})
                 count += 1
         logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {count} tasks.")

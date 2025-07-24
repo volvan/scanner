@@ -46,7 +46,7 @@ sys.excepthook = log_exception
 from config.scan_config import (  # noqa: F401, E402
     ALIVE_ADDR_QUEUE,
     ALL_ADDR_QUEUE,
-    ADDR_FILE,
+    TARGETS_FILE,
     DEAD_ADDR_QUEUE,
     SCAN_NATION,
     BATCH_SIZE,
@@ -312,6 +312,7 @@ class DiscoveryScanner:
         logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
 
         while True:
+            # TODO: it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT created as example) to make sure it never creates bilions of batches.. 
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 remaining = rmq_conn.tasks_in_queue()
 
@@ -394,9 +395,9 @@ class DiscoveryScanner:
                     return None
                 filename = new_rix_file
                 ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
-            elif ADDR_FILE:
-                filename = ADDR_FILE
-                ip_iter = block_handler.get_ip_addresses_from_block(filename=ADDR_FILE)
+            elif TARGETS_FILE:
+                filename = TARGETS_FILE
+                ip_iter = block_handler.get_ip_addresses_from_block(filename=TARGETS_FILE)
             else:
                 raise ValueError(
                     "Either an IP address, a filename, or fetch_rix=True must be provided."
@@ -474,15 +475,18 @@ class DiscoveryScanner:
                 logger.warning(f"[DiscoveryScanner] {method} to {ip_addr} crashed: {e}")
                 res = None
 
-            if res and res[0] == "alive":
-                # For testing
-                if method != 'icmp_ping':
-                    logger.debug(f'\nmethod: {method} for {ip_addr} was successful!!!')
+
+            if not res or len(res) !=2 or type(res[1]) != float: 
+                logger.error(f"[DiscoveryScanner] Port probe returned invalid data for ip: {ip_addr}, in method: {method}.")
+                continue
+
+            if res[0] == "alive":
+
                 return {
                     "probe_method": method,
                     "probe_protocol": proto,
                     "host_status": "alive",
-                    "probe_duration": float(res[1]) if res and res[1] is not None else None,
+                    "probe_duration": float(res[1]) if res and res[1] is not None else None, # TODO: well.. look at this better..
                 }
 
             time.sleep(SCAN_DELAY)

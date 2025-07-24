@@ -12,7 +12,7 @@ from config.logging_config import log_exception, logger
 sys.excepthook = log_exception
 
 # TODO[Emilia][P_low]: rename probes_port_scan
-
+# TODO: WHYYYY cant the ProbeHandler and PingHandler be more inline? They could be implemented in the same way or divided into functions the same way or something. I that might seem as a low priority but i beg to differ as its really hard to debug it when its so different as one line can be at fault. please.
 
 class ProbeHandler:
     """Use Nmap to probe IP:port combinations and determine service state."""

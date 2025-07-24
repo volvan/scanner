@@ -26,9 +26,10 @@ from multiprocessing import JoinableQueue
 
 db_hosts: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Hosts' db table
 db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' db table
+# TODO: Shouldnt we be having multiple writer threads (or processes) consuming the db_hosts and db_ports queues concurrently? How many are there now? Wont it be a bottleneck if not? 
 
 
-class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe..
+class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Writer? maybe..
     """laterdo: Docstr."""
 
     def __init__(self, queryHandler: QueryHandler):
@@ -60,7 +61,7 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe.
 
         For every successful commit to the database, we enqueue the delivery tag to db_acks queue to be acked.
         """
-        # TODO: should be inserting in batches maybe? Wont this overload at some point?
+        # TODO: should be inserting in batches maybe? Wont this overload at some point? (Meaning write to the database in batches, not row-by-row)
 
         with DBWorker() as dbWorker:
             while not self.stop_signal:
@@ -106,6 +107,8 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Handler? maybe.
                         continue
 
                     # If it's a closed port and we've never seen it before, skip inserting
+                    # TODO: This is happening after we have inserted the results, right?
+                    # TODO: Also, this is very costly, for all closed ports we check the db, is there not a better way to do 'on conflict' in the 'insert_port_result'? 
                     if record["port_state"] == "closed":
                         exists_qm = self.queryHandler.port_exists(record["ip"], record["port"])
                         exists = dbWorker.execute_query_model(exists_qm)
