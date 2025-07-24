@@ -31,7 +31,7 @@ from models.QueryModel import QueryModel
 # ----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import DBHandler, db_hosts, db_ports
+from infrastructure.DBHandler import DBHandler, db_hosts
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
 
 # Type annotations
@@ -126,18 +126,10 @@ class DiscoveryScanner:
         except Exception as e:
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
         finally:
-            # self.logicManager.dbWorkerLogic.stop()
-            # logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} acks= {db_acks.qsize()}")
-
             db_hosts.join()  # block until every host task_done()
             db_handler.stop()
-
-            # TODO[Franz]: this is a broken patch.. more in DBHandler.RMQAckThread
-            # db_acks.join()  # every delivery‑tag ACKed/NACKed
-
             # self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
-
-            logger.debug(f"[DBHandler] queues: hosts= {db_hosts.qsize()} ports= {db_ports.qsize()} ")
+            logger.debug(f"[DiscoveryScanner] Current running processes for db_hosts: {db_hosts.qsize()} ")
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
         """Process a RabbitMQ task.
@@ -204,20 +196,24 @@ class DiscoveryScanner:
             # Commit results to correct queue
             with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn:  # TODO[Emilia]: this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
                 queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
-                # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue // If its unknown -> fail queue
+                # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue ( RIGHT??)  // If its unknown -> fail queue
                 rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} host result for {ip_addr}: {e}")
 
         # Commit results to database
         try:
-            db_hosts.put({"record": record, "delivery_tag": method.delivery_tag, })
-            logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr} with tag: {method.delivery_tag}")
+            db_hosts.put(record)  # TODO: Must only ack if this is sucess..
+            logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr}.")
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
 
         # Add a small delay between tasks to control scan rate
         time.sleep(SCAN_DELAY)
+
+        # Acknowledge the message as successfully processed 
+        # TODO: what if it wasint? later in the db pool?
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
@@ -237,13 +233,6 @@ class DiscoveryScanner:
 
         # TODO[Franz]: Change all occurrences of RMQ to be with context manager (with)
         rmq = RabbitMQ(queue_name)
-
-        # start the ACK dispatcher exactly once in THIS process
-        # only a patch, DO NOT USE IN PRODUCTION - The ACK issue mentioned in DBHandler
-        # if not hasattr(self, "_ack_thread_started"):
-        #     RMQAckThread(rmq).start()
-        #     logger.debug("[Batch|pid=%s] Ack dispatcher thread started", os.getpid())
-        #     self._ack_thread_started = True
 
         while True:
             method_frame, props, body = rmq.channel.basic_get(
@@ -318,7 +307,6 @@ class DiscoveryScanner:
                 # TODO[Emilia]: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
                 # E: I think I already changed it, need to verify so I'll do it
             ).start()
-
             return
 
         logger.info("[DiscoveryScanner] Batch processing mode (large scan).")

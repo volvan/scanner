@@ -49,14 +49,15 @@ class WorkerHandlerLogic:
             except Exception as e:
                 logger.exception(f"Worker {worker_id} crashed: {e}")
             finally:
-                # try:
-                # with RabbitMQ(self.queue_name) as rmq_conn:
-                if rmq_conn.tasks_in_queue() == 0:
-                    # if rmq_conn.queue_empty(self.queue_name):
-                    logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
-                    rmq_conn.remove_queue()
-                # except Exception as cleanup_err:
-                #     logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
+                try:
+                    # with RabbitMQ(self.queue_name) as rmq_conn:
+                    if rmq_conn.tasks_in_queue() == 0:
+                        # TODO: might the non-removed batches be from here?
+                        # if rmq_conn.queue_empty(self.queue_name):
+                        logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
+                        rmq_conn.remove_queue()
+                except Exception as cleanup_err:
+                    logger.error(f"Worker {worker_id} failed to clean up queue '{self.queue_name}': {cleanup_err}")
 
     def start(self):
         """Spawn multiple worker processes to handle scanning tasks."""
