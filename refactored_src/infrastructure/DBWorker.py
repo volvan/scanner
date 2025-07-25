@@ -51,9 +51,8 @@ class DBWorker:
             raise ValueError("Database credentials not set.")
 
         # worker_pid = str(os.getpid())
-        # logger.critical(f'worker_pid {worker_pid} trying to access ThreadedConnectionPool')
+        
         with cls._pool_lock:
-            # logger.critical(f'worker_pid {worker_pid} successfully started creating an connection')
             try:
                 cls._pool = ThreadedConnectionPool(
                     minconn=DB_MIN_CONN, # Min connections to PSQL
@@ -66,7 +65,7 @@ class DBWorker:
                     application_name="Volva_dbworker",
                 )
                 cls._pool_pid = os.getpid()
-                # logger.critical(f"[DBWorker] Connection pool created for worker_pid {worker_pid}.")
+                logger.debug(f"[DBWorker] Connection pool created.")
                 logger.info("[DBWorker] Connection pool created.")
             except Exception as e:
                 logger.error(f"[DBWorker] Pool initialization failed: {e}")
@@ -118,7 +117,6 @@ class DBWorker:
             return
         try:
             DBWorker._pool.putconn(self._conn)
-            logger.debug("[DBWorker] Returned connection to pool.")
         except PoolError as e:
             logger.error(f"[DBWorker] ExceptionType=`{type(e).__name__}` Failed to return connection: Error: {e}")
             try:
@@ -136,41 +134,6 @@ class DBWorker:
             cls._pool = None
             logger.info("[DBWorker] Connection pool closed")
 
-    # def execute(self, query: str, params=None) -> int:
-    #     """
-    #     Execute a non-SELECT SQL statement and commit.
-
-    #     Returns:
-    #         int: Number of affected rows.
-    #     """
-    #     # TODO[Franz]: should be in worker or manager?
-    #     # Franz: Should be in worker, the DBHandler (what you call manager I assume) handles higher level DB Operations such as creating workers not lower-level actions
-    #     #       like executing queries, the workers should perform the action.
-    #     # E: On another note, I think this is deadcode.
-
-    #     try:
-    #         with self._conn.cursor() as cur:
-    #             cur.execute(query, params)
-    #             rowcount = cur.rowcount
-    #         self._conn.commit()
-    #         return rowcount
-    #     except Exception:
-    #         self._conn.rollback()
-    #         raise
-
-    def query(self, query: str, params=None) -> list[tuple]:
-        """Execute a SELECT statement and return all rows."""
-        # TODO[Franz]: should be in worker or manager?
-        # Franz: Same answer as above
-        # E: sure thang, but this is deadcode i think?
-
-        try:
-            with self._conn.cursor() as cur:
-                cur.execute(query, params)
-                return cur.fetchall()
-        except Exception:
-            self._conn.rollback()
-            raise
 
     def execute_sql(self, query: str, params=None, fetch: bool = False) -> (list[tuple] | int):
         """Generic SQL execution.
@@ -209,9 +172,5 @@ class DBWorker:
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
         """laterdo: Docstr."""
-        # TODO[Franz]: should be in worker or manager?
-        # Franz: Same answer as above
-        # E: well, why is this seperate function if it only returns execute_sql() ?
-
         logger.debug("[DBWorker] execute_query_model() called")
         return self.execute_sql(model.query, model.params, fetch=model.fetch)
