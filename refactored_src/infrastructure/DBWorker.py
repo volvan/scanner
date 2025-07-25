@@ -136,27 +136,27 @@ class DBWorker:
             cls._pool = None
             logger.info("[DBWorker] Connection pool closed")
 
-    def execute(self, query: str, params=None) -> int:
-        """
-        Execute a non-SELECT SQL statement and commit.
+    # def execute(self, query: str, params=None) -> int:
+    #     """
+    #     Execute a non-SELECT SQL statement and commit.
 
-        Returns:
-            int: Number of affected rows.
-        """
-        # TODO[Franz]: should be in worker or manager?
-        # Franz: Should be in worker, the DBHandler (what you call manager I assume) handles higher level DB Operations such as creating workers not lower-level actions
-        #       like executing queries, the workers should perform the action.
-        # E: On another note, I think this is deadcode.
+    #     Returns:
+    #         int: Number of affected rows.
+    #     """
+    #     # TODO[Franz]: should be in worker or manager?
+    #     # Franz: Should be in worker, the DBHandler (what you call manager I assume) handles higher level DB Operations such as creating workers not lower-level actions
+    #     #       like executing queries, the workers should perform the action.
+    #     # E: On another note, I think this is deadcode.
 
-        try:
-            with self._conn.cursor() as cur:
-                cur.execute(query, params)
-                rowcount = cur.rowcount
-            self._conn.commit()
-            return rowcount
-        except Exception:
-            self._conn.rollback()
-            raise
+    #     try:
+    #         with self._conn.cursor() as cur:
+    #             cur.execute(query, params)
+    #             rowcount = cur.rowcount
+    #         self._conn.commit()
+    #         return rowcount
+    #     except Exception:
+    #         self._conn.rollback()
+    #         raise
 
     def query(self, query: str, params=None) -> list[tuple]:
         """Execute a SELECT statement and return all rows."""
