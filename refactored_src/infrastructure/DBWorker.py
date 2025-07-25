@@ -172,13 +172,8 @@ class DBWorker:
             self._conn.rollback()
             raise
 
-    def execute_sql(
-        self,
-        query: str,
-        params=None,
-        fetch: bool = False
-    ) -> (list[tuple] | int):
-        """Generic SQL execution. If fetch=True, returns rows; otherwise returns affected rowcount.
+    def execute_sql(self, query: str, params=None, fetch: bool = False) -> (list[tuple] | int):
+        """Generic SQL execution.
 
         Args:
             query: SQL query string.
@@ -186,7 +181,8 @@ class DBWorker:
             fetch: Whether to fetch and return query results.
 
         Returns:
-            List[Tuple] or int
+            List[Tuple]: If 'fetch=True', returns rows from query results.
+            int: If 'fetch=False', returns affected rowcount.
         """
         try:
             with self._conn.cursor() as cur:
