@@ -9,7 +9,7 @@ from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
 # ----- Service imports -----#
-from infrastructure.DBHandler import DBHandler, db_ports
+from infrastructure.DBHandler import db_ports
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
@@ -64,13 +64,12 @@ class PortScanner:
     def launch_port_scan_pipeline(self):
         """Main runner.
 
-        Kick off a port scan, record timestamps, and use QueryModel for querying the DB.
+        Kick off a port scan, record timestamps, and query to DB.
         """
 
-        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler)
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
-            dbHandler.start_ports()
+            self.infraManager.start_ports()
 
             # 1) choose which RMQ queue to seed
             queue_name = PRIORITY_PORTS_QUEUE if USE_PRIORITY_PORTS else ALL_PORTS_QUEUE
@@ -139,11 +138,8 @@ class PortScanner:
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
-            # TODO[Emilia]: look at this mess, compare with ip scanner
-            dbHandler.stop()  # TODO[Franz]: look at this better
             db_ports.join()  # block until every port task_done()
-            self.infraManager.dbHandler.stop()  # TODO[Franz]: validate this has to be
-            # db_acks.join()  # every delivery‑tag ACKed/NACKed
+            self.infraManager.stop() # Stop the database thread
             logger.debug(f"[PortScanner] Current running processes for db_ports: {db_ports.qsize()} ")
 
     # def process_task(self, ip: str, port: int, delivery_tag: int, queue_name: str):

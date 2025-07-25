@@ -31,7 +31,7 @@ from models.QueryModel import QueryModel
 # ----- Service imports -----#
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import DBHandler, db_hosts
+from infrastructure.DBHandler import db_hosts
 from logic.WorkerHandlerLogic import WorkerHandlerLogic
 
 # Type annotations
@@ -66,23 +66,26 @@ class DiscoveryScanner:
         """laterdo: Docstr."""
         self.externalManager = externalManager
         self.infraManager = infraManager
-
-        # From old DiscoveryScanner()
+        
         self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
 
     def launch_discovery_scan_pipeline(self):
-        """ The 'main'."""
-        # TODO[Franz]: should be refactored and logic reviewed
+        """Main runner.
 
-        db_handler: DBHandler = DBHandler(self.infraManager.queryHandler)
+        Kick off a discovery scan, record timestamps, and query to DB.
+        """
+
+        # TODO[Franz]: should be refactored and logic reviewed
+        
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
-            db_handler.start_hosts()
+            self.infraManager.start_hosts()
 
             # Check how many tasks in queue
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 tasks_remaining = rmq_conn.tasks_in_queue()
+
             # If tasks are already in queue, stop the program
             # TODO[Franz]: should not stop the program but assign workers and consume from the queue.. right?
             if tasks_remaining > 0:
@@ -127,8 +130,7 @@ class DiscoveryScanner:
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
         finally:
             db_hosts.join()  # block until every host task_done()
-            db_handler.stop()
-            # self.infraManager.dbHandler.stop() # TODO[Franz]: validate this has to be
+            self.infraManager.stop() # Stop the database thread
             logger.debug(f"[DiscoveryScanner] Current running processes for db_hosts: {db_hosts.qsize()} ")
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
@@ -212,8 +214,7 @@ class DiscoveryScanner:
         time.sleep(SCAN_DELAY)
 
         # Acknowledge the message as successfully processed 
-        # TODO: what if it wasint? later in the db pool?
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        ch.basic_ack(delivery_tag=method.delivery_tag) # TODO: what if it wasint? later in the db pool?
 
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
@@ -477,7 +478,7 @@ class DiscoveryScanner:
 
 
             if not res or len(res) !=2 or type(res[1]) != float: 
-                logger.error(f"[DiscoveryScanner] Port probe returned invalid data for ip: {ip_addr}, in method: {method}.")
+                logger.error(f"[DiscoveryScanner] Probe returned invalid data for ip: {ip_addr}, in method: {method}.")
                 continue
 
             if res[0] == "alive":

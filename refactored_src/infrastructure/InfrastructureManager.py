@@ -21,3 +21,7 @@ class InfrastructureManager:
     def start_port(self):
         """laterdo: Docstr."""
         return self.dbHandler.start_ports()
+
+    # def stop_hosts(self):
+    def stop(self):
+        return self.dbHandler.stop()

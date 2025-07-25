@@ -82,7 +82,7 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Writer? maybe..
                     logger.error(f"[DBHandler] Host update affected no rows: {record}")
 
                 db_hosts.task_done()
-            dbWorker.close_all()  # TODO[Franz]: should we be doing this here?
+            # dbWorker.close_all()  # TODO[Franz]: should we be doing this here?
             # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
 
     def _consume_ports(self):
@@ -90,49 +90,49 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Writer? maybe..
 
         logger.debug("[DBHandler._consume_ports] Started.")
         with DBWorker() as dbWorker:
-            try: 
-                while not self.stop_signal:
-                    try:
-                        record = db_ports.get(timeout=1)
-                    except queue.Empty:
-                        continue
+            while not self.stop_signal:
+                try:
+                    record = db_ports.get(timeout=1)
+                except queue.Empty:
+                    continue
 
-                    logger.debug(f"[DBHandler] Got port task: {record}")
+                logger.debug(f"[DBHandler] Got port task: {record}")
 
-                    # Build a QueryModel for this port result
-                    queryModel: QueryModel = self.queryHandler.insert_port_result(record)
-                    if queryModel is None:
-                        logger.debug(f"[DBHandler] No QueryModel for task, skipping: {record}")
+                # Build a QueryModel for this port result
+                queryModel: QueryModel = self.queryHandler.insert_port_result(record)
+                if queryModel is None:
+                    logger.debug(f"[DBHandler] No QueryModel for task, skipping: {record}")
+                    db_ports.task_done()
+                    continue
+
+                # If it's a closed port and we've never seen it before, skip inserting
+                # TODO: This is happening after we have inserted the results, right?
+                # TODO: Also, this is very costly, for all closed ports we check the db, is there not a better way to do 'on conflict' in the 'insert_port_result'? 
+                if record["port_state"] == "closed":
+                    exists_qm = self.queryHandler.port_exists(record["ip"], record["port"])
+                    exists = dbWorker.execute_query_model(exists_qm)
+                    if not exists:
+                        logger.debug(f"[DBHandler] Skipping new-closed port {record['ip']}:{record['port']}")
                         db_ports.task_done()
                         continue
 
-                    # If it's a closed port and we've never seen it before, skip inserting
-                    # TODO: This is happening after we have inserted the results, right?
-                    # TODO: Also, this is very costly, for all closed ports we check the db, is there not a better way to do 'on conflict' in the 'insert_port_result'? 
-                    if record["port_state"] == "closed":
-                        exists_qm = self.queryHandler.port_exists(record["ip"], record["port"])
-                        exists = dbWorker.execute_query_model(exists_qm)
-                        if not exists:
-                            logger.debug(f"[DBHandler] Skipping new-closed port {record['ip']}:{record['port']}")
-                            db_ports.task_done()
-                            continue
+                # Execute the upsert/insert
+                # TODO: Sometimes open (ip,port) are not added in the database.. 
+                success = dbWorker.execute_query_model(queryModel)
+                if success:
+                    logger.debug("[DBHandler] Port task committed to DB.")
+                else:
+                    logger.error(f"[DBHandler] Port insert/update affected no rows: {record}")
 
-                    # Execute the upsert/insert
-                    # TODO: Sometimes open (ip,port) are not added in the database.. 
-                    success = dbWorker.execute_query_model(queryModel)
-                    if success:
-                        logger.debug("[DBHandler] Port task committed to DB.")
-                    else:
-                        logger.error(f"[DBHandler] Port insert/update affected no rows: {record}")
+                db_ports.task_done()
 
-                    db_ports.task_done()
-
-            finally: # TODO[Franz]: should be doing this here?
-                # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
-                dbWorker.close_all()
+            # TODO[Franz]: should be doing this here?
+            # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
+            # dbWorker.close_all()
 
     def stop(self):
         """laterdo: Docstr."""
+        # TODO: Question, what if host and ports are open and we enter stop() and stop both but just wanted to stop the hosts?
         logger.debug("[DBHandler] stop() called.")
         self.stop_signal = True
         logger.info("[DBHandler] Stop signal sent. Waiting for threads to exit.")
