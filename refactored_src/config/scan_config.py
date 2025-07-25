@@ -14,8 +14,9 @@ ROOT_DIR = os.path.dirname(os.path.dirname(BASE_DIR))
 TARGETS_FILE_PATH = os.path.join(BASE_DIR, "..", "targets")           # Stored under src/targets/ and stores 'blocks.txt', 'ports.txt'
 # ------------------------------------------------------------------------------
 # ----- MONITORING and LOGS ------------------------------------------------------
-DEBUG_MODE = True                                                     # Debug mode T/F
-LOG_TO_FILE = True                                                    # Log the output to a file or simply in terminal
+DEBUG_MODE = True                                                     # Debug mode will prompt user in start of run
+LOG_TO_FILE = True                                                    # If True, logs debug levels in log file, else warnings
+LOG_TO_TERMINAL = False                                               # If True, logs debug levels to terminal, else warnings
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
 LOG_DIR = os.path.join(ROOT_DIR, "logs")                              # Where to store the logs
