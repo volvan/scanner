@@ -93,12 +93,10 @@ class DiscoveryScanner:
                 return
             # Else, no tasks are in queue, so we enqueue tasks
             logger.info(f"[DiscoveryScanner ] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
+
+            # Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
             filename = self.new_targets()
             if not filename:
-                return
-
-            blocks = read_block(filename)
-            if blocks is None:
                 return
 
             # Record the scan-start timestamp
@@ -112,6 +110,11 @@ class DiscoveryScanner:
 
             # Scan is concluded. Write the summary table
             try:
+                # Read the blocks to pass into the summary table as 'scanned hosts'
+                blocks = read_block(filename)
+                if blocks is None:
+                    logger.error("[Discovery scanner] trying to read blocks failed.")
+                
                 # TODO[Franz]: this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
                 with DBWorker() as dbWorker:
                     queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
@@ -385,6 +388,7 @@ class DiscoveryScanner:
             # if not ALL_ADDR_QUEUE:
             #     raise ValueError("Queue name must be provided")
 
+            # Create the RMQ used for storing all IP addresses
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 if not rmq_conn.queue_exists():
                     rmq_conn.declare_queue()
@@ -399,14 +403,18 @@ class DiscoveryScanner:
             elif TARGETS_FILE:
                 filename = TARGETS_FILE
                 ip_iter = block_handler.get_ip_addresses_from_block(filename=TARGETS_FILE)
-            else:
-                raise ValueError(
-                    "Either an IP address, a filename, or fetch_rix=True must be provided."
-                )
+            
+            # TODO[Franz]: move this to the check thats in beginning ( serviceManager)
+            # else:
+            #     raise ValueError(
+            #         "Either an IP address, a filename, or fetch_rix=True must be provided."
+            #     )
 
+            # Randomize all ips
             shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
 
-            whois_info = whois_block(target=None, filename=filename)
+            # Lookup with WHOIS on each block
+            whois_info = whois_block(filename=filename)
 
             def chunked(iterator, size=BATCH_SIZE):  # noqa: D103
                 it = iter(iterator)
@@ -433,7 +441,6 @@ class DiscoveryScanner:
                         continue
 
                     # Insert to RMQ
-
                     QueueInitializer.enqueue_items(queue_name=ALL_ADDR_QUEUE, key="ip", val=batch)
 
                 # dbWorker.close()

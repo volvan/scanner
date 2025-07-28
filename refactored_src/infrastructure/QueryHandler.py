@@ -254,11 +254,7 @@ class QueryHandler:  # Database_manager old
         
         return QueryModel(query=sql, params=params, fetch=False)
 
-    def new_host(
-        self,
-        whois_data: dict,
-        ips: Iterable[str],
-    ) -> QueryModel:
+    def new_host(self, whois_data: dict, ips: Iterable[str]) -> QueryModel:
         """Prepare a batch UPSERT of WHOIS data for one or more IPs.
 
         Seed the Hosts table with WHOIS data for one or more IP addresses.
@@ -270,6 +266,8 @@ class QueryHandler:  # Database_manager old
         Notes:
             Existing entries are updated if they already exist (upsert behavior).
         """
+        # TODO: country should not be updated but stay as the NATION from scan_config -> Sometimes its missing and will cause inaccurate data
+        
         if not whois_data:
             logger.warning("[QueryHandler] No WHOIS data to insert.")
             return None
