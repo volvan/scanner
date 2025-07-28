@@ -16,7 +16,6 @@ from infrastructure.RabbitMQ import RabbitMQ
 # ----- OLD IMPORTS -----#
 import psutil
 
-from utils.queue_initializer import QueueInitializer
 from utils.batch_handler import PortBatchHandler
 from utils.resource_status import resource_ok
 from utils.probe_handler import ProbeHandler
@@ -138,12 +137,16 @@ class PortScanner:
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
-            db_ports.join()  # block until every port task_done()
-            self.infraManager.stop() # Stop the database thread
+            # TODO: if we stop here, we are closing the currently running processes that are inserting to db right??
+            # db_ports.join()  # block until every port task_done()
+            # self.infraManager.stop() # Stop the database thread
             logger.debug(f"[PortScanner] Current running processes for db_ports: {db_ports.qsize()} ")
 
+            logger.info("Port scan pipeline has concluded, now workers continue scanning.")
+            print("Port scan pipeline has concluded, now workers continue scanning.")
+
     # def process_task(self, ip: str, port: int, delivery_tag: int, queue_name: str):
-    def process_task(self, ip: str, port: int, queue_name: str):
+    def process_task(self, ip: str, port: int, queue_name: str): # TODO: rename or move, this is a worker process
         """Probe an IP:port pair and enqueue the scan result as needed.
 
         Args:
@@ -186,7 +189,7 @@ class PortScanner:
                     # Franz: Remove?
                     # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
                 
-                # 3) Enqueue all results (open, filtered, and closed)
+                # 3) Enqueue all results (open, filtered, and closed) # TODO: thats wrong or no? is it not only returning open?
                 db_ports.put(record)
 
             except Exception as e:
@@ -194,7 +197,7 @@ class PortScanner:
                 message = {"error": str(e), "ip": ip, "port": port}
                 rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
 
-    def _drain_and_exit(self, batch_queue: str) -> None:
+    def _drain_and_exit(self, batch_queue: str) -> None: # TODO: rename or move, this is a worker process
         """Drain and process all tasks from a batch queue, then delete the queue.
 
         Args:
@@ -204,27 +207,30 @@ class PortScanner:
             This runs inside a spawned process. Each task is ACKed or NACKed after handling.
         """
 
-        with RabbitMQ(batch_queue) as rmq_batch_conn:
-
-            while True:
-                method_frame, _, body = rmq_batch_conn.channel.basic_get(
-                    queue=batch_queue,
-                    auto_ack=False
-                )
-                if not method_frame:
-                    break
-                try:
-                    task = json.loads(body)
-                    self.process_task(ip=task["ip"], port=task["port"], queue_name=batch_queue)
-                    rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
-                except Exception:
-                    logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
-                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
-                    # rmq_batch_conn.channel.basic_nack(requeue=False)  # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
-
-                time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO[]: Why? isint this cousing unnessisary latency or not?
-
-            rmq_batch_conn.remove_queue()
+        try: 
+            with RabbitMQ(batch_queue) as rmq_batch_conn:
+                while True:
+                    method_frame, _, body = rmq_batch_conn.channel.basic_get(
+                        queue=batch_queue,
+                        auto_ack=False
+                    )
+                    if not method_frame:
+                        break
+                    try:
+                        task = json.loads(body)
+                        self.process_task(ip=task["ip"], port=task["port"], queue_name=batch_queue)
+                        rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: now this is ack'ed before.. should be after..
+                    except Exception:
+                        logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
+                        rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
+                    time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO[]: Why? isint this cousing unnessisary latency or not?
+                rmq_batch_conn.remove_queue()
+        finally:
+            logger.debug(f"[PortScanner] Current running processes for db_ports: {db_ports.qsize()} ")
+            db_ports.join()  # block until every port task_done()
+            self.infraManager.stop() # Stop the database thread
+            logger.debug(f"[PortScanner] (try again) Current running processes for db_ports: {db_ports.qsize()} ")
+            logger.debug(f"[PortScanner] Currently active processes are: {len(self.active_processes)}") # TODO: should not close them or?
 
     def start_consuming(self, main_queue_name: str) -> None:
         """Start the main port scanning loop using batched multiprocessing.
@@ -252,7 +258,7 @@ class PortScanner:
                 oldest.join(timeout=1)
                 continue
 
-            batch_queue = self.batch_handler.create_port_batch_if_allowed(
+            batch_queue = self.batch_handler.create_port_batch(
                 ALIVE_ADDR_QUEUE,
                 main_queue_name
             )
@@ -306,8 +312,10 @@ class PortScanner:
                     return
 
                 # Enqueue ports to RMQ
-                QueueInitializer.enqueue_items(queue_name=ALL_PORTS_QUEUE, key="port", val=all_ports_iter)
-                logger.info(f"[PortScanner] Seeded {ALL_PORTS_QUEUE} with randomized ports.")
+                with RabbitMQ(queue_name) as rmq_conn:
+                    for port in all_ports_iter:
+                        rmq_conn.enqueue_to_queue(queue_name=queue_name, message={"port": port})
+                logger.info(f"[PortScanner] Seeded {queue_name} with randomized ports.")
 
             elif queue_name == PRIORITY_PORTS_QUEUE:
 
@@ -318,7 +326,9 @@ class PortScanner:
                     return
 
                 # Enqueue ports to RMQ
-                QueueInitializer.enqueue_items(queue_name=PRIORITY_PORTS_QUEUE, key="port", val=priority_ports_iter)
+                with RabbitMQ(queue_name) as rmq_conn: 
+                    for port in priority_ports_iter:
+                        rmq_conn.enqueue_to_queue(queue_name=queue_name, message={"port": port})
                 logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
 
             else:

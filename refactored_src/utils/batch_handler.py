@@ -131,7 +131,7 @@ class PortBatchHandler:
 
         return len(self.used_ports) < scan_config.BATCH_AMOUNT # TODO: If its correct that this is deadcode then the 'BATCH_AMOUNT' is also to be removed (or used in the correct place)
 
-    def load_all_ips_once(self, ip_queue: str) -> list[str]:
+    def _load_all_ips_once(self, queue_name: str) -> list[str]:
         """Load and cache all alive IPs from a RabbitMQ queue.
 
         Args:
@@ -147,11 +147,11 @@ class PortBatchHandler:
         if self.ips_cache is not None:
             return self.ips_cache
 
-        with RabbitMQ(ip_queue) as rmq_conn:
-            all_ips: list[str] = [] # Should it really be a list?
+        with RabbitMQ(queue_name) as rmq_conn:
+            all_ips: list[str] = [] #TODO: Should it really be a list?
 
             while True:
-                method, _, body = rmq_conn.channel.basic_get(queue=ip_queue, auto_ack=True) # TODO: auto_ack=True, what if its false? isint it then requeued?
+                method, _, body = rmq_conn.channel.basic_get(queue=queue_name, auto_ack=True) # TODO: auto_ack=True, what if its false? isint it then requeued?
                 if not method:
                     break
                 try:
@@ -162,24 +162,13 @@ class PortBatchHandler:
                 except Exception:
                     logger.warning(f"[PortBatchHandler] Bad IP payload: {body}")
 
-            for ip in all_ips: # Is this the most optimal and best solution? To ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
+            # Enqueue all ips again in the same queue.
+            for ip in all_ips: #TODO: Is this the most optimal and best solution? To ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
                 rmq_conn.enqueue_to_queue(message={"ip": ip})
 
         self.ips_cache = all_ips
         logger.debug(f"[PortBatchHandler] Cached {len(all_ips)} alive IPs.")
-        return all_ips
-
-    def create_port_batch_if_allowed(self, ip_queue: str, port_queue: str) -> str | None:
-        """Create a new port batch if allowed under concurrency limit.
-
-        Args:
-            ip_queue (str): Queue containing alive IPs.
-            port_queue (str): Queue containing available ports.
-
-        Returns:
-            Optional[str]: Name of the new batch queue, or None if not allowed.
-        """
-        return self.create_port_batch(ip_queue, port_queue)
+        # return all_ips
 
     def create_port_batch(self, ip_queue: str, port_queue: str) -> str | None:
         """Create a port scan batch by pairing one port with all alive IPs.
@@ -193,7 +182,7 @@ class PortBatchHandler:
 
         Notes:
             The port is pulled from the port queue and associated with all cached IPs.
-            Ports already batched previously are skipped.
+            Ports already batched previously are skipped. # TODO: confirmed?
         """
         with RabbitMQ(port_queue) as rmq_conn:
             method, _, body = rmq_conn.channel.basic_get(queue=port_queue, auto_ack=True)
@@ -212,10 +201,15 @@ class PortBatchHandler:
         if port in self.used_ports:
             return None
         self.used_ports.add(port)
+        logger.debug(f"[PortBatchHandler] currently there are {len(self.used_ports)} ports already mapped to ip and in 'used_ports'.")
 
         # TODO[Emilia]: this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
-        ips = self.load_all_ips_once(ip_queue)
-        if not ips:
+        # TODO: should this not be in similar logic as the batch creation in ip scan? i know the message is not the same but else it should follow in simar terms, no?
+
+        # ips = self._load_all_ips_once(queue_name=ip_queue)
+        self._load_all_ips_once(queue_name=ip_queue)
+
+        if not self.ips_cache:
             logger.warning("[PortBatchHandler] No alive IPs to batch against.")
             return None
 
@@ -224,10 +218,8 @@ class PortBatchHandler:
 
         # HERE
         with RabbitMQ(batch_name) as rmq_conn:
-            count = 0
-            encrypted_ips = reservoir_of_reservoirs(ips)
+            encrypted_ips = reservoir_of_reservoirs(self.ips_cache)
             for ip in encrypted_ips:
                 rmq_conn.enqueue_to_queue(message={"ip": ip, "port": port})
-                count += 1
-        logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {count} tasks.")
+        logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {len(self.ips_cache)} tasks.")
         return batch_name

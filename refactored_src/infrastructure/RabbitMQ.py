@@ -266,7 +266,7 @@ class RabbitMQ:
         Notes:
             If the queue does not exist, it will be declared automatically.
         """
-        # TODO[Emilia]: heere to replace enqueue to use queue_name
+        # TODO[Emilia]: here to replace enqueue to use queue_name
 
         try:
             queue_name = queue_name or self.queue_name
@@ -297,6 +297,7 @@ class RabbitMQ:
                 logger.error(f"[RabbitMQ] Retry publish failed for '{queue_name}': {ex}")
         except Exception as e:
             logger.error(f"[RabbitMQ] Failed to enqueue message to '{queue_name}': {e}")
+
 
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""

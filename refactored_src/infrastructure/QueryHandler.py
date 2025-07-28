@@ -268,16 +268,13 @@ class QueryHandler:  # Database_manager old
         """
         # TODO: country should not be updated but stay as the NATION from scan_config -> Sometimes its missing and will cause inaccurate data
         
-        if not whois_data:
-            logger.warning("[QueryHandler] No WHOIS data to insert.")
-            return None
         if not ips:
             logger.warning("[Query_Handler] No IPs provided to seed WHOIS.")
             return None
 
         # Building whois data
         rows: list[tuple] = []
-        scan_ts = get_current_timestamp()
+        last_scanned_ts = get_current_timestamp() 
         cidr_map = {
             ipaddress.ip_network(cidr): data
             for cidr, data in whois_data.items()
@@ -307,7 +304,7 @@ class QueryHandler:  # Database_manager old
                     matched.get('reg_date'),
                     matched.get('country'),
                     matched.get('state_prov'),
-                    scan_ts,
+                    last_scanned_ts,
                 ))
             except Exception as e:
                 logger.error(f"[QueryHandler] Error prepping WHOIS row for {ip}: {e}")

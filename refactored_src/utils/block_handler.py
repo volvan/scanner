@@ -170,7 +170,7 @@ def extract_subnet_from_block(cidr_block: str = None, filename: str = None) -> d
     return results
 
 
-def whois_block(filename: str = None) -> dict:
+def whois_block(filename: str) -> dict:
     """Perform WHOIS lookups on IPs or CIDR blocks.
 
     Args:
@@ -179,9 +179,6 @@ def whois_block(filename: str = None) -> dict:
     Returns:
         dict: Mapping of CIDR -> WHOIS metadata fields, with a non-null 'cidr'.
     """
-    if not filename:
-        raise ValueError("[whois_block] A file containing hosts to lookup must be provided.")
-
 
     cidr_list = read_block(filename)
     results: dict[str, dict] = {}

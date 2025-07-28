@@ -17,7 +17,6 @@ from pika.spec import Basic, BasicProperties
 # Utility Handlers
 from utils import block_handler
 from utils.batch_handler import IPBatchHandler
-from utils.queue_initializer import QueueInitializer
 from utils.reservoir_randomize import reservoir_of_reservoirs
 
 from utils.timestamp import get_current_timestamp
@@ -82,22 +81,19 @@ class DiscoveryScanner:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
             self.infraManager.start_hosts()
 
-            # Check how many tasks in queue
+            # Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 tasks_remaining = rmq_conn.tasks_in_queue()
 
-            # If tasks are already in queue, stop the program
-            # TODO[Franz]: should not stop the program but assign workers and consume from the queue.. right?
-            if tasks_remaining > 0:
-                logger.warning(f"[DiscoveryScanner] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
-                return
-            # Else, no tasks are in queue, so we enqueue tasks
-            logger.info(f"[DiscoveryScanner ] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
-
-            # Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
-            filename = self.new_targets()
-            if not filename:
-                return
+                # If tasks are already in queue, stop the program           # TODO[Franz]: should not stop the program but assign workers and consume from the queue.. right?
+                if tasks_remaining > 0:
+                    logger.warning(f"[DiscoveryScanner] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
+                    return
+                # Else, no tasks are in queue, so we enqueue tasks
+                logger.info(f"[DiscoveryScanner ] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
+                filename = self.new_targets(RMQ_conn=rmq_conn)
+                if not filename:
+                    return
 
             # Record the scan-start timestamp
             discovery_start_ts = get_current_timestamp()
@@ -369,29 +365,19 @@ class DiscoveryScanner:
             if p.is_alive():
                 p.join(timeout=1)
 
-    def new_targets(self) -> str:
+    def new_targets(self, RMQ_conn: RabbitMQ) -> str:
         """Extract IP addresses, randomize them, and enqueue into batches.
 
         Args:
-            queue_name (str): Name of the RabbitMQ queue to enqueue into.
-            address (str, optional): Single IP or CIDR block.
-            filename (str, optional): File containing CIDR blocks.
+            RMQ_conn: RabbitMQ connection.
 
         Returns:
             str: Filename used for CIDR blocks, or None on error.
-
-        Raises:
-            ValueError: If neither address or filename is provided.
         """
         try:
             # TODO[Franz]: move this to the check thats in beginning ( serviceManager)
             # if not ALL_ADDR_QUEUE:
             #     raise ValueError("Queue name must be provided")
-
-            # Create the RMQ used for storing all IP addresses
-            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-                if not rmq_conn.queue_exists():
-                    rmq_conn.declare_queue()
 
             if FETCH_RIX:
                 new_rix_file = block_handler.fetch_rix_blocks()
@@ -407,7 +393,7 @@ class DiscoveryScanner:
             # TODO[Franz]: move this to the check thats in beginning ( serviceManager)
             # else:
             #     raise ValueError(
-            #         "Either an IP address, a filename, or fetch_rix=True must be provided."
+            #         "Either a filename, or fetch_rix=True must be provided."
             #     )
 
             # Randomize all ips
@@ -427,23 +413,22 @@ class DiscoveryScanner:
             with DBWorker() as dbWorker:
                 dbWorker: DBWorker
                 for batch_no, batch in enumerate(chunked(shuffled_ips_iter), start=1):
-                    logger.info("[enqueue] batch %d: size=%d", batch_no, len(batch))
+                    logger.debug(f"[DiscoveryScanner.new_targets] enqueuing batch: {batch_no} of size: {len(batch)}")
 
                     # Insert to database
                     queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
                     if queryModel is None:
                         logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
                         continue
-
                     success = dbWorker.execute_query_model(queryModel)
                     if not success:
                         logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
                         continue
 
-                    # Insert to RMQ
-                    QueueInitializer.enqueue_items(queue_name=ALL_ADDR_QUEUE, key="ip", val=batch)
+                    # Enqueue to RMQ
+                    for batch in batch:
+                        RMQ_conn.enqueue_to_queue(queue_name=ALL_ADDR_QUEUE, message={"ip": batch})
 
-                # dbWorker.close()
                 del shuffled_ips_iter, ip_iter
                 gc.collect()
 

@@ -32,14 +32,13 @@ class ProbeHandler:
                 universal_newlines=True,
                 timeout=PROBE_TIMEOUT
             )
-            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}. The output: {output}")
+            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}... \n ..The output: {output}")
             return output
         except subprocess.CalledProcessError as e:
-            logger.warning(f"[ProbeHandler] Command failed: {' '.join(command)}")
-            logger.warning(f"[ProbeHandler] Output:\n{e.output}")
+            logger.warning(f"[ProbeHandler] Command failed: {' '.join(command)}... \n ..The output: {e.output}")
             return ""
         except subprocess.TimeoutExpired:
-            logger.warning(f"[ProbeHandler] Timeout after {PROBE_TIMEOUT}s: {' '.join(command)}")
+            logger.warning(f"[ProbeHandler] Timeout after {PROBE_TIMEOUT}s: {' '.join(command)}. \n")
             return ""
         except Exception as e:
             logger.error(f"[ProbeHandler] Unexpected error running command {command}. With error {e}")

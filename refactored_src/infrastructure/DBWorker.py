@@ -135,7 +135,7 @@ class DBWorker:
             logger.info("[DBWorker] Connection pool closed")
 
 
-    def execute_sql(self, query: str, params=None, fetch: bool = False) -> (list[tuple] | int):
+    def _execute_sql(self, query: str, params=None, fetch: bool = False) -> (list[tuple] | int):
         """Generic SQL execution.
 
         Args:
@@ -171,6 +171,11 @@ class DBWorker:
             raise
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
-        """laterdo: Docstr."""
+        """laterdo: Docstr.
+        
+        Returns:
+            List[Tuple]: If 'fetch=True', returns rows from query results.
+            int: If 'fetch=False', returns affected rowcount.
+        """
         logger.debug("[DBWorker] execute_query_model() called")
-        return self.execute_sql(model.query, model.params, fetch=model.fetch)
+        return self._execute_sql(model.query, model.params, fetch=model.fetch)

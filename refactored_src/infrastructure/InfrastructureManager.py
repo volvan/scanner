@@ -18,7 +18,7 @@ class InfrastructureManager:
         """laterdo: Docstr."""
         return self.dbHandler.start_hosts()
 
-    def start_port(self):
+    def start_ports(self):
         """laterdo: Docstr."""
         return self.dbHandler.start_ports()
 
