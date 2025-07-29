@@ -507,7 +507,7 @@ class DiscoveryScanner:
 
             time.sleep(SCAN_DELAY)
 
-        logger.info(f"[DiscoveryScanner] All probes for {ip_addr} failed with exception or timeout.")
+        logger.info(f"[DiscoveryScanner] All probes for {ip_addr} failed with exception or timeout.") # TODO: It seems this is only trying for max 2 seconds?
         return {
             "probe_method": None,
             "probe_protocol": None,

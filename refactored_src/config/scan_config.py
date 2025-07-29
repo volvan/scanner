@@ -46,7 +46,7 @@ ALIVE_ADDR_QUEUE = f"{SCAN_NATION}.alive_addr"                        # The Rabb
 DEAD_ADDR_QUEUE = f"{SCAN_NATION}.dead_addr"                          # The RabbitMQ queue name that contains all IPs discovered as 'dead'
 
 THRESHOLD = 2                                                         # Direct vs batch mode threshold
-BATCH_SIZE = 3                                                        # (DEF: 500)  - Tasks per batch
+BATCH_SIZE = 10                                                       # (DEF: 500)  - Tasks per batch
 IP_MAX_BATCH_AMOUNT = 5                                                  #             - Max batches that exist concurrently
 WHO_IS_SCAN_DELAY = 2                                                 # (DEF: 2)    - Delay between whois lookups       # TODO: verify correct use
 WORKERS = 3                                                           # (DEF: 250)  - Number of workers to spawn

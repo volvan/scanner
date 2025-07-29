@@ -65,7 +65,7 @@ class RabbitMQ:
             self.channel = self.connection.channel()
             # TODO:[Emilia] should really always try to declare queue??
             self.declare_queue(self.queue_name)
-            logger.debug("RMQ - Calling _connect")
+            # logger.debug("RMQ - Calling _connect")
         except Exception as e:
             logger.error(f"[RabbitMQ] Connection error: {e}")
             raise
@@ -302,7 +302,7 @@ class RabbitMQ:
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
         # TODO:[Emilia] this should be removed after verified its not in use
-        logger.debug("RMQ - Calling close")
+        # logger.debug("RMQ - Calling close")
         try:
             if hasattr(self, "connection") and not self.connection.is_closed:
                 # if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
@@ -313,12 +313,12 @@ class RabbitMQ:
     # TODO:[Emilia] Context manager
     def __enter__(self):
         """Support context manager entry (with-statement)."""
-        logger.debug("RMQ - Calling enter")
+        # logger.debug("RMQ - Calling enter")
         # self._connect() # TODO:[Emilia] after using only context manager, move connect from init
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Support context manager exit (with-statement) to close the RMQ connection safely."""
-        logger.debug("RMQ - Calling exit")
+        # logger.debug("RMQ - Calling exit")
 
         self.close()
