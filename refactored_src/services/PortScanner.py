@@ -109,7 +109,7 @@ class PortScanner:
                         update_qm = self.infraManager.queryHandler.update_summary(
                             summary_id=summary_id,
                             port_start_ts=port_start_ts,
-                            port_done_ts=port_done_ts,
+                            port_done_ts=port_done_ts, # TODO: this is not accurate, the db_ports are still running. seems like we are not waiting for them 
                             scanned_ports=scanned_ports
                         )
                         success = dbWorker.execute_query_model(update_qm)
@@ -137,7 +137,7 @@ class PortScanner:
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
             sys.exit(1)
         finally:
-            # TODO: if we stop here, we are closing the currently running processes that are inserting to db right??
+            # TODO: if we stop here, we are closing the currently running processes that are inserting to db..??
             # db_ports.join()  # block until every port task_done()
             # self.infraManager.stop() # Stop the database thread
             logger.debug(f"[PortScanner] Current running processes for db_ports: {db_ports.qsize()} ")
