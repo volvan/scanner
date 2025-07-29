@@ -75,7 +75,7 @@ class DiscoveryScanner:
         Kick off a discovery scan, record timestamps, and query to DB.
         """
 
-        # TODO[Franz]: should be refactored and logic reviewed
+        # TODO:[Franz]  should be refactored and logic reviewed
         
         try:
             # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
@@ -85,7 +85,7 @@ class DiscoveryScanner:
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 tasks_remaining = rmq_conn.tasks_in_queue()
 
-                # If tasks are already in queue, stop the program           # TODO[Franz]: should not stop the program but assign workers and consume from the queue.. right?
+                # If tasks are already in queue, stop the program           # TODO:[Franz]  should not stop the program but assign workers and consume from the queue.. right?
                 if tasks_remaining > 0:
                     logger.warning(f"[DiscoveryScanner] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
                     return
@@ -111,7 +111,7 @@ class DiscoveryScanner:
                 if blocks is None:
                     logger.error("[Discovery scanner] trying to read blocks failed.")
                 
-                # TODO[Franz]: this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
+                # TODO:[Franz]  this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
                 with DBWorker() as dbWorker:
                     queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
                         country=SCAN_NATION,
@@ -199,7 +199,7 @@ class DiscoveryScanner:
             host_state = ping_res["host_status"]
             ip_status = {"ip": ip_addr, "status": host_state}
             # Commit results to correct queue
-            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn:  # TODO[Emilia]: this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
+            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn:  # TODO:[Emilia]  this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
                 queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
                 # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue ( RIGHT??)  // If its unknown -> fail queue
                 rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
@@ -235,7 +235,7 @@ class DiscoveryScanner:
         props: BasicProperties
         body: bytes
 
-        # TODO[Franz]: Change all occurrences of RMQ to be with context manager (with)
+        # TODO:[Franz] Change all occurrences of RMQ to be with context manager (with)
         rmq = RabbitMQ(queue_name)
 
         try: 
@@ -308,7 +308,7 @@ class DiscoveryScanner:
 
         logger.debug("[IPScan Init] Starting host discovery...")
 
-        # TODO[Franz]: didnt we check just a second ago?
+        # TODO:[Franz]  didnt we check just a second ago?
         with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
             logger.debug(f"[DiscoveryScanner] {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'")
@@ -318,7 +318,7 @@ class DiscoveryScanner:
             WorkerHandlerLogic(
                 queue_name=ALL_ADDR_QUEUE,
                 process_callback=self.process_task
-                # TODO[Emilia]: check on process callback above, there its a new instance of host discovery, why not this one also or why that one
+                # TODO:[Emilia]  check on process callback above, there its a new instance of host discovery, why not this one also or why that one
                 # E: I think I already changed it, need to verify so I'll do it
             ).start()
             return
@@ -389,7 +389,7 @@ class DiscoveryScanner:
             str: Filename used for CIDR blocks, or None on error.
         """
         try:
-            # TODO[Franz]: move this to the check thats in beginning ( serviceManager)
+            # TODO:[Franz]  move this to the check thats in beginning ( serviceManager)
             # if not ALL_ADDR_QUEUE:
             #     raise ValueError("Queue name must be provided")
 
@@ -404,7 +404,7 @@ class DiscoveryScanner:
                 filename = TARGETS_FILE
                 ip_iter = block_handler.get_ip_addresses_from_block(filename=TARGETS_FILE)
             
-            # TODO[Franz]: move this to the check thats in beginning ( serviceManager)
+            # TODO:[Franz]  move this to the check thats in beginning ( serviceManager)
             # else:
             #     raise ValueError(
             #         "Either a filename, or fetch_rix=True must be provided."

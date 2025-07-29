@@ -29,7 +29,7 @@ db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' 
 # TODO: Shouldnt we be having multiple writer threads (or processes) consuming the db_hosts and db_ports queues concurrently? How many are there now? Wont it be a bottleneck if not? 
 
 
-class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Writer? maybe..
+class DBHandler:  # TODO:[Franz][Priority Low] rename.. Database_Writer? maybe..
     """laterdo: Docstr."""
 
     def __init__(self, queryHandler: QueryHandler):
@@ -82,7 +82,7 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Writer? maybe..
                     logger.error(f"[DBHandler] Host update affected no rows: {record}")
 
                 db_hosts.task_done()
-            # dbWorker.close_all()  # TODO[Franz]: should we be doing this here?
+            # dbWorker.close_all()  # TODO:[Franz] should we be doing this here?
             # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
 
     def _consume_ports(self):
@@ -126,7 +126,7 @@ class DBHandler:  # TODO[Franz][Priority Low]: rename.. Database_Writer? maybe..
 
                 db_ports.task_done()
 
-            # TODO[Franz]: should be doing this here?
+            # TODO:[Franz] should be doing this here?
             # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
             # dbWorker.close_all()
 

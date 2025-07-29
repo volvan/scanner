@@ -45,8 +45,8 @@ class IPBatchHandler:
             - Bad or invalid messages are routed to the fail queue.
             - If no valid tasks are found, messages are requeued.
         """
-        # TODO[Franz]: Change rmq_main to be with context manager (with)
-        # TODO[]: Cleanup this function, I can hardly follow the logic
+        # TODO:[Franz]  Change rmq_main to be with context manager (with)
+        # TODO:[]: Cleanup this function, I can hardly follow the logic
         rmq_main = RabbitMQ(main_queue_name)
 
         tasks: list[dict] = []
@@ -69,7 +69,7 @@ class IPBatchHandler:
                     tasks.append(msg)
                 else:
                     try:
-                        rmq_main.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
+                        rmq_main.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO:[]: Related to the Ack issue mentioned in WorkerhandlerLogic
                     except Exception as ex:
                         logger.warning("[IPBatchHandler] Failed to nack bad payload: %s", ex)
             except Exception:
@@ -77,7 +77,7 @@ class IPBatchHandler:
                     rmq_main.enqueue_to_queue(message={"raw": body.decode()}, queue_name=scan_config.FAIL_QUEUE)
                 except Exception as enqueue_ex:
                     logger.error(f"[IPBatchHandler] Failed to enqueue to fail_queue: {enqueue_ex}")
-                rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
+                rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag)  # TODO:[] : Related to the Ack issue mentioned in WorkerhandlerLogic
 
         if not tasks:
             logger.warning("[IPBatchHandler] No valid tasks found; skipping batch creation.")
@@ -92,7 +92,7 @@ class IPBatchHandler:
                 for task in tasks:
                     rmq_batch_conn.enqueue_to_queue(message=task)
             for m in deliveries:
-                rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
+                rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO:[]  Related to the Ack issue mentioned in WorkerhandlerLogic
             logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
         except Exception:
             self._requeue_deliveries(rmq=rmq_main, deliveries=deliveries, requeue=True)
@@ -105,7 +105,7 @@ class IPBatchHandler:
         """Nack or requeue every message in deliveries."""
         for d in deliveries:
             try:
-                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)  # TODO[]: Releted to the Ack issue mentioned in WorkerhandlerLogic
+                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)  # TODO:[]: Related to the Ack issue mentioned in WorkerhandlerLogic
                 logger.warning("[IPBatchHandler] Requeued message.")
             except Exception as ex:
                 logger.warning(f"[IPBatchHandler] Failed to requeue message: {ex}")
@@ -125,7 +125,7 @@ class PortBatchHandler:
         Returns:
             bool: True if more batches can be created, False otherwise.
         """
-        # TODO[Franz] should really be a seperate function?
+        # TODO:[Franz]  should really be a seperate function?
         # Franz: old function used in _tests/)
         # E: If its only used in _test/ Its a dead code and may be removed.
 
@@ -203,7 +203,7 @@ class PortBatchHandler:
         self.used_ports.add(port)
         logger.debug(f"[PortBatchHandler] currently there are {len(self.used_ports)} ports already mapped to ip and in 'used_ports'.")
 
-        # TODO[Emilia]: this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
+        ## TODO:[Emilia] this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
         # TODO: should this not be in similar logic as the batch creation in ip scan? i know the message is not the same but else it should follow in simar terms, no?
 
         # ips = self._load_all_ips_once(queue_name=ip_queue)
@@ -213,7 +213,7 @@ class PortBatchHandler:
             logger.warning("[PortBatchHandler] No alive IPs to batch against.")
             return None
 
-        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO[emilia]: Look at this
+        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[Emilia]  Look at this
         batch_name = f"{prefix}_{port}"
 
         # HERE

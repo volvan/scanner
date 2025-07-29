@@ -58,7 +58,7 @@ def prompt_clear_logs():
 
 def run_debug_maintenance():
     """laterdo: Docstr."""
-    # TODO[Emilia]: have exclude option to skip the 3 main queues for port scan
+    # TODO:[Emilia]  have exclude option to skip the 3 main queues for port scan
 
     sys.stderr.write("\n=== Debug Maintenance ===\n")
     prompt_clear_logs()

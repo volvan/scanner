@@ -46,7 +46,7 @@ from config.scan_config import (  # noqa: F401
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
 
-# TODO[Emilia][Franz]: should be similar setup as ipscanner, then its easier to follow the flow by alot
+# TODO:[Emilia][Franz]: should be similar setup as ipscanner, then its easier to follow the flow by alot
 
 
 class PortScanner:
@@ -93,11 +93,11 @@ class PortScanner:
             all_ports, priority_ports = read_ports_file(PORTS_FILE)
             scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
             if scanned_ports is None:
-                pass  # TODO[Emilia]: implement error handling here insted of in query_handler if empty
+                pass  # TODO:[Emilia] implement error handling here insted of in query_handler if empty
 
             # 7) persist summary via QueryModel
             try:
-                with DBWorker() as dbWorker:  # TODO[Franz]: rename db_conn (like all with rmq start with rmq_conn)
+                with DBWorker() as dbWorker:  # TODO:[Franz]  rename db_conn (like all with rmq start with rmq_conn)
                     # Build QueryModel for port-summary
                     latest_summary_id = self.infraManager.queryHandler.fetch_latest_summary_id(
                         country=SCAN_NATION
@@ -166,7 +166,7 @@ class PortScanner:
 
                 # Extract scan result details
                 record = {
-                    "type": "port_result",  # TODO[Emilia]: why? is this ever used?
+                    "type": "port_result",  # TODO:[Emilia]  why? is this ever used?
                     "ip": ip,
                     "port": port,
                     "port_state": probe_res["state"],
@@ -185,7 +185,7 @@ class PortScanner:
                     message = {"ip": ip, "port": port, "reason": "unknown_state"}
                     rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
                     return
-                    # # TODO[]: why return?
+                    # # TODO:[]  why return?
                     # Franz: Remove?
                     # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
                 
@@ -222,8 +222,8 @@ class PortScanner:
                         rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: now this is ack'ed before.. should be after..
                     except Exception:
                         logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
-                        rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
-                    time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO[]: Why? isint this cousing unnessisary latency or not?
+                        rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO:[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
+                    time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO:[]: Why? isint this cousing unnessisary latency or not?
                 rmq_batch_conn.remove_queue()
         finally:
             logger.debug(f"[PortScanner] Current running processes for db_ports: {db_ports.qsize()} ")
