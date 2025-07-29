@@ -153,7 +153,7 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during reconnect close: {e}")
         self._connect()
-        logger.warning(f"[RabbitMQ] reconnect successful.")
+        logger.debug(f"[RabbitMQ] reconnect successful.")
 
     @staticmethod
     def worker_consume(queue_name: str, callback: object) -> None:
@@ -283,7 +283,7 @@ class RabbitMQ:
             logger.debug(f"[RabbitMQ enqueue_to_queue()]: enqueued {message} to {queue_name}")
 
         except (pika.exceptions.ChannelClosedByBroker, pika.exceptions.ConnectionClosed) as e:
-            logger.warning(f"[RabbitMQ] Failed to enqueue (closed channel): {e}. Will reconnect..")
+            logger.debug(f"[RabbitMQ] Failed to enqueue (closed channel): {e}. Will reconnect..") # TODO: For now this is set to debug, set to warning later but as a patch this is used for creating the fail queue
             try:
                 self.reconnect()
                 self.channel.queue_declare(queue=queue_name, durable=True)
@@ -294,7 +294,7 @@ class RabbitMQ:
                     properties=pika.BasicProperties(delivery_mode=2)
                 )
             except Exception as ex:
-                logger.error(f"[RabbitMQ] Retry publish failed for '{queue_name}': {ex}")
+                logger.error(f"[RabbitMQ] Failed to enqueue (closed channel) and reconnection failed for '{queue_name}': {ex}")
         except Exception as e:
             logger.error(f"[RabbitMQ] Failed to enqueue message to '{queue_name}': {e}")
 

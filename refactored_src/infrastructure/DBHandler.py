@@ -1,32 +1,20 @@
-# ----- Standard library -----#
 import threading
-
-# ----- Type annotation imports -----#
-# from data.DataManager import DataManager
 import queue
 
-# ----- Model imports -----#
 from models.QueryModel import QueryModel
-
-# ----- Service imports -----#
-from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
-# from infrastructure.DBHandler import db_hosts
+from infrastructure.QueryHandler import QueryHandler
 
 # ----- Logger import -----#
 from config.logging_config import logger
-
-
-# ----- TEMP OLD IMPORTS -----#
-from infrastructure.QueryHandler import QueryHandler
 
 # In-memory queues for DBWorker
 from multiprocessing import JoinableQueue
 
 
+# TODO: Shouldnt we be having multiple writer threads (or processes) consuming the db_hosts and db_ports queues concurrently? How many are there now? Wont it be a bottleneck if not? 
 db_hosts: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Hosts' db table
 db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' db table
-# TODO: Shouldnt we be having multiple writer threads (or processes) consuming the db_hosts and db_ports queues concurrently? How many are there now? Wont it be a bottleneck if not? 
 
 
 class DBHandler:  # TODO:[Franz][Priority Low] rename.. Database_Writer? maybe..
@@ -59,11 +47,12 @@ class DBHandler:  # TODO:[Franz][Priority Low] rename.. Database_Writer? maybe..
     def _consume_hosts(self):
         """Flush scan results from the in-memory queue db_hosts into the database.
 
-        For every successful commit to the database, we enqueue the delivery tag to db_acks queue to be acked.
+        The DB thread pops the dict db_hosts, builds a QueryModel, opens a DBWorker context (gets pooled connection), executes SQL and lastly, calls task_done().
         """
         # TODO: should be inserting in batches maybe? Wont this overload at some point? (Meaning write to the database in batches, not row-by-row)
 
         with DBWorker() as dbWorker:
+            # The thread loops until stop_signal is set and the queue is empty
             while not self.stop_signal:
                 try:
                     record = db_hosts.get(timeout=1)

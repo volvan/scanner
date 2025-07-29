@@ -306,12 +306,14 @@ class DiscoveryScanner:
             sys.exit(1)
             return
 
-        logger.debug("[IPScan Init] Starting host discovery...")
+        logger.debug("[start_consuming] Starting host discovery...")
 
-        # TODO:[Franz]  didnt we check just a second ago?
+        # TODO:[Emilia]  didnt we check just a second ago?
         with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
             logger.debug(f"[DiscoveryScanner] {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'")
+            print(f"Scan started for total of {total_tasks} IPs.") # TODO:[Emilia] just debugging for now, remember to remove later
+            logger.info(f"[DiscoveryScanner] Starting a scan for total of {total_tasks} IPs.")
 
         if total_tasks < THRESHOLD:
             logger.info("[DiscoveryScanner] Direct processing mode (small scan).")

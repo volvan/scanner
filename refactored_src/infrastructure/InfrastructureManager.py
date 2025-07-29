@@ -15,11 +15,11 @@ class InfrastructureManager:
         self.dbHandler = DBHandler(self.queryHandler)
 
     def start_hosts(self):
-        """laterdo: Docstr."""
+        """Spawns one daemon thread for inserting the the database (db_hosts queue)"""
         return self.dbHandler.start_hosts()
 
     def start_ports(self):
-        """laterdo: Docstr."""
+        """Spawns one daemon thread for inserting the the database (db_ports queue)"""
         return self.dbHandler.start_ports()
 
     # def stop_hosts(self):
