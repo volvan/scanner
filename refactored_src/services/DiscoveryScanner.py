@@ -66,75 +66,91 @@ class DiscoveryScanner:
         self.externalManager = externalManager
         self.infraManager = infraManager
         
-        self.batch_id_generator = itertools.count(1)
         self.active_processes: list[Process] = []
+        self.batch_id_generator = itertools.count(1)
 
     def launch_discovery_scan_pipeline(self):
-        """Main runner.
-
-        Kick off a discovery scan, record timestamps, and query to DB.
-        """
-
-        # TODO:[Franz]  should be refactored and logic reviewed
+        """Main runner."""
         
         try:
-            # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
+            # Start a listener on it's own thread that inserts into the DB
             self.infraManager.start_hosts()
 
-            # Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
-            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-                tasks_remaining = rmq_conn.tasks_in_queue()
+            # 1) Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
+            filename = self.new_targets()
+            if not filename: 
+                logger.error("COULD NOT READ FILE")
 
-                # If tasks are already in queue, stop the program           # TODO:[Franz]  should not stop the program but assign workers and consume from the queue.. right?
-                if tasks_remaining > 0:
-                    logger.warning(f"[DiscoveryScanner] {tasks_remaining} tasks already in queue '{ALL_ADDR_QUEUE}'; skipping new enqueue.")
-                    return
-                # Else, no tasks are in queue, so we enqueue tasks
-                logger.info(f"[DiscoveryScanner ] No tasks in '{ALL_ADDR_QUEUE}'; enqueueing new targets.")
-                filename = self.new_targets(RMQ_conn=rmq_conn)
-                if not filename:
-                    return
-
-            # Record the scan-start timestamp
+            # 2) Record the scan-start timestamp
             discovery_start_ts = get_current_timestamp()
 
-            # Perform the discovery scan (this blocks until done) - this runs the pipeline of the actual scan process
+            # 3) run the scan (blocks until complete)
             self.start_consuming()
 
-            # Record the scan-done timestamp
+        except Exception as e:
+            # Wait for the db queue to drain and stop the db listener
+            logger.critical(f"[DiscoveryScanner] Fatal error: {e}", exc_info=True)
+            db_hosts.join()
+            self.infraManager.stop()
+            sys.exit(1)
+        
+        finally:
+            # 4) Pipeline is now done, need to wait for every batch process to exit
+            logger.info("Host Discovery scan pipeline has concluded, now workers continue scanning.")
+            for p in self.active_processes:
+                p.join()
+    
+        # Now start the cleanup after the scan has concluded
+        logger.info("Host Discovery scan has concluded, cleanup starting.")
+
+        try:
+            # 1) Record the scan-done timestamp
             discovery_done_ts = get_current_timestamp()
 
-            # Scan is concluded. Write the summary table
-            try:
-                # Read the blocks to pass into the summary table as 'scanned hosts'
-                blocks = read_block(filename)
-                if blocks is None:
-                    logger.error("[Discovery scanner] trying to read blocks failed.")
-                
-                # TODO:[Franz]  this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
-                with DBWorker() as dbWorker:
-                    queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
-                        country=SCAN_NATION,
-                        discovery_start_ts=discovery_start_ts,
-                        discovery_done_ts=discovery_done_ts,
-                        scanned_cidrs=blocks
-                    )
-                    success = dbWorker.execute_query_model(queryModel)
-                    if not success:
-                        logger.critical('[DiscoveryScanner.launch_discovery_scan_pipeline] Something went wrong while inserting the summary.')
-            except Exception as e:
-                logger.error(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Failed to write discovery summary: {e}")
+            # 2) record all blocks that were scanned
+            blocks = read_block(filename)
+            if not blocks: 
+                logger.error("COULD NOT READ blocks")
+
+            # 3) persist summary via QueryModel
+            self._update_summary(discovery_start_ts, discovery_done_ts, blocks)
 
         except Exception as e:
+            # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
-        finally:
-            # TODO: should we be doing this here? The same issue can arise as i mention in port scanner
-            # db_hosts.join()  # block until every host task_done()
-            # self.infraManager.stop() # Stop the database thread
+            db_hosts.join()
+            self.infraManager.stop()
+            sys.exit(1)
 
-            logger.debug(f"[DiscoveryScanner] Current running processes for db_hosts: {db_hosts.qsize()} ")
-            logger.info("Discovery scan pipeline has concluded, now workers continue scanning.")
-            print("Discovery scan pipeline has concluded, now workers continue scanning.") 
+        finally:
+            # 4) Port scan is now done, now we wait for processes
+            logger.debug(f"Current running processes for db_hosts: {db_hosts.qsize()} and active processes are: {len(self.active_processes)}")
+            logger.info("Discovery Scan done.")
+
+            # Wait for the db queue to drain (blocks until every task_done() completed)
+            logger.info(f"[DiscoveryScanner] Waiting for db_hosts queue to empty.. Currently there are {db_hosts.qsize()} items in db_hosts queue.")
+            db_hosts.join()
+
+            # Lastly, stop the db listener (writer threads)
+            self.infraManager.stop()
+
+
+    def _update_summary(self, discovery_start_ts, discovery_done_ts, scanned_blocks):
+        try:
+            # TODO:[Franz]  this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
+            with DBWorker() as dbWorker:
+                queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
+                    country=SCAN_NATION,
+                    discovery_start_ts=discovery_start_ts,
+                    discovery_done_ts=discovery_done_ts,
+                    scanned_cidrs=scanned_blocks
+                )
+                success = dbWorker.execute_query_model(queryModel)
+                if not success:
+                    logger.critical('[DiscoveryScanner.launch_discovery_scan_pipeline] Something went wrong while inserting the summary.')
+        except Exception as e:
+            logger.error(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Failed to write discovery summary: {e}")
+
 
     def process_task(self, ch: BlockingChannel, method: Basic.GetOk, properties: BasicProperties, body: bytes) -> None:
         """Process a RabbitMQ task.
@@ -301,14 +317,9 @@ class DiscoveryScanner:
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""
 
-        if not resource_ok():
-            logger.warning("Memory limit reached; shutting down")
-            sys.exit(1)
-            return
-
         logger.debug("[start_consuming] Starting host discovery...")
 
-        # TODO:[Emilia]  didnt we check just a second ago?
+        # TODO:[Emilia] didn't we check just a second ago?
         with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
             logger.debug(f"[DiscoveryScanner] {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'")
@@ -317,11 +328,10 @@ class DiscoveryScanner:
 
         if total_tasks < THRESHOLD:
             logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
+            # TODO:[] This is almost never used.. does it really need a whole class by itself?
             WorkerHandlerLogic(
                 queue_name=ALL_ADDR_QUEUE,
                 process_callback=self.process_task
-                # TODO:[Emilia]  check on process callback above, there its a new instance of host discovery, why not this one also or why that one
-                # E: I think I already changed it, need to verify so I'll do it
             ).start()
             return
 
@@ -329,7 +339,14 @@ class DiscoveryScanner:
 
         while True:
             # TODO: it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT created as example) to make sure it never creates bilions of batches.. 
+            
+            if not resource_ok():
+                logger.warning("Memory limit reached; shutting down")
+                sys.exit(1)
+                return
+            
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
+                logger.debug("RMQ: remaining check")
                 remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
@@ -381,20 +398,14 @@ class DiscoveryScanner:
             if p.is_alive():
                 p.join(timeout=1)
 
-    def new_targets(self, RMQ_conn: RabbitMQ) -> str:
+    def new_targets(self) -> str:
         """Extract IP addresses, randomize them, and enqueue into batches.
-
-        Args:
-            RMQ_conn: RabbitMQ connection.
 
         Returns:
             str: Filename used for CIDR blocks, or None on error.
         """
+        
         try:
-            # TODO:[Franz]  move this to the check thats in beginning ( serviceManager)
-            # if not ALL_ADDR_QUEUE:
-            #     raise ValueError("Queue name must be provided")
-
             if FETCH_RIX:
                 new_rix_file = block_handler.fetch_rix_blocks()
                 if not new_rix_file:
@@ -405,13 +416,7 @@ class DiscoveryScanner:
             elif TARGETS_FILE:
                 filename = TARGETS_FILE
                 ip_iter = block_handler.get_ip_addresses_from_block(filename=TARGETS_FILE)
-            
-            # TODO:[Franz]  move this to the check thats in beginning ( serviceManager)
-            # else:
-            #     raise ValueError(
-            #         "Either a filename, or fetch_rix=True must be provided."
-            #     )
-
+        
             # Randomize all ips
             shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
 
@@ -426,27 +431,29 @@ class DiscoveryScanner:
                         break
                     yield batch
 
+
             with DBWorker() as dbWorker:
                 dbWorker: DBWorker
-                for batch_no, batch in enumerate(chunked(shuffled_ips_iter), start=1):
-                    logger.debug(f"[DiscoveryScanner.new_targets] enqueuing batch: {batch_no} of size: {len(batch)}")
+                with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
+                    for batch_no, batch in enumerate(chunked(shuffled_ips_iter), start=1):
+                        logger.debug(f"[DiscoveryScanner.new_targets] enqueuing batch: {batch_no} of size: {len(batch)}")
 
-                    # Insert to database
-                    queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
-                    if queryModel is None:
-                        logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
-                        continue
-                    success = dbWorker.execute_query_model(queryModel)
-                    if not success:
-                        logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
-                        continue
+                        # Insert to database
+                        queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
+                        if queryModel is None:
+                            logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
+                            continue
+                        success = dbWorker.execute_query_model(queryModel)
+                        if not success:
+                            logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
+                            continue
+                        
+                        # Enqueue to RMQ
+                        for batch in batch:
+                            rmq_conn.enqueue_to_queue(queue_name=ALL_ADDR_QUEUE, message={"ip": batch})
 
-                    # Enqueue to RMQ
-                    for batch in batch:
-                        RMQ_conn.enqueue_to_queue(queue_name=ALL_ADDR_QUEUE, message={"ip": batch})
-
-                del shuffled_ips_iter, ip_iter
-                gc.collect()
+                    del shuffled_ips_iter, ip_iter
+                    gc.collect()
 
             # Return the file we used for CIDR blocks
             return filename

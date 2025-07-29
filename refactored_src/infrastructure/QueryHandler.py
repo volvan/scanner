@@ -23,6 +23,7 @@ class QueryHandler:  # Database_manager old
         """laterdo: Docstr."""
         pass
 
+# TODO: have this take in dict like the other insert functions..
     def insert_summary(
         self,
         *,

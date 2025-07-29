@@ -10,7 +10,7 @@ from config.logging_config import logger, log_exception
 sys.excepthook = log_exception
 
 # TODO:[Emilia]  really a separate file?
-
+# TODO: should be one port file called priority_ports.txt and another for ports.txt and they can have the format : (1-20) or (22,443) - meaning it can be a range or a list.
 
 def read_ports_file(ports_file: str):
     """Read and parse a ports file into two separate port lists.

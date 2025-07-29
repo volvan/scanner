@@ -69,7 +69,7 @@ class IPBatchHandler:
                     tasks.append(msg)
                 else:
                     try:
-                        rmq_main.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO:[]: Related to the Ack issue mentioned in WorkerhandlerLogic
+                        rmq_main.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO:[]  Related to the Ack issue 
                     except Exception as ex:
                         logger.warning("[IPBatchHandler] Failed to nack bad payload: %s", ex)
             except Exception:
@@ -77,7 +77,7 @@ class IPBatchHandler:
                     rmq_main.enqueue_to_queue(message={"raw": body.decode()}, queue_name=scan_config.FAIL_QUEUE)
                 except Exception as enqueue_ex:
                     logger.error(f"[IPBatchHandler] Failed to enqueue to fail_queue: {enqueue_ex}")
-                rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag)  # TODO:[] : Related to the Ack issue mentioned in WorkerhandlerLogic
+                rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag)   # TODO:[]  Related to the Ack issue 
 
         if not tasks:
             logger.warning("[IPBatchHandler] No valid tasks found; skipping batch creation.")
@@ -92,7 +92,7 @@ class IPBatchHandler:
                 for task in tasks:
                     rmq_batch_conn.enqueue_to_queue(message=task)
             for m in deliveries:
-                rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO:[]  Related to the Ack issue mentioned in WorkerhandlerLogic
+                rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO:[]  Related to the Ack issue 
             logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
         except Exception:
             self._requeue_deliveries(rmq=rmq_main, deliveries=deliveries, requeue=True)
@@ -105,7 +105,7 @@ class IPBatchHandler:
         """Nack or requeue every message in deliveries."""
         for d in deliveries:
             try:
-                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)  # TODO:[]: Related to the Ack issue mentioned in WorkerhandlerLogic
+                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)   # TODO:[]  Related to the Ack issue 
                 logger.warning("[IPBatchHandler] Requeued message.")
             except Exception as ex:
                 logger.warning(f"[IPBatchHandler] Failed to requeue message: {ex}")
