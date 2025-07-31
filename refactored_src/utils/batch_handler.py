@@ -119,17 +119,6 @@ class PortBatchHandler:
         self.used_ports = set()
         self.ips_cache: list[str] | None = None
 
-    def can_create_more_batches(self) -> bool:
-        """Check if the port batch concurrency limit has not been exceeded.
-
-        Returns:
-            bool: True if more batches can be created, False otherwise.
-        """
-        # TODO:[Franz]  should really be a seperate function?
-        # Franz: old function used in _tests/)
-        # E: If its only used in _test/ Its a dead code and may be removed.
-
-        return len(self.used_ports) < scan_config.BATCH_AMOUNT # TODO: If its correct that this is deadcode then the 'BATCH_AMOUNT' is also to be removed (or used in the correct place)
 
     def _load_all_ips_once(self, queue_name: str) -> list[str]:
         """Load and cache all alive IPs from a RabbitMQ queue.

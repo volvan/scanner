@@ -2,8 +2,8 @@
 from .DBHandler import DBHandler
 from .QueryHandler import QueryHandler
 
-# TODO:[Franz] !!!? no one is closing Database_Handler
-# Franz: The __exit__() method for proper deconstruction is missing, I will add it
+# TODO:[Emilia] !!!? no one is closing Database_Handler
+# F: Why would we need to `close` the DBHandler? Maybe this is a deprecated TODO?
 
 
 class InfrastructureManager:
@@ -22,6 +22,5 @@ class InfrastructureManager:
         """Spawns one daemon thread for inserting the the database (db_ports queue)"""
         return self.dbHandler.start_ports()
 
-    # def stop_hosts(self):
     def stop(self):
         return self.dbHandler.stop()

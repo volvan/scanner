@@ -62,3 +62,9 @@ class ServiceManager:
     def start_ip_port_scan(self):
         self.start_ip_scan()
         self.start_port_scan()
+
+    # ----- Close open connections -----#
+    def close_open_connections(self):
+        pass
+
+    
