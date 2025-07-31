@@ -252,68 +252,66 @@ class DiscoveryScanner:
         props: BasicProperties
         body: bytes
 
-        # TODO:[Franz] Change all occurrences of RMQ to be with context manager (with)
-        rmq = RabbitMQ(queue_name)
+        with RabbitMQ(queue_name) as rmq:
+            try: 
 
-        try: 
-
-            while True:
-                method_frame, props, body = rmq.channel.basic_get(
-                    queue=queue_name,
-                    auto_ack=False
-                )
-                if not method_frame:
-                    break
-
-                try:
-                    # Spawn a short-lived process for this one task
-                    task_proc = multiprocessing.Process(
-                        target=self.process_task,
-                        args=(rmq.channel, method_frame, props, body),
+                while True:
+                    method_frame, props, body = rmq.channel.basic_get(
+                        queue=queue_name,
+                        auto_ack=False
                     )
-                    task_proc.start()
-                    task_proc.join(timeout=BATCH_TIMEOUT_SEC)
+                    if not method_frame:
+                        break
 
-                    if task_proc.is_alive():
-                        # task hung—kill it, route to fail_queue, ack, and move on
-                        task_proc.terminate()
-                        task_proc.join()
-                        logger.warning(
-                            f"[DiscoveryScanner] Task {body!r} in batch '{queue_name}' "
-                            f"timed out after {BATCH_TIMEOUT_SEC}s; routing to fail_queue."
-                        )
-                        try:
-                            logger.info('\n\n[DiscoveryScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
-                            payload = json.loads(body)
-                            rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE)
-                        except Exception as e:
-                            logger.error(f"[DiscoveryScanner] Failed to enqueue timed-out task: {e}")
-                        finally:
-                            rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag)
-
-                except Exception as e:
-                    # any unexpected error wrapping the worker
-                    logger.error(f"[DiscoveryScanner] Error running timed-task wrapper: {e}")
                     try:
-                        rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
-                    except Exception as nack_err:
-                        logger.warning(f"[DiscoveryScanner] Failed to nack message after wrapper error: {nack_err}")
+                        # Spawn a short-lived process for this one task
+                        task_proc = multiprocessing.Process(
+                            target=self.process_task,
+                            args=(rmq.channel, method_frame, props, body),
+                        )
+                        task_proc.start()
+                        task_proc.join(timeout=BATCH_TIMEOUT_SEC)
 
-                # pause between tasks
-                time.sleep(SCAN_DELAY)
-                logger.debug(f"DELAY of {SCAN_DELAY}")
-            
-            # once we drain the queue, remove it
-            logger.debug("DiscoveryScanner _drain_and_exit calling remove_queue")
-            rmq.remove_queue()
-            rmq.close() # TODO: this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
+                        if task_proc.is_alive():
+                            # task hung—kill it, route to fail_queue, ack, and move on
+                            task_proc.terminate()
+                            task_proc.join()
+                            logger.warning(
+                                f"[DiscoveryScanner] Task {body!r} in batch '{queue_name}' "
+                                f"timed out after {BATCH_TIMEOUT_SEC}s; routing to fail_queue."
+                            )
+                            try:
+                                logger.info('\n\n[DiscoveryScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
+                                payload = json.loads(body)
+                                rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE)
+                            except Exception as e:
+                                logger.error(f"[DiscoveryScanner] Failed to enqueue timed-out task: {e}")
+                            finally:
+                                rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag)
 
-        finally:
-            logger.debug(f"[DiscoveryScanner] Current running processes for db_ports: {db_hosts.qsize()} ")
-            db_hosts.join()  # block until every host task_done()
-            self.infraManager.stop() # Stop the database thread
-            logger.debug(f"[PortScanner] (try again) Current running processes for db_ports: {db_hosts.qsize()} ")
-            logger.debug(f"[PortScanner] Currently active processes are: {len(self.active_processes)}")
+                    except Exception as e:
+                        # any unexpected error wrapping the worker
+                        logger.error(f"[DiscoveryScanner] Error running timed-task wrapper: {e}")
+                        try:
+                            rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
+                        except Exception as nack_err:
+                            logger.warning(f"[DiscoveryScanner] Failed to nack message after wrapper error: {nack_err}")
+
+                    # pause between tasks
+                    time.sleep(SCAN_DELAY)
+                    logger.debug(f"DELAY of {SCAN_DELAY}")
+                
+                # once we drain the queue, remove it
+                logger.debug("DiscoveryScanner _drain_and_exit calling remove_queue")
+                rmq.remove_queue()
+                rmq.close() # TODO: this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
+
+            finally:
+                logger.debug(f"[DiscoveryScanner] Current running processes for db_ports: {db_hosts.qsize()} ")
+                db_hosts.join()  # block until every host task_done()
+                self.infraManager.stop() # Stop the database thread
+                logger.debug(f"[PortScanner] (try again) Current running processes for db_ports: {db_hosts.qsize()} ")
+                logger.debug(f"[PortScanner] Currently active processes are: {len(self.active_processes)}")
 
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""
