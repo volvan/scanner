@@ -11,7 +11,7 @@ from infrastructure.RabbitMQ import RabbitMQ
 # ----- Logger import -----#
 from config.logging_config import logger
 
-# TODO:[Franz]  Cant we have more use of workerhandlerlogic? or something? this is messy and hard to follow the proceses..
+# TODO:[Franz]?  Cant we have more use of workerhandlerlogic? or something? this is messy and hard to follow the proceses..
 # - If direct IP scanning mode: [WorkerHandlerLogic] - there the logic for workers is
 # - If batch IP scanning mode: [DiscoveryScanner.start_consuming (while True loop)] - there the logic is..
 # - If direct Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..

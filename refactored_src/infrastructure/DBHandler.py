@@ -17,7 +17,7 @@ db_hosts: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Hosts' 
 db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' db table
 
 
-class DBHandler:  # TODO:[Franz][Priority Low] rename.. Database_Writer? maybe..
+class DBHandler:  # TODO:[Franz]?[Priority Low] rename.. Database_Writer? maybe..
     """laterdo: Docstr."""
 
     def __init__(self, queryHandler: QueryHandler):

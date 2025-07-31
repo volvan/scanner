@@ -100,9 +100,9 @@ class QueryHandler:  # Database_manager old
             fetch=False
         )
 
-    # TODO:[Franz] Verify that this is not dead code
+    # TODO:[Franz]? Verify that this is not dead code
     # E: Note, it either is or should be used in launch_x_scan
-    #   - Becouse after the scan is done, it should check the latest summary ID WHERE country is NATION..
+    #   - Because after the scan is done, it should check the latest summary ID WHERE country is NATION..
     #   .. and if it does not have port_scan_done_ts -> It should update that summary row with the port scan data
     #   .. If it however does have port_scan_done_ts -> It means something is wrong but should just create a new summary row..
     #   - Note that for the host discovery scan, it should always just create a new row.
@@ -122,7 +122,6 @@ class QueryHandler:  # Database_manager old
         )
         return QueryModel(query=sql, params=(country,), fetch=True)
 
-    # TODO:[Franz]  Verify that this is not dead code
 
     def update_summary(
         self,
