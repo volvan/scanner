@@ -69,7 +69,7 @@ T1_TIMEOUT = 15                                                       # (helper)
 NMAP_PROBE_TIMEOUT = (                                                # (DEF: 60) The scan will have this max seconds to scan its target port on any ip before going for timeout
     (NMAP_RETRY_DELAY / 1000) * (1 + NMAP_RETRY_ATTEMPTS)                   # delay * retry attempts
   + (T1_TIMEOUT * (1 + NMAP_RETRY_ATTEMPTS))                                # RTT waits * retry attempts
-  + 25                                                                      # the added slack
+  + 30                                                                      # the added slack
 ) 
 # ------------------------------------------------------------------------------
 
