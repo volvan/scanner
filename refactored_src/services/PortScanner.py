@@ -251,7 +251,7 @@ class PortScanner:
                     except Exception:
                         logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
                         rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO: this also.. now this is ack'ed before.. should be after..
-                    time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO:[]: This is adding a delay between ip,port scan - but i wonder if we have already added the delay 
+                    time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO:[Emilia]: This is adding a delay between ip,port scan - but i wonder if we have already added the delay 
                 rmq_batch_conn.remove_queue()
         finally:
             logger.debug(f"Batch worker for queue {batch_queue} has drained and exited the queue.")
