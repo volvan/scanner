@@ -20,7 +20,7 @@ logger.addFilter(WorkerPIDFilter())
 # Instance of ServiceManager that stores all starter methods for all possible ScanType values
 serviceManager = ServiceManager()
 
-# Helps direct the application to the correct method based on the SCAN_TYPE from scan_config.py
+# Helps direct current process to the correct method based on the SCAN_TYPE value from scan_config
 scan_type_to_method:dict = {
     'ip': serviceManager.start_ip_scan,
     'port': serviceManager.start_port_scan,
