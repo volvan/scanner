@@ -4,7 +4,6 @@ import time
 from multiprocessing import Process
 
 # ----- Type annotation imports -----#
-from external.ExternalManager import ExternalManager
 from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
@@ -52,9 +51,8 @@ proc = psutil.Process(os.getpid())
 class PortScanner:
     """laterdo: Docstr."""
 
-    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
+    def __init__(self, infraManager: InfrastructureManager):
         """laterdo: Docstr."""
-        self.externalManager = externalManager
         self.infraManager = infraManager
 
         self.active_processes: list[Process] = [] # TODO: should we not close the active processes at some point?

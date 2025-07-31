@@ -1,8 +1,6 @@
 
 # ----- Manager imports -----#
-
 from infrastructure.InfrastructureManager import InfrastructureManager
-from external.ExternalManager import ExternalManager
 
 # ----- Service imports -----#
 from .PortScanner import PortScanner
@@ -20,12 +18,11 @@ class ServiceManager:
     def __init__(self):
         """laterdo: Docstr."""
         # Managers
-        self.externalManager = ExternalManager()  # TODO:[Franz] needed? - (nope, I will remove it)
         self.infraManager = InfrastructureManager()
 
         # Service Instances
-        self.discoveryScanner = DiscoveryScanner(self.externalManager, self.infraManager)
-        self.portScanner = PortScanner(self.externalManager, self.infraManager)
+        self.discoveryScanner = DiscoveryScanner(self.infraManager)
+        self.portScanner = PortScanner(self.infraManager)
 
     # ----- DiscoveryScanner Methods -----#
     def start_ip_scan(self):

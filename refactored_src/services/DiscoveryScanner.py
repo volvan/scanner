@@ -8,7 +8,6 @@ import sys
 import os
 import time
 
-from external.ExternalManager import ExternalManager
 from infrastructure.InfrastructureManager import InfrastructureManager
 from multiprocessing import Process
 
@@ -61,9 +60,8 @@ from config.scan_config import (  # noqa: F401, E402
 class DiscoveryScanner:
     """laterdo: Docstr."""
 
-    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
+    def __init__(self, infraManager: InfrastructureManager):
         """laterdo: Docstr."""
-        self.externalManager = externalManager
         self.infraManager = infraManager
         
         self.active_processes: list[Process] = []
