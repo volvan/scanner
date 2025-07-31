@@ -57,3 +57,8 @@ class ServiceManager:
 
         logger.info(f"'ServiceManager.launch_port_scan_pipeline()' done at: {done_ts}. The duration is: {duration}.")
         print(f"Duration of scan: {duration}")
+
+    # ----- Start IP then Port scan -----#
+    def start_ip_port_scan(self):
+        self.start_ip_scan()
+        self.start_port_scan()

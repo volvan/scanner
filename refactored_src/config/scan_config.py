@@ -28,6 +28,8 @@ CPU_LIMIT = 70                                                        # CPU (per
 
 
 # --------- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN --------------
+SCAN_TYPE = "ipz"
+
 SCAN_NATION = "IS"                                                    # The Nation-code that is being scanned
 FETCH_RIX = False                                                     # (DEF: True)  - If True, fetch IPs from RIX.is
 TARGETS_FILE = "blocks.txt"                                           # File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
