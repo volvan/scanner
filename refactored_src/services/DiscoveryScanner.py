@@ -135,7 +135,8 @@ class DiscoveryScanner:
 
     def _update_summary(self, discovery_start_ts, discovery_done_ts, scanned_blocks):
         try:
-            # TODO:[Franz]  this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
+            # TODO:[Emilia]  this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
+            # F: Is this not already sharing logic via `dbWorker.execute_query_model`?
             with DBWorker() as dbWorker:
                 queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
                     country=SCAN_NATION,
@@ -214,7 +215,6 @@ class DiscoveryScanner:
             ip_status = {"ip": ip_addr, "status": host_state}
             # Commit results to correct queue
             
-
             queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
             with RabbitMQ(queue_name) as rmq_conn:  # TODO:[Emilia]  this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
                 # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue ( RIGHT??)  // If its unknown -> fail queue

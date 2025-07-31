@@ -64,7 +64,8 @@ def run_debug_maintenance():
     prompt_clear_logs()
     prompt_delete_all_queues()
 
-    sys.stderr.write("Maintence done. Enter to continue...\n")
+    sys.stderr.write("Maintence done. Enter to continue...\t")
+    print('')
     logger.debug("Maintence done.\n")
     sys.stderr.flush()
     sys.stdin.readline()

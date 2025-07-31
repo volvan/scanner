@@ -16,7 +16,6 @@ from config.scan_config import DEBUG_MODE, SCAN_TYPE
 configure_logging(CONFIG_PATH)
 logger.addFilter(WorkerPIDFilter())
 
-
 # Instance of ServiceManager that stores all starter methods for all possible ScanType values
 serviceManager = ServiceManager()
 

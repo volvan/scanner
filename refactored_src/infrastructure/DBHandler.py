@@ -71,8 +71,6 @@ class DBHandler:  # TODO:[Franz][Priority Low] rename.. Database_Writer? maybe..
                     logger.error(f"[DBHandler] Host update affected no rows: {record}")
 
                 db_hosts.task_done()
-            # dbWorker.close_all()  # TODO:[Franz] should we be doing this here?
-            # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
 
     def _consume_ports(self):
         """Consume port scan results from db_ports queue and insert into database."""
@@ -115,9 +113,6 @@ class DBHandler:  # TODO:[Franz][Priority Low] rename.. Database_Writer? maybe..
 
                 db_ports.task_done()
 
-            # TODO:[Franz] should be doing this here?
-            # Franz: Nei, það er meira clean og safe að loka í DBWorker.__exit__ (I will do it)
-            # dbWorker.close_all()
 
     def stop(self):
         """laterdo: Docstr."""
