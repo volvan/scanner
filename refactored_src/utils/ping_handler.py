@@ -26,7 +26,6 @@ class PingHandler:
             target_ip (str): The IP address to probe for liveness.
         """
         self.target_ip = target_ip
-        self.delay = scan_config.SCAN_DELAY
 
     def _run_command(self, command: list) -> str:
         """Run a shell command and capture its output.

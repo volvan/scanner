@@ -129,7 +129,7 @@ class PortBatchHandler:
         # Franz: old function used in _tests/)
         # E: If its only used in _test/ Its a dead code and may be removed.
 
-        return len(self.used_ports) < scan_config.BATCH_AMOUNT # TODO: If its correct that this is deadcode then the 'BATCH_AMOUNT' is also to be removed (or used in the correct place)
+        return len(self.used_ports) < scan_config.PORT_MAX_BATCH_AMOUNT # TODO: If its correct that this is deadcode then the 'BATCH_AMOUNT' is also to be removed (or used in the correct place)
 
     def _load_all_ips_once(self, queue_name: str) -> list[str]:
         """Load and cache all alive IPs from a RabbitMQ queue.
@@ -214,7 +214,7 @@ class PortBatchHandler:
             return None
 
         prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[Emilia]  Look at this
-        batch_name = f"{prefix}_{port}"
+        batch_name = f"{scan_config.NATION}.{prefix}_{port}"
 
         # HERE
         with RabbitMQ(batch_name) as rmq_conn:

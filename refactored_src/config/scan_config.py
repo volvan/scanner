@@ -1,6 +1,5 @@
-import os  
+import os
 # TODO[Emilia]: fix fetch from RIX everywhere.. and verify it works afterwards
-# TODO: Check if any dead-code and where (if anywhere) these are used 
 # TODO: what happens if USE_PRIORITY_PORTS is true /or false AND we have both ports.txt and priorityports.txt or can we only use ports.txt?
 
 # ------------------------------------------------------------------------------
@@ -45,11 +44,11 @@ ALL_ADDR_QUEUE = f"{SCAN_NATION}.all_addr"                            # The Rabb
 ALIVE_ADDR_QUEUE = f"{SCAN_NATION}.alive_addr"                        # The RabbitMQ queue name that contains all IPs discovered as 'alive' 
 DEAD_ADDR_QUEUE = f"{SCAN_NATION}.dead_addr"                          # The RabbitMQ queue name that contains all IPs discovered as 'dead'
 
+WORKERS = 3                                                           # (DEF: 250)  - Number of workers to spawn
 THRESHOLD = 2                                                         # Direct vs batch mode threshold
 BATCH_SIZE = 10                                                       # (DEF: 500)  - Tasks per batch
-IP_MAX_BATCH_AMOUNT = 5                                                  #             - Max batches that exist concurrently
+IP_MAX_BATCH_AMOUNT = 5                                               #             - Max batches that exist concurrently
 WHO_IS_SCAN_DELAY = 2                                                 # (DEF: 2)    - Delay between whois lookups       # TODO: verify correct use
-WORKERS = 3                                                           # (DEF: 250)  - Number of workers to spawn
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
@@ -58,9 +57,20 @@ ALL_PORTS_QUEUE = f"{SCAN_NATION}.all_ports"                          # The Rabb
 PRIORITY_PORTS_QUEUE = f"{SCAN_NATION}.priority_ports"                # The RabbitMQ queue name that contains all ports to scan when USE_PRIORITY_PORTS is True
 
 USE_PRIORITY_PORTS = False                                            # Set this to True if ports file consists of priority ports
-BATCH_AMOUNT = 100                                                    # Concurrent port batches     # TODO: rename PORT_MAX_BATCH_AMOUNT and verify correctly used
+
+PORT_MAX_BATCH_AMOUNT = 100                                           # Concurrent port batches                 # TODO: verify correctly used
 BATCH_TIMEOUT_SEC = 300                                               # Max time allowed per batch queue        # TODO: IF this is what i think it is, its the max time a process can live when its working on a batch.. if so it should be implemented in port scan also right? or that all processes (in batch or not) should have a timeout? the name of this const is atleast not descriptive.. it seems to me at first glance that port x on all ips is = batch - meaning that a process can scan all those targets only in this timeframe
-PROBE_TIMEOUT = int(os.getenv("PROBE_TIMEOUT", "60"))                 # Allow override of the subprocess timeout via environment variable       # TODO: What is this? dont tell me its processes that are host scanning and they have 60 seconds to live? or? and why in the world is it casting a str to int? is there a reason for it?
+
+PROBE_JITTER_MAX = float(0.1)                                         # jitter to add on top of SCAN_DELAY (in seconds) # TODO:[emilia] verify
+
+NMAP_RETRY_DELAY = 200                                                # (DEF: 200ms)  - Minimum delay between two probes to the same port
+NMAP_RETRY_ATTEMPTS = 1                                               # How many extra probes may be sent if there's no reply (excluding the initial probe)
+T1_TIMEOUT = 15                                                       # (helper)    - T1 probes wait up to 15s for a response by design
+NMAP_PROBE_TIMEOUT = (                                                # (DEF: 60) The scan will have this max seconds to scan its target port on any ip before going for timeout
+    (NMAP_RETRY_DELAY / 1000) * (1 + NMAP_RETRY_ATTEMPTS)                   # delay * retry attempts
+  + (T1_TIMEOUT * (1 + NMAP_RETRY_ATTEMPTS))                                # RTT waits * retry attempts
+  + 25                                                                      # the added slack
+) 
 # ------------------------------------------------------------------------------
 
 
@@ -78,41 +88,3 @@ DB_BATCH_TIMEOUT = float(0.7)                                         # Flush at
 
 
 
-
-
-# ------------------------------------------------------------------------------
-# TODO[emilia]: look into this and how this is being used
-SCAN_MAX_RETRIES = int(os.getenv("SCAN_MAX_RETRIES", 2))              # how many times Nmap will retry
-PROBE_JITTER_MAX = float(os.getenv("PROBE_JITTER_MAX", 0.1))          # jitter to add on top of SCAN_DELAY (in seconds)
-# Unprivileged “stealth” connect-scan settings 
-SCAN_DELAY_MS = int(os.getenv("SCAN_DELAY_MS", 200))                  # how long to wait between Nmap probes (in ms)
-SCAN_DELAY_STR = f"{SCAN_DELAY_MS}ms"
-# base flags for an unprivileged, slower connect-scan
-UNPRIV_SCAN_FLAGS = [
-    "-sT",
-    "-T1",                                                            # very slow timing template
-    f"--scan-delay={SCAN_DELAY_STR}",
-    f"--max-retries={SCAN_MAX_RETRIES}",
-    "--data-length", "20",
-    "-Pn"                                                             # skip host-discovery ping
-]
-
-# ─── Nmap port-scan flags (externalized for easy tweaking) ────────────────
-NMAP_FLAGS = {
-    "service_detection": "-sV",
-    "ports": "-p",
-}
-# ------------------------------------------------------------------------------
-
-
-
-
-
-# ----- RabbitMQ QUEUE NAMES  --------------------------------------------------
-#ALL_ADDR_QUEUE = f"{SCAN_NATION}.all_addr"                            # The queue used for Host discovery, consists of all ips to scan
-# ALIVE_ADDR_QUEUE = f"{SCAN_NATION}.alive_addr"                        # The queue contains all IPs discovered as 'alive' in HostDiscovery scan
-# DEAD_ADDR_QUEUE = f"{SCAN_NATION}.dead_addr"                          # The queue contains all IPs discovered as 'dead' in HostDiscovery scan
-# FAIL_QUEUE = f"{SCAN_NATION}.fail_queue"                              # The queue contains ip or (ip,port) pairs that encountered an error or failed while the scan was processing
-# ALL_PORTS_QUEUE = f"{SCAN_NATION}.all_ports"                          # The queue contains all ports to scan in PortScan 
-# PRIORITY_PORTS_QUEUE = f"{SCAN_NATION}.priority_ports"                # The queue contains all ports to scan in PortScan when USE_PRIORITY_PORTS is True
-# ------------------------------------------------------------------------------
