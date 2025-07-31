@@ -213,9 +213,12 @@ class DiscoveryScanner:
             host_state = ping_res["host_status"]
             ip_status = {"ip": ip_addr, "status": host_state}
             # Commit results to correct queue
-            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn:  # TODO:[Emilia]  this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
-                queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
+            
+
+            queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
+            with RabbitMQ(queue_name) as rmq_conn:  # TODO:[Emilia]  this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
                 # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue ( RIGHT??)  // If its unknown -> fail queue
+                # F: If it's dead -> no queue doesn't make sense. Why do we have a dead_addr queue if we are not going to use it?
                 rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} host result for {ip_addr}: {e}")
@@ -298,7 +301,7 @@ class DiscoveryScanner:
 
                 # pause between tasks
                 time.sleep(SCAN_DELAY)
-                logger.debug("DELAYY")
+                logger.debug(f"DELAY of {SCAN_DELAY}")
             
             # once we drain the queue, remove it
             logger.debug("DiscoveryScanner _drain_and_exit calling remove_queue")
