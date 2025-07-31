@@ -2,8 +2,7 @@
 from .DBHandler import DBHandler
 from .QueryHandler import QueryHandler
 
-# TODO:[Emilia] !!!? no one is closing Database_Handler
-# F: Why would we need to `close` the DBHandler? Maybe this is a deprecated TODO?
+# TODO:[Franz] !!!? no one is closing Database_Handler
 
 
 class InfrastructureManager:
