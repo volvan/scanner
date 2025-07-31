@@ -13,7 +13,7 @@ from config.logging_config import logger
 # Models
 from models.QueryModel import QueryModel
 
-# TODO[Emilia]: add context manager
+# TODO:[Emilia] add context manager
 
 
 class QueryHandler:  # Database_manager old
@@ -23,6 +23,7 @@ class QueryHandler:  # Database_manager old
         """laterdo: Docstr."""
         pass
 
+# TODO: have this take in dict like the other insert functions..
     def insert_summary(
         self,
         *,
@@ -99,7 +100,7 @@ class QueryHandler:  # Database_manager old
             fetch=False
         )
 
-    # TODO[Franz]: Verify that this is not dead code
+    # TODO:[Franz] Verify that this is not dead code
     # E: Note, it either is or should be used in launch_x_scan
     #   - Becouse after the scan is done, it should check the latest summary ID WHERE country is NATION..
     #   .. and if it does not have port_scan_done_ts -> It should update that summary row with the port scan data
@@ -121,7 +122,7 @@ class QueryHandler:  # Database_manager old
         )
         return QueryModel(query=sql, params=(country,), fetch=True)
 
-    # TODO[Franz]: Verify that this is not dead code
+    # TODO:[Franz]  Verify that this is not dead code
 
     def update_summary(
         self,
@@ -254,11 +255,7 @@ class QueryHandler:  # Database_manager old
         
         return QueryModel(query=sql, params=params, fetch=False)
 
-    def new_host(
-        self,
-        whois_data: dict,
-        ips: Iterable[str],
-    ) -> QueryModel:
+    def new_host(self, whois_data: dict, ips: Iterable[str]) -> QueryModel:
         """Prepare a batch UPSERT of WHOIS data for one or more IPs.
 
         Seed the Hosts table with WHOIS data for one or more IP addresses.
@@ -270,16 +267,15 @@ class QueryHandler:  # Database_manager old
         Notes:
             Existing entries are updated if they already exist (upsert behavior).
         """
-        if not whois_data:
-            logger.warning("[QueryHandler] No WHOIS data to insert.")
-            return None
+        # TODO: country should not be updated but stay as the NATION from scan_config -> Sometimes its missing and will cause inaccurate data
+        
         if not ips:
             logger.warning("[Query_Handler] No IPs provided to seed WHOIS.")
             return None
 
         # Building whois data
         rows: list[tuple] = []
-        scan_ts = get_current_timestamp()
+        last_scanned_ts = get_current_timestamp() 
         cidr_map = {
             ipaddress.ip_network(cidr): data
             for cidr, data in whois_data.items()
@@ -309,7 +305,7 @@ class QueryHandler:  # Database_manager old
                     matched.get('reg_date'),
                     matched.get('country'),
                     matched.get('state_prov'),
-                    scan_ts,
+                    last_scanned_ts,
                 ))
             except Exception as e:
                 logger.error(f"[QueryHandler] Error prepping WHOIS row for {ip}: {e}")

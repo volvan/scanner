@@ -170,35 +170,24 @@ def extract_subnet_from_block(cidr_block: str = None, filename: str = None) -> d
     return results
 
 
-def whois_block(target: str = None, filename: str = None) -> dict:
+def whois_block(filename: str) -> dict:
     """Perform WHOIS lookups on IPs or CIDR blocks.
 
     Args:
-        target (str, optional): A single CIDR or IP address.
         filename (str, optional): File containing multiple CIDR blocks.
 
     Returns:
         dict: Mapping of CIDR -> WHOIS metadata fields, with a non-null 'cidr'.
     """
-    if not (target or filename):
-        raise ValueError("Either a valid CIDR or a filename must be provided.")
 
-    if filename:
-        cidr_list = read_block(filename)
-    else:
-        cidr_list = [target]
-
+    cidr_list = read_block(filename)
     results: dict[str, dict] = {}
 
     # cidr_list = []
-    # if filename:
-    #     cidr_list = read_block(filename)
-    # elif target:
-    #     cidr_list = [target]
-
+    # cidr_list = read_block(filename)
     # results = {}
 
-    # for every cidr incomming do whois
+    # for every CIDR read from file, lookup with WHOIS
     for cidr in cidr_list:
         try:
             # base_ip = cidr.split('/', 1)[0]

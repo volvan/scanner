@@ -4,7 +4,7 @@ import json
 import logging
 import logging.config
 from logging.handlers import RotatingFileHandler
-from config.scan_config import CONFIG_PATH, LOG_DIR, LOG_TO_FILE, DEBUG_MODE
+from config.scan_config import CONFIG_PATH, LOG_DIR, LOG_TO_FILE, LOG_TO_TERMINAL, LOG_TO_FILE
 
 
 class WorkerPIDFilter(logging.Filter):
@@ -39,7 +39,7 @@ LOG_FILE_PATH = os.path.join(LOG_DIR, f"{SERVICE_TAG}.log")
 
 # --- Logger setup ---
 logger = logging.getLogger("GlobalHandler")
-logger.setLevel(logging.DEBUG)
+# logger.setLevel(logging.DEBUG)
 
 # --- Console Handler ---
 console_handler = logging.StreamHandler()
@@ -47,7 +47,7 @@ console_formatter = logging.Formatter(
     f"[%(levelname)s] %(asctime)s - {SERVICE_TAG} - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
 )
 console_handler.setFormatter(console_formatter)
-console_handler.setLevel(logging.DEBUG if DEBUG_MODE else logging.WARNING)
+console_handler.setLevel(logging.DEBUG if LOG_TO_TERMINAL else logging.WARNING)
 logger.addHandler(console_handler)
 
 # --- File Handler ---
@@ -63,7 +63,7 @@ if LOG_TO_FILE:
         f"%(asctime)s - {SERVICE_TAG} - %(levelname)s - %(name)s - %(message)s"
     )
     file_handler.setFormatter(file_formatter)
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.DEBUG if LOG_TO_FILE else logging.WARNING)
     logger.addHandler(file_handler)
 
 # --- Global Exception Hook ---

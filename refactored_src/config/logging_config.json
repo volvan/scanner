@@ -21,7 +21,7 @@
   "handlers": {
     "stderr": {
       "class": "logging.StreamHandler",
-      "level": "INFO",
+      "level": "WARNING",
       "formatter": "detailed",
       "stream": "ext://sys.stderr",
       "filters": ["username_filter"]

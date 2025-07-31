@@ -63,9 +63,9 @@ class RabbitMQ:
             )
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
-            # TODO[Emilia]: should really always try to declare queue??
+            # TODO:[Emilia] should really always try to declare queue??
             self.declare_queue(self.queue_name)
-            logger.debug("RMQ - Calling _connect")
+            # logger.debug("RMQ - Calling _connect")
         except Exception as e:
             logger.error(f"[RabbitMQ] Connection error: {e}")
             raise
@@ -148,12 +148,12 @@ class RabbitMQ:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
         logger.debug("[RabbitMQ] Reconnecting to RabbitMQ...")
         try:
-            # TODO[Emilia]: ---- wait, can this work?
+            # TODO:[Emilia] ---- wait, can this work?
             self.close()  # or self.exit()
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during reconnect close: {e}")
         self._connect()
-        logger.warning(f"[RabbitMQ] reconnect successful.")
+        logger.debug(f"[RabbitMQ] reconnect successful.")
 
     @staticmethod
     def worker_consume(queue_name: str, callback: object) -> None:
@@ -163,7 +163,7 @@ class RabbitMQ:
             queue_name (str): Name of the queue to consume from.
             callback (object): Callback function to process each message.
         """
-        # TODO[]: Does this need to open rmq connection? Verify..
+        # TODO:[]  Does this need to open rmq connection? Verify..
         try:
             with RabbitMQ(queue_name) as rmq_conn:
                 logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
@@ -218,7 +218,7 @@ class RabbitMQ:
         """
         queue_name = queue_name or self.queue_name
 
-        # TODO[Emilia]: what is happening here though? in all this function....
+        # TODO:[Emilia] what is happening here though? in all this function....
         try:
             if self.tasks_in_queue(queue_name) == 0:
                 logger.debug(f"[RabbitMQ] {queue_name} is empty. Deleting.")
@@ -240,9 +240,9 @@ class RabbitMQ:
             self.channel.queue_delete(queue=queue_name)
 
             # self.exit()
-            # self.close() # TODO[Emilia]: why close?
+            # self.close() # TODO:[Emilia] why close?
 
-            # TODO[Emilia]: check on this.. sometimes does not delete all queues, atleast batch 1 sometimes still exists after the run is done.
+            # TODO:[Emilia] check on this.. sometimes does not delete all queues, atleast batch 1 sometimes still exists after the run is done.
             logger.info('\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
             for task in leftovers:
                 self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=task)
@@ -256,7 +256,7 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{queue_name}': {e}")
 
-    # TODO[Emilia][P_low]: enqueue_to_queue rename to something descriptive
+    # # TODO:[Emilia][P_low]: enqueue_to_queue rename to something descriptive
     def enqueue_to_queue(self, message: dict, queue_name: str = None):
         """Publish a JSON message to the queue.
 
@@ -266,7 +266,7 @@ class RabbitMQ:
         Notes:
             If the queue does not exist, it will be declared automatically.
         """
-        # TODO[Emilia]: heere to replace enqueue to use queue_name
+        # TODO:[Emilia] here to replace enqueue to use queue_name
 
         try:
             queue_name = queue_name or self.queue_name
@@ -283,7 +283,7 @@ class RabbitMQ:
             logger.debug(f"[RabbitMQ enqueue_to_queue()]: enqueued {message} to {queue_name}")
 
         except (pika.exceptions.ChannelClosedByBroker, pika.exceptions.ConnectionClosed) as e:
-            logger.warning(f"[RabbitMQ] Failed to enqueue (closed channel): {e}. Will reconnect..")
+            logger.debug(f"[RabbitMQ] Failed to enqueue (closed channel): {e}. Will reconnect..") # TODO: For now this is set to debug, set to warning later but as a patch this is used for creating the fail queue
             try:
                 self.reconnect()
                 self.channel.queue_declare(queue=queue_name, durable=True)
@@ -294,14 +294,15 @@ class RabbitMQ:
                     properties=pika.BasicProperties(delivery_mode=2)
                 )
             except Exception as ex:
-                logger.error(f"[RabbitMQ] Retry publish failed for '{queue_name}': {ex}")
+                logger.error(f"[RabbitMQ] Failed to enqueue (closed channel) and reconnection failed for '{queue_name}': {ex}")
         except Exception as e:
             logger.error(f"[RabbitMQ] Failed to enqueue message to '{queue_name}': {e}")
 
+
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
-        # TODO[Emilia]: this should be removed after verified its not in use
-        logger.debug("RMQ - Calling close")
+        # TODO:[Emilia] this should be removed after verified its not in use
+        # logger.debug("RMQ - Calling close")
         try:
             if hasattr(self, "connection") and not self.connection.is_closed:
                 # if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
@@ -309,15 +310,15 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Error closing connection: {e}")
 
-    # TODO[Emilia]: Context manager
+    # TODO:[Emilia] Context manager
     def __enter__(self):
         """Support context manager entry (with-statement)."""
-        logger.debug("RMQ - Calling enter")
-        # self._connect() # TODO[Emilia]: after using only context manager, move connect from init
+        # logger.debug("RMQ - Calling enter")
+        # self._connect() # TODO:[Emilia] after using only context manager, move connect from init
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Support context manager exit (with-statement) to close the RMQ connection safely."""
-        logger.debug("RMQ - Calling exit")
+        # logger.debug("RMQ - Calling exit")
 
         self.close()

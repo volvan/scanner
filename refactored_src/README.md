@@ -1,28 +1,70 @@
+# DEV DOCS
 
-
-## For Testing
+## For Monitoring (testing)
 - run `monitoring/psql_monitoring.py` to monitor psql connections
 - run `monitoring/rmq_monitoring.py` to monitor RabbitMQ connections
 
+---
 
-## Useful Commands
+## Run the application
 
-- Run the application (with .venv enabled!)
-    - IP Scan / Host Discovery: `python ./start_application ip`
-    - Port Scan: `python ./start_application port`
+First, enable .venv!
 
-- Access the database
-`sudo -u postgres psql -d scandb`
+```bash
+cd scanner
+source .venv/bin/activate
+```
 
-- Query to check amount of active connections
-`select * from pg_stat_activity where pg_stat_activity.usename = 'scanner';`
+### Run host discovery: 
+```bash
+python refactored_src/start_application.py ip
+```
 
-- Remove all entries and reset sequence for
-    - ALL `TRUNCATE hosts, ports, summary RESTART IDENTITY;`
-    - Only hosts `TRUNCATE hosts RESTART IDENTITY;`
-    - Only ports `TRUNCATE ports RESTART IDENTITY;`
-    - Only summary `TRUNCATE summary RESTART IDENTITY;`
+### Run port scan:
 
+```bash
+python refactored_src/start_application.py port
+```
+
+---
+
+## Access the database
+
+```bash
+sudo -u postgres psql -d scandb
+```
+
+### Query to check amount of active connections
+
+```sql
+select * from pg_stat_activity where pg_stat_activity.usename = 'scanner';
+```
+
+### Remove all entries and reset sequence for..
+
+1. All 
+```sql
+TRUNCATE hosts, ports, summary RESTART IDENTITY;
+```
+
+2. Only hosts
+```sql
+TRUNCATE hosts RESTART IDENTITY;
+```
+
+3. Only ports
+```sql
+TRUNCATE ports RESTART IDENTITY;
+```
+
+4. Only summary 
+```sql
+TRUNCATE summary RESTART IDENTITY;
+```
+
+---
 
 ## Notes
-- When I tested the application, I noticed that the fail_queue takes in the batch by default. 
+
+? When I tested the application, I noticed that the fail_queue takes in the batch by default. # TODO[Franz]
+

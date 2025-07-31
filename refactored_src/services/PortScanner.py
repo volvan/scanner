@@ -4,19 +4,17 @@ import time
 from multiprocessing import Process
 
 # ----- Type annotation imports -----#
-from external.ExternalManager import ExternalManager
 from infrastructure.InfrastructureManager import InfrastructureManager
 # from logic.LogicManager import LogicManager
 
 # ----- Service imports -----#
-from infrastructure.DBHandler import DBHandler, db_ports
+from infrastructure.DBHandler import db_ports
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
 # ----- OLD IMPORTS -----#
 import psutil
 
-from utils.queue_initializer import QueueInitializer
 from utils.batch_handler import PortBatchHandler
 from utils.resource_status import resource_ok
 from utils.probe_handler import ProbeHandler
@@ -47,108 +45,134 @@ from config.scan_config import (  # noqa: F401
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
 
-# TODO[Emilia][Franz]: should be similar setup as ipscanner, then its easier to follow the flow by alot
+# TODO:[Emilia][Franz]: should be similar setup as ipscanner, then its easier to follow the flow by alot
 
 
 class PortScanner:
     """laterdo: Docstr."""
 
-    def __init__(self, externalManager: ExternalManager, infraManager: InfrastructureManager):
+    def __init__(self, infraManager: InfrastructureManager):
         """laterdo: Docstr."""
-        self.externalManager = externalManager
         self.infraManager = infraManager
 
-        self.active_processes: list[Process] = []
+        self.active_processes: list[Process] = [] # TODO: should we not close the active processes at some point?
         self.batch_handler = PortBatchHandler()
 
     def launch_port_scan_pipeline(self):
-        """Main runner.
+        """Main runner."""
 
-        Kick off a port scan, record timestamps, and use QueryModel for querying the DB.
-        """
-
-        dbHandler: DBHandler = DBHandler(self.infraManager.queryHandler)
         try:
-            # Start a listener on it's own thread that listens for RabbitMQ changes and inserts it into the DB
-            dbHandler.start_ports()
+            # Start a listener on it's own thread that inserts into the DB
+            self.infraManager.start_ports()
 
             # 1) choose which RMQ queue to seed
             queue_name = PRIORITY_PORTS_QUEUE if USE_PRIORITY_PORTS else ALL_PORTS_QUEUE
             logger.info(f"[PortScanner] Seeding ports into '{queue_name}'…")
 
-            # 2) enqueue ports
-            if not PORTS_FILE:
-                logger.error("[PortScanner] Filename required to extract ports.")
+            # 2) enqueue the ports to RMQ
             self.new_targets(queue_name, PORTS_FILE)
 
             # 3) record scan-start timestamp
             port_start_ts = get_current_timestamp()
 
             # 4) run the scan (blocks until complete)
-            logger.info(f"[PortScanner] Starting persistent port scan workers for '{queue_name}'…")
             self.start_consuming(queue_name)
 
-            # 5) record scan-done timestamp
+        except Exception as e:
+            # Wait for the db queue to drain and stop the db listener
+            logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
+            db_ports.join()
+            self.infraManager.stop()
+            sys.exit(1)
+
+        finally:
+            # 5) Pipeline is now done, need to wait for every batch process to exit
+            logger.info("Port scan pipeline has concluded, now workers continue scanning.")
+            for p in self.active_processes:
+                p.join()
+
+
+        # Now start the cleanup after the scan has concluded
+        logger.info("Port scan has concluded, cleanup starting.")
+
+        try:
+            # 1) record scan-done timestamp
             port_done_ts = get_current_timestamp()
 
-            # 6) prepare scanned_ports list
+            # 2) record all ports that were scanned     # TODO: all this code really needed?
             all_ports, priority_ports = read_ports_file(PORTS_FILE)
             scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
-            if scanned_ports is None:
-                pass  # TODO[Emilia]: implement error handling here insted of in query_handler if empty
-
-            # 7) persist summary via QueryModel
-            try:
-                with DBWorker() as dbWorker:  # TODO[Franz]: rename db_conn (like all with rmq start with rmq_conn)
-                    # Build QueryModel for port-summary
-                    latest_summary_id = self.infraManager.queryHandler.fetch_latest_summary_id(
-                        country=SCAN_NATION
-                    )
-                    latest_summary = dbWorker.execute_query_model(latest_summary_id)
-                    if latest_summary:
-                        # update the existing summary
-                        summary_id = latest_summary[0][0]
-                        update_qm = self.infraManager.queryHandler.update_summary(
-                            summary_id=summary_id,
-                            port_start_ts=port_start_ts,
-                            port_done_ts=port_done_ts,
-                            scanned_ports=scanned_ports
-                        )
-                        success = dbWorker.execute_query_model(update_qm)
-                        if not success:
-                            logger.critical("[PortScanner] Failed to update existing summary.")
-                    else:
-                        # insert a brand-new summary row
-                        insert_qm = self.infraManager.queryHandler.insert_summary(
-                            country=SCAN_NATION,
-                            discovery_start_ts=port_start_ts,   # reuse from discovery as temp value
-                            discovery_done_ts=port_start_ts,    # reuse from discovery as temp value
-                            scanned_cidrs=[],                   # no discovery CIDRs as temp
-                            port_start_ts=port_start_ts,
-                            port_done_ts=port_done_ts,
-                            scanned_ports=scanned_ports
-                        )
-                        success = dbWorker.execute_query_model(insert_qm)
-                        if not success:
-                            logger.critical("[PortScanner] Failed to insert new summary.")
-
-            except Exception as e:
-                logger.error(f"[PortScanner] Failed to write port summary: {e}", exc_info=True)
+            
+            # 3) persist summary via QueryModel
+            self._update_summary(port_start_ts, port_done_ts, scanned_ports)
 
         except Exception as e:
+            # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
+            db_ports.join()
+            self.infraManager.stop()
             sys.exit(1)
-        finally:
-            # TODO[Emilia]: look at this mess, compare with ip scanner
-            dbHandler.stop()  # TODO[Franz]: look at this better
-            db_ports.join()  # block until every port task_done()
-            self.infraManager.dbHandler.stop()  # TODO[Franz]: validate this has to be
-            # db_acks.join()  # every delivery‑tag ACKed/NACKed
-            logger.debug(f"[PortScanner] Current running processes for db_ports: {db_ports.qsize()} ")
 
-    # def process_task(self, ip: str, port: int, delivery_tag: int, queue_name: str):
-    def process_task(self, ip: str, port: int, queue_name: str):
+        finally:
+            # 4) Port scan is now done, now we wait for processes
+            logger.debug(f"Current running processes for db_ports: {db_ports.qsize()} and active processes are: {len(self.active_processes)}")
+            logger.info("Port scan done.")
+
+            # Wait for the db queue to drain (blocks until every port task_done() completed)
+            logger.info(f"[PortScanner] Waiting for db_ports queue to empty.. Currently there are {db_ports.qsize()} items in db_ports queue.")
+            db_ports.join()
+
+            # Lastly, stop the db listener (writer threads)
+            self.infraManager.stop()
+            
+
+    def _update_summary(self, port_start_ts, port_done_ts, scanned_ports):
+        # TODO: moved here for clarity, should be done in the query model or db_worker, not here.. 
+        try: 
+            # Build QueryModel for port-summary
+            with DBWorker() as db_conn:
+
+                # Fetch the latest summary ID for the nation
+                latest_summary_id = self.infraManager.queryHandler.fetch_latest_summary_id(country=SCAN_NATION)
+                latest_summary = db_conn.execute_query_model(latest_summary_id)
+
+                # update the existing summary
+                if latest_summary:
+                    logger.info("Summary is being updated for current scan.")
+                    summary_id = latest_summary[0][0]
+                    update_qm = self.infraManager.queryHandler.update_summary(
+                        summary_id=summary_id,
+                        port_start_ts=port_start_ts,
+                        port_done_ts=port_done_ts,
+                        scanned_ports=scanned_ports
+                    )
+                    success = db_conn.execute_query_model(update_qm)
+                    if not success:
+                        logger.critical("[PortScanner] Failed to update existing summary.")
+
+                # This will else statement will only run in a horrible error situation insert a brand-new summary row
+                else:
+                    logger.warning("Summary not found for scan, fallback was to insert temp values. Must take a look at this.")
+                    insert_qm = self.infraManager.queryHandler.insert_summary(
+                        country=SCAN_NATION,
+                        discovery_start_ts=port_start_ts,   # reuse from discovery as temp value
+                        discovery_done_ts=port_start_ts,    # reuse from discovery as temp value
+                        scanned_cidrs=[],                   # no discovery CIDRs as temp
+                        port_start_ts=port_start_ts,
+                        port_done_ts=port_done_ts,
+                        scanned_ports=scanned_ports
+                    )
+                    success = db_conn.execute_query_model(insert_qm)
+                    if not success:
+                        logger.critical("[PortScanner] Failed to insert new summary.")
+
+        except Exception as e:
+            logger.error(f"[PortScanner] Failed to write port summary: {e}", exc_info=True)
+
+    def process_task(self, ip: str, port: int, queue_name: str): # TODO: rename or move, this is a worker process
         """Probe an IP:port pair and enqueue the scan result as needed.
+
+        What i observed: this is the method that the worker (coming from _drain_and_exit) is running.
 
         Args:
             ip (str): IP address to scan.
@@ -167,7 +191,7 @@ class PortScanner:
 
                 # Extract scan result details
                 record = {
-                    "type": "port_result",  # TODO[Emilia]: why? is this ever used?
+                    "type": "port_result",  # TODO:[Emilia]  why? is this ever used?
                     "ip": ip,
                     "port": port,
                     "port_state": probe_res["state"],
@@ -186,11 +210,11 @@ class PortScanner:
                     message = {"ip": ip, "port": port, "reason": "unknown_state"}
                     rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
                     return
-                    # # TODO[]: why return?
+                    # # TODO:[]  why return?
                     # Franz: Remove?
                     # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
                 
-                # 3) Enqueue all results (open, filtered, and closed)
+                # 3) Enqueue all results (open, filtered, and closed) # TODO: thats wrong or no? is it not only returning open?
                 db_ports.put(record)
 
             except Exception as e:
@@ -198,37 +222,40 @@ class PortScanner:
                 message = {"error": str(e), "ip": ip, "port": port}
                 rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
 
-    def _drain_and_exit(self, batch_queue: str) -> None:
+    def _drain_and_exit(self, batch_queue: str) -> None: # TODO: rename or move, this is a worker process
         """Drain and process all tasks from a batch queue, then delete the queue.
+
+        (what i observe):
+            Workers are spawned, one per batch queue (from start_consuming). He then only leaves when he is done processing every task in the batch/ queue (like queue: port_80)
 
         Args:
             batch_queue (str): Name of the RabbitMQ queue to process.
 
         Notes:
-            This runs inside a spawned process. Each task is ACKed or NACKed after handling.
+            This runs inside a spawned process. 
         """
 
-        with RabbitMQ(batch_queue) as rmq_batch_conn:
+        try: 
+            with RabbitMQ(batch_queue) as rmq_batch_conn:
+                while True:
+                    method_frame, _, body = rmq_batch_conn.channel.basic_get(
+                        queue=batch_queue,
+                        auto_ack=False
+                    )
+                    if not method_frame:
+                        break
+                    try:
+                        task = json.loads(body)
+                        self.process_task(ip=task["ip"], port=task["port"], queue_name=batch_queue)
+                        rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: now this is ack'ed before.. should be after..
+                    except Exception:
+                        logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
+                        rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO: this also.. now this is ack'ed before.. should be after..
+                    time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO:[Emilia]: This is adding a delay between ip,port scan - but i wonder if we have already added the delay 
+                rmq_batch_conn.remove_queue()
+        finally:
+            logger.debug(f"Batch worker for queue {batch_queue} has drained and exited the queue.")
 
-            while True:
-                method_frame, _, body = rmq_batch_conn.channel.basic_get(
-                    queue=batch_queue,
-                    auto_ack=False
-                )
-                if not method_frame:
-                    break
-                try:
-                    task = json.loads(body)
-                    self.process_task(ip=task["ip"], port=task["port"], queue_name=batch_queue)
-                    rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
-                except Exception:
-                    logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
-                    rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
-                    # rmq_batch_conn.channel.basic_nack(requeue=False)  # TODO[]: Might be related to the Ack issue mentioned in WorkerhandlerLogic?
-
-                time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO[]: Why? isint this cousing unnessisary latency or not?
-
-            rmq_batch_conn.remove_queue()
 
     def start_consuming(self, main_queue_name: str) -> None:
         """Start the main port scanning loop using batched multiprocessing.
@@ -256,7 +283,7 @@ class PortScanner:
                 oldest.join(timeout=1)
                 continue
 
-            batch_queue = self.batch_handler.create_port_batch_if_allowed(
+            batch_queue = self.batch_handler.create_port_batch(
                 ALIVE_ADDR_QUEUE,
                 main_queue_name
             )
@@ -278,11 +305,14 @@ class PortScanner:
             p.start()
             self.active_processes.append(p)
 
-        for p in self.active_processes:
-            if p.is_alive():
-                p.join(timeout=1)
+        # TODO: is this still needed here?
+        # for p in self.active_processes:
+        #     if p.is_alive():
+        #         p.join(timeout=1)
 
-    def new_targets(self, queue_name: str, filename: str = None) -> None:
+        # Port scan pipeline has now concluded
+
+    def new_targets(self, queue_name: str, filename: str) -> None:
         """Seed a queue with randomized ports read from a file.
 
         Args:
@@ -310,8 +340,10 @@ class PortScanner:
                     return
 
                 # Enqueue ports to RMQ
-                QueueInitializer.enqueue_items(queue_name=ALL_PORTS_QUEUE, key="port", val=all_ports_iter)
-                logger.info(f"[PortScanner] Seeded {ALL_PORTS_QUEUE} with randomized ports.")
+                with RabbitMQ(queue_name) as rmq_conn:
+                    for port in all_ports_iter:
+                        rmq_conn.enqueue_to_queue(queue_name=queue_name, message={"port": port})
+                logger.info(f"[PortScanner] Seeded {queue_name} with randomized ports.")
 
             elif queue_name == PRIORITY_PORTS_QUEUE:
 
@@ -322,7 +354,9 @@ class PortScanner:
                     return
 
                 # Enqueue ports to RMQ
-                QueueInitializer.enqueue_items(queue_name=PRIORITY_PORTS_QUEUE, key="port", val=priority_ports_iter)
+                with RabbitMQ(queue_name) as rmq_conn: 
+                    for port in priority_ports_iter:
+                        rmq_conn.enqueue_to_queue(queue_name=queue_name, message={"port": port})
                 logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
 
             else:

@@ -11,7 +11,7 @@ from config.logging_config import log_exception, logger
 
 sys.excepthook = log_exception
 
-# TODO[Emilia][P_low]: rename probes_port_scan
+# TODO:[Emilia][P_low]: rename probes_port_scan
 # TODO: WHYYYY cant the ProbeHandler and PingHandler be more inline? They could be implemented in the same way or divided into functions the same way or something. I that might seem as a low priority but i beg to differ as its really hard to debug it when its so different as one line can be at fault. please.
 
 class ProbeHandler:
@@ -32,14 +32,16 @@ class ProbeHandler:
                 universal_newlines=True,
                 timeout=PROBE_TIMEOUT
             )
-            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}. The output: {output}")
+            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}... \n ..The output: {output}")
             return output
         except subprocess.CalledProcessError as e:
-            logger.warning(f"[ProbeHandler] Command failed: {' '.join(command)}")
-            logger.warning(f"[ProbeHandler] Output:\n{e.output}")
+            logger.warning(f"[ProbeHandler] Command failed: {' '.join(command)}... \n ..The output: {e.output}")
             return ""
         except subprocess.TimeoutExpired:
-            logger.warning(f"[ProbeHandler] Timeout after {PROBE_TIMEOUT}s: {' '.join(command)}")
+            # [WARNING|609047][probe_handler|L41] 2025-07-29T16:48:35+0000: [ProbeHandler] Timeout after 60s: nmap -sT -T1 --scan-delay=200ms --max-retries=2 --data-length 20 -Pn -sV -p 80 130.208.246.13. 
+            # TODO:[P1][Emilia] but when i manually scan it, it takes 0.21 seconds and I get port state open.. 
+            # Scan delay is set at 200ms, so it will never scan 2 times as the process only has 60sec to compleete.... 
+            logger.warning(f"[ProbeHandler] Timeout after {PROBE_TIMEOUT}s: {' '.join(command)}. \n") # TODO:[Emilia] should this be 60sec really?
             return ""
         except Exception as e:
             logger.error(f"[ProbeHandler] Unexpected error running command {command}. With error {e}")

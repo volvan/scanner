@@ -14,8 +14,9 @@ ROOT_DIR = os.path.dirname(os.path.dirname(BASE_DIR))
 TARGETS_FILE_PATH = os.path.join(BASE_DIR, "..", "targets")           # Stored under src/targets/ and stores 'blocks.txt', 'ports.txt'
 # ------------------------------------------------------------------------------
 # ----- MONITORING and LOGS ------------------------------------------------------
-DEBUG_MODE = True                                                     # Debug mode T/F
-LOG_TO_FILE = True                                                    # Log the output to a file or simply in terminal
+DEBUG_MODE = True                                                     # Debug mode will prompt user in start of run
+LOG_TO_FILE = True                                                    # If True, logs debug levels in log file, else warnings
+LOG_TO_TERMINAL = False                                               # If True, logs debug levels to terminal, else warnings
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
 LOG_DIR = os.path.join(ROOT_DIR, "logs")                              # Where to store the logs
@@ -26,7 +27,7 @@ CPU_LIMIT = 70                                                        # CPU (per
 # ------------------------------------------------------------------------------
 
 
-# ----- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN ------------------
+# --------- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN --------------
 SCAN_NATION = "IS"                                                    # The Nation-code that is being scanned
 FETCH_RIX = False                                                     # (DEF: True)  - If True, fetch IPs from RIX.is
 TARGETS_FILE = "blocks.txt"                                           # File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
@@ -45,7 +46,7 @@ ALIVE_ADDR_QUEUE = f"{SCAN_NATION}.alive_addr"                        # The Rabb
 DEAD_ADDR_QUEUE = f"{SCAN_NATION}.dead_addr"                          # The RabbitMQ queue name that contains all IPs discovered as 'dead'
 
 THRESHOLD = 2                                                         # Direct vs batch mode threshold
-BATCH_SIZE = 3                                                        # (DEF: 500)  - Tasks per batch
+BATCH_SIZE = 10                                                       # (DEF: 500)  - Tasks per batch
 IP_MAX_BATCH_AMOUNT = 5                                                  #             - Max batches that exist concurrently
 WHO_IS_SCAN_DELAY = 2                                                 # (DEF: 2)    - Delay between whois lookups       # TODO: verify correct use
 WORKERS = 3                                                           # (DEF: 250)  - Number of workers to spawn
@@ -58,7 +59,7 @@ PRIORITY_PORTS_QUEUE = f"{SCAN_NATION}.priority_ports"                # The Rabb
 
 USE_PRIORITY_PORTS = False                                            # Set this to True if ports file consists of priority ports
 BATCH_AMOUNT = 100                                                    # Concurrent port batches     # TODO: rename PORT_MAX_BATCH_AMOUNT and verify correctly used
-BATCH_TIMEOUT_SEC = 300                                               # Max time allowed per batch queue        # TODO: IF this is what i think it is, its the max time a process can live when its working on a batch.. if so it should be implemented in port scan also right? or that all processes (in batch or not) should have a timeout? the name of this const is atleast not descriptive
+BATCH_TIMEOUT_SEC = 300                                               # Max time allowed per batch queue        # TODO: IF this is what i think it is, its the max time a process can live when its working on a batch.. if so it should be implemented in port scan also right? or that all processes (in batch or not) should have a timeout? the name of this const is atleast not descriptive.. it seems to me at first glance that port x on all ips is = batch - meaning that a process can scan all those targets only in this timeframe
 PROBE_TIMEOUT = int(os.getenv("PROBE_TIMEOUT", "60"))                 # Allow override of the subprocess timeout via environment variable       # TODO: What is this? dont tell me its processes that are host scanning and they have 60 seconds to live? or? and why in the world is it casting a str to int? is there a reason for it?
 # ------------------------------------------------------------------------------
 
@@ -67,8 +68,8 @@ PROBE_TIMEOUT = int(os.getenv("PROBE_TIMEOUT", "60"))                 # Allow ov
 # ----- DATABASE WRITER  -------------------------------------------------------    # TODO: not all in use atm, should implement 
 DB_MIN_CONN = 1                                                       # Min number of PSQL connections in the thread pool
 DB_MAX_CONN = 20                                                      # Max number of PSQL connections in the thread pool
-DB_HOST_WRITERS = 4                                                   # Amount of db_hosts threads that are inserting to database
-DB_PORT_WRITERS = 4                                                   # Amount of db_ports threads that are inserting to database
+DB_HOST_WRITERS = 4                                                   # Amount of database writer threads (pulling from db_hosts)
+DB_PORT_WRITERS = 4                                                   # Amount of database writer threads (pulling from db_ports)
 DB_MAX_BATCH_SIZE = 500                                               # Max db rows to flush in each iteration from the db_* queues to the database
 DB_BATCH_TIMEOUT = float(0.7)                                         # Flush at least this often from the db_* queues to the database or until DB_BATCH_SIZE is reached
 # ------------------------------------------------------------------------------
