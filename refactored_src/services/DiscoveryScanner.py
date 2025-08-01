@@ -248,11 +248,11 @@ class DiscoveryScanner:
         props: BasicProperties
         body: bytes
 
-        with RabbitMQ(queue_name) as rmq:
+        with RabbitMQ(queue_name) as rmq_conn:
             try: 
 
                 while True:
-                    method_frame, props, body = rmq.channel.basic_get(
+                    method_frame, props, body = rmq_conn.channel.basic_get(
                         queue=queue_name,
                         auto_ack=False
                     )
@@ -263,7 +263,7 @@ class DiscoveryScanner:
                         # Spawn a short-lived process for this one task
                         task_proc = multiprocessing.Process(
                             target=self.process_task,
-                            args=(rmq.channel, method_frame, props, body),
+                            args=(rmq_conn.channel, method_frame, props, body),
                         )
                         task_proc.start()
                         task_proc.join(timeout=BATCH_TIMEOUT_SEC)
@@ -279,17 +279,17 @@ class DiscoveryScanner:
                             try:
                                 logger.info('\n\n[DiscoveryScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
                                 payload = json.loads(body)
-                                rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE)
+                                rmq_conn.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE)
                             except Exception as e:
                                 logger.error(f"[DiscoveryScanner] Failed to enqueue timed-out task: {e}")
                             finally:
-                                rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag)
+                                rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag)
 
                     except Exception as e:
                         # any unexpected error wrapping the worker
                         logger.error(f"[DiscoveryScanner] Error running timed-task wrapper: {e}")
                         try:
-                            rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
+                            rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
                         except Exception as nack_err:
                             logger.warning(f"[DiscoveryScanner] Failed to nack message after wrapper error: {nack_err}")
 
@@ -299,14 +299,14 @@ class DiscoveryScanner:
                 
                 # once we drain the queue, remove it
                 logger.debug("DiscoveryScanner _drain_and_exit calling remove_queue")
-                rmq.remove_queue()
-                rmq.close() # TODO: this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
+                rmq_conn.remove_queue()
+                # rmq_conn.close() # TODO: this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
 
-        finally:
-            logger.debug(f"[DiscoveryScanner] Current running processes for db_ports: {db_hosts.qsize()} ")
-            self.infraManager.stop() # Stop the database thread
-            logger.debug(f"[PortScanner] (try again) Current running processes for db_ports: {db_hosts.qsize()} ")
-            logger.debug(f"[PortScanner] Currently active processes are: {len(self.active_processes)}")
+            finally:
+                logger.debug(f"[DiscoveryScanner] Current running processes for db_ports: {db_hosts.qsize()} ")
+                self.infraManager.stop() # Stop the database thread
+                logger.debug(f"[PortScanner] (try again) Current running processes for db_ports: {db_hosts.qsize()} ")
+                logger.debug(f"[PortScanner] Currently active processes are: {len(self.active_processes)}")
 
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""
