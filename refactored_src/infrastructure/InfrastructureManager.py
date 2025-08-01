@@ -3,7 +3,6 @@ from .DBHandler import DBHandler
 from .QueryHandler import QueryHandler
 
 # TODO:[Franz] !!!? no one is closing Database_Handler
-# Franz: The __exit__() method for proper deconstruction is missing, I will add it
 
 
 class InfrastructureManager:
@@ -22,7 +21,6 @@ class InfrastructureManager:
         """Spawns one daemon thread for inserting the the database (db_ports queue)"""
         return self.dbHandler.start_ports()
 
-    # def stop_hosts(self):
     def stop(self):
         """Stop the dbHandler threads (both for port and hosts)"""
         return self.dbHandler.stop()

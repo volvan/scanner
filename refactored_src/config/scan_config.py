@@ -27,14 +27,15 @@ CPU_LIMIT = 70                                                        # CPU (per
 
 
 # --------- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN --------------
-SCAN_NATION = "IS"                                                    # The Nation-code that is being scanned
-FETCH_RIX = False                                                     # (DEF: True)  - If True, fetch IPs from RIX.is
-TARGETS_FILE = "blocks.txt"                                           # File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
-PORTS_FILE = os.path.join(TARGETS_FILE_PATH, "ports.txt")             # The file containing the ports to scan
-FAIL_QUEUE = f"{SCAN_NATION}.fail_queue"                              # The RabbitMQ queue name that contains ip or (ip,port) pairs that encountered an error or failed while the scan was processing
+SCAN_TYPE:str           = "port"
+SCAN_NATION:str         = "IS"                                                    # The Nation-code that is being scanned
+FETCH_RIX:bool          = False                                                     # (DEF: True)  - If True, fetch IPs from RIX.is
+TARGETS_FILE:str        = "blocks.txt"                                           # File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
+PORTS_FILE:str          = os.path.join(TARGETS_FILE_PATH, "ports.txt")             # The file containing the ports to scan
+FAIL_QUEUE:str          = f"{SCAN_NATION}.fail_queue"                              # The RabbitMQ queue name that contains ip or (ip,port) pairs that encountered an error or failed while the scan was processing
 
-SCAN_DELAY = float(0.5)                                               # Delay (sec) between scan attempts       # TODO: should it be used so often? (10 times in the code currently)
-MAX_BATCH_PROCESSES = 100                                             # Spawn new batch processes in "start_consuming", up to max limit reached
+SCAN_DELAY:float        = 0.5                                               # Delay (sec) between scan attempts       # TODO: should it be used so often? (10 times in the code currently)
+MAX_BATCH_PROCESSES:int = 100                                             # Spawn new batch processes in "start_consuming", up to max limit reached
 # ------------------------------------------------------------------------------
 
 
