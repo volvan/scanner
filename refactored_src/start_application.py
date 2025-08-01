@@ -5,7 +5,6 @@ from services.ServiceManager import ServiceManager
 
 # ----- Built-in Python Modules ----- #
 from sys import exit as sys_exit
-import os
 
 # ----- Logger import ----- #
 from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
