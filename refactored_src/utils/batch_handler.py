@@ -45,7 +45,7 @@ class IPBatchHandler:
             - Bad or invalid messages are routed to the fail queue.
             - If no valid tasks are found, messages are requeued.
         """
-        # TODO:[]: Cleanup this function, I can hardly follow the logic
+        # TODO:[Franz]: Cleanup this function, I can hardly follow the logic
 
         with RabbitMQ(main_queue_name) as rmq_conn:
             tasks: list[dict] = []

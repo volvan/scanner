@@ -205,3 +205,5 @@ src/targets/blocks.txt
 .vscode/
 .idea/
 
+# For testing purposes only
+ip_port_scan_testing.py

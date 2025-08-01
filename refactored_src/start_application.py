@@ -5,6 +5,7 @@ from services.ServiceManager import ServiceManager
 
 # ----- Built-in Python Modules ----- #
 from sys import exit as sys_exit
+import os
 
 # ----- Logger import ----- #
 from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
@@ -16,6 +17,27 @@ from config.scan_config import DEBUG_MODE, SCAN_TYPE
 configure_logging(CONFIG_PATH)
 logger.addFilter(WorkerPIDFilter())
 
+# ----- Restoring terminal to normal ----- #
+# -- This is only needed when running locally.
+# ---- Its purpose is to reset terminal to it's initial settings after running the application.
+import atexit
+import sys
+
+def restore_terminal_echo():
+    import termios
+    try:
+        attrs = termios.tcgetattr(sys.stdin)
+        attrs[3] |= termios.ECHO  # turn echo back on
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, attrs)
+    except Exception:
+        pass
+
+# Run the function when the application ends
+if DEBUG_MODE: atexit.register(restore_terminal_echo)
+# ---------------------------------------- #
+
+
+
 # Instance of ServiceManager that stores all starter methods for all possible ScanType values
 serviceManager = ServiceManager()
 
@@ -26,14 +48,16 @@ scan_type_to_method:dict = {
     'ip_port': serviceManager.start_ip_port_scan
 }
 
-if __name__ == '__main__':
+def main():
     # Call corresponding method based on the SCAN_TYPE value
     try:
         # Verify that the ScanType value is valid
-        if SCAN_TYPE not in scan_type_to_method:
+        if type(SCAN_TYPE) != str or SCAN_TYPE not in scan_type_to_method:
             available_scan_types = tuple(scan_type_to_method.keys())
             logger.error(f'Invalid SCAN_TYPE value provided. Value `{str(SCAN_TYPE)}` is not in the available SCAN_TYPE values: {available_scan_types}. Exiting application...')
             sys_exit(1)
+
+        logger.info(f'Initializing scan of type {SCAN_TYPE}')
 
         # Used as a bdebug mode helper, to clean up queues and the log file
         if DEBUG_MODE:
@@ -48,3 +72,10 @@ if __name__ == '__main__':
         template = "An unexpected exception of type {0} occurred. Arguments:\n{1!r}"
         message = template.format(type(e).__name__, e.args)
         logger.error(message)
+
+    
+
+
+if __name__ == '__main__':
+    main()
+    
