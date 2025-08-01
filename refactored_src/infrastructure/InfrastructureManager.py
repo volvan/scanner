@@ -22,4 +22,5 @@ class InfrastructureManager:
         return self.dbHandler.start_ports()
 
     def stop(self):
+        """Stop the dbHandler threads (both for port and hosts)"""
         return self.dbHandler.stop()

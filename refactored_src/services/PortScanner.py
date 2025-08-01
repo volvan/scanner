@@ -45,9 +45,6 @@ from config.scan_config import (  # noqa: F401
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
 
-# TODO:[Franz]: should be similar setup as DiscoveryScanner, then its easier to follow the flow by a lot
-
-
 class PortScanner:
     """laterdo: Docstr."""
 
@@ -56,7 +53,6 @@ class PortScanner:
         self.infraManager = infraManager
 
         self.active_processes: list[Process] = [] # TODO: should we not close the active processes at some point?
-        self.batch_handler = PortBatchHandler()
 
     def launch_port_scan_pipeline(self):
         """Main runner."""
@@ -81,7 +77,6 @@ class PortScanner:
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
-            db_ports.join()
             self.infraManager.stop()
             sys.exit(1)
 
@@ -109,7 +104,6 @@ class PortScanner:
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
-            db_ports.join()
             self.infraManager.stop()
             sys.exit(1)
 
@@ -120,9 +114,6 @@ class PortScanner:
 
             # Wait for the db queue to drain (blocks until every port task_done() completed)
             logger.info(f"[PortScanner] Waiting for db_ports queue to empty.. Currently there are {db_ports.qsize()} items in db_ports queue.")
-            db_ports.join()
-
-            # Lastly, stop the db listener (writer threads)
             self.infraManager.stop()
             
 
@@ -169,58 +160,62 @@ class PortScanner:
         except Exception as e:
             logger.error(f"[PortScanner] Failed to write port summary: {e}", exc_info=True)
 
-    def process_task(self, ip: str, port: int, queue_name: str): # TODO: rename or move, this is a worker process
+    def process_task(self, ip: str, port: int): # TODO: rename or move, this is a worker process
         """Probe an IP:port pair and enqueue the scan result as needed.
 
         What i observed: this is the method that the worker (coming from _drain_and_exit) is running.
 
         Args:
             ip (str): IP address to scan.
-            port (int): Port number to scan.
-            queue_name (str): Name of the originating queue.
-
-        Notes:
-            - If the port is open or filtered, the result is inserted into `db_ports`.
-            - If the port is closed but already known in the database, it is also inserted.
-            - Unknown scan states are routed to the 'fail_queue'.
+            port (int): Port to scan.
         """
-        with RabbitMQ(queue_name) as rmq_ports_conn:
+        with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn: # fail queue as thats the only queue we route to 
             try:
                 # 1) Run the Nmap scan
-                probe_res = ProbeHandler(ip, str(port)).scan()
+                probe = ProbeHandler(ip, str(port)).scan()
 
-                # Extract scan result details
-                record = {
-                    "type": "port_result",  # TODO:[Emilia]  why? is this ever used?
+                # if timeout or failure happens
+                if probe in ("timeout", "failed"):
+                    logger.warning(f"[PortScanner] Probe returned with {probe} scan result for {ip}:{port}; routing to fail queue.")
+                    message = {"ip": ip, "port": port, "reason": probe}
+                    rmq_fail_conn.enqueue_to_queue(message=message)
+                    return
+
+                # if it timed out with version detection, try to scan without version detection
+                if probe == "timeout_first_try":
+                    logger.debug(f"[PortScanner] Probe returned with {probe} scan result for {ip}:{port}; routing to fail queue and retrying without version detection.")
+                    message = {"ip": ip, "port": port, "reason": probe}
+                    rmq_fail_conn.enqueue_to_queue(message=message)
+                    probe = ProbeHandler(ip, str(port)).scan(without_version=True)
+                
+                # 2) Extract scan result details
+                scan_results = {
                     "ip": ip,
                     "port": port,
-                    "port_state": probe_res["state"],
-                    "port_service": probe_res["service"],
-                    "port_protocol": probe_res["protocol"],
-                    "port_product": probe_res["product"],
-                    "port_version": probe_res["version"],
-                    "port_cpe": probe_res["cpe"],
-                    "port_os": probe_res["os"],
-                    "duration": probe_res["duration"],
+                    "port_state": probe["state"],
+                    "port_service": probe["service"],
+                    "port_protocol": probe["protocol"],
+                    "port_product": probe["product"],
+                    "port_version": probe["version"],
+                    "port_cpe": probe["cpe"],
+                    "port_os": probe["os"],
+                    "duration": probe["duration"],
                 }
-
-                # if state is unknown, route to fail queue
-                if record["port_state"] == "unknown":
-                    logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to '{FAIL_QUEUE}'. \nScan results: {probe_res}\n\n")
-                    message = {"ip": ip, "port": port, "reason": "unknown_state"}
-                    rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
-                    return
-                    # # TODO:[]  why return?
-                    # Franz: Remove?
-                    # E: I dunno, why was the return statement there to beguin with? if its there, are we ack'ing the message or just throwing it out? What happens in the database? is it written there or?
                 
-                # 3) Enqueue all results (open, filtered, and closed) # TODO: thats wrong or no? is it not only returning open?
-                db_ports.put(record)
+                # if state is unknown, route to fail queue and skip insert to the database
+                if scan_results["port_state"] == "unknown":
+                    logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to fail queue. ")
+                    message = {"ip": ip, "port": port, "reason": "unknown_state"}
+                    rmq_fail_conn.enqueue_to_queue(message=message)
+                    return
+
+                # 3) Enqueue results (open, filtered, and closed)
+                db_ports.put(scan_results)
 
             except Exception as e:
-                logger.exception(f"[PortScanner] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe_res}\n\n")
-                message = {"error": str(e), "ip": ip, "port": port}
-                rmq_ports_conn.enqueue_to_queue(message=message, queue_name=FAIL_QUEUE)
+                logger.exception(f"[PortScanner] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe}\n\n")
+                message = {"ip": ip, "port": port, "reason": f"error: {e}"}
+                rmq_fail_conn.enqueue_to_queue(message=message)
 
     def _drain_and_exit(self, batch_queue: str) -> None: # TODO: rename or move, this is a worker process
         """Drain and process all tasks from a batch queue, then delete the queue.
@@ -246,7 +241,7 @@ class PortScanner:
                         break
                     try:
                         task = json.loads(body)
-                        self.process_task(ip=task["ip"], port=task["port"], queue_name=batch_queue)
+                        self.process_task(ip=task["ip"], port=task["port"])
                         rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: now this is ack'ed before.. should be after..
                     except Exception:
                         logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
@@ -268,31 +263,29 @@ class PortScanner:
             Waits if memory usage or active processes reach limits.
         """
 
-        if not resource_ok():
-            logger.warning("Memory limit reached; shutting down")
-            sys.exit(1)
-            return
-
+        # TODO:[Critical][] we can not be working like this.. now its 1 worker per batch and one batch is as large as all alive ips.. 
         logger.debug(f"[PortScanner] Starting batched port-scan on '{main_queue_name}'")
 
         while True:
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
+
+            if not resource_ok():
+                logger.warning("Memory limit reached; shutting down")
+                sys.exit(1)
+                return
 
             if len(self.active_processes) >= MAX_BATCH_PROCESSES:
                 oldest = self.active_processes[0]
                 oldest.join(timeout=1)
                 continue
 
-            batch_queue = self.batch_handler.create_port_batch(
-                ALIVE_ADDR_QUEUE,
-                main_queue_name
-            )
+            batch_queue = PortBatchHandler().create_port_batch(ip_queue=ALIVE_ADDR_QUEUE, port_queue=main_queue_name)
 
             if not batch_queue:
                 with RabbitMQ(main_queue_name) as rmq_conn:
                     remaining = rmq_conn.tasks_in_queue()
                     if remaining == 0:
-                    # if remaining == 0 and not self.active_processes:
+                    # if remaining == 0 and not self.active_processes: # TODO: this or that
                         logger.debug("[PortScanner] All port batches completed.")
                         break
 

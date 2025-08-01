@@ -6,7 +6,7 @@ import sys
 from utils.timestamp import get_current_timestamp, duration_timestamp
 
 # Configuration
-from config.scan_config import NMAP_FLAGS, PROBE_TIMEOUT, SCAN_DELAY, UNPRIV_SCAN_FLAGS
+from config.scan_config import NMAP_PROBE_TIMEOUT, NMAP_RETRY_DELAY, NMAP_RETRY_ATTEMPTS
 from config.logging_config import log_exception, logger
 
 sys.excepthook = log_exception
@@ -18,38 +18,39 @@ class ProbeHandler:
     """Use Nmap to probe IP:port combinations and determine service state."""
 
     def __init__(self, target_ip: str, target_port: str):
-        """Initialize a ProbeHandler instance."""
+        """Initialize a probe target."""
         self.target_ip = target_ip
         self.target_port = target_port
-        self.delay = SCAN_DELAY
 
     def _run_command(self, command: list[str]) -> str:
-        """Execute a shell command safely with a configurable timeout."""
+        """Execute the command preferred"""
         try:
             output = subprocess.check_output(
                 command,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
-                timeout=PROBE_TIMEOUT
+                timeout=NMAP_PROBE_TIMEOUT
             )
-            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}... \n ..The output: {output}")
+            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}... \n \t ..The output: \n \t {output}")
             return output
-        except subprocess.CalledProcessError as e:
-            logger.warning(f"[ProbeHandler] Command failed: {' '.join(command)}... \n ..The output: {e.output}")
-            return ""
         except subprocess.TimeoutExpired:
-            # [WARNING|609047][probe_handler|L41] 2025-07-29T16:48:35+0000: [ProbeHandler] Timeout after 60s: nmap -sT -T1 --scan-delay=200ms --max-retries=2 --data-length 20 -Pn -sV -p 80 130.208.246.13. 
-            # TODO:[P1][Emilia] but when i manually scan it, it takes 0.21 seconds and I get port state open.. 
-            # Scan delay is set at 200ms, so it will never scan 2 times as the process only has 60sec to compleete.... 
-            logger.warning(f"[ProbeHandler] Timeout after {PROBE_TIMEOUT}s: {' '.join(command)}. \n") # TODO:[Emilia] should this be 60sec really?
-            return ""
+            logger.info(f"[ProbeHandler] Timeout after {NMAP_PROBE_TIMEOUT}s: {' '.join(command)}. \n") 
+            return "timeout"
         except Exception as e:
-            logger.error(f"[ProbeHandler] Unexpected error running command {command}. With error {e}")
-            return ""
+            logger.error(f"[ProbeHandler] Command failed: {' '.join(command)}... \n ..The output: {e.output}")
+            return "failed"
 
-    def scan(self) -> dict:
-        """Run a stealthy, unprivileged Nmap scan on the target IP and port."""
+    def scan(self, without_version: bool = False) -> dict:
+        """Run a stealthy, unprivileged Nmap scan on the target IP and port.
+
+        Args:
+            without_version (bool, optional): If we want to scan without the version detection (with version got timeout), this is set to True. 
+        """
+
+        # Record start time to get the scan duration 
         start_ts = get_current_timestamp()
+
+        # Build the scan results 
         result = {
             "state": "unknown",
             "service": None,
@@ -61,15 +62,17 @@ class ProbeHandler:
             "duration": 0.0,
         }
 
-        # Build and execute the Nmap command from configuration
-        cmd = [
-            "nmap",
-            *UNPRIV_SCAN_FLAGS,
-            NMAP_FLAGS["service_detection"],
-            NMAP_FLAGS["ports"], str(self.target_port),
-            self.target_ip,
-        ]
-        output = self._run_command(cmd)
+        if without_version:
+            output = self._without_version_scan()
+        else: 
+            output = self._default_scan()
+            # If we get timeout, its the first time and may want to try again without version detection
+            if output == "timeout":
+                return "timeout_first_try"
+            
+        # If failure or timeout, we return that and not the scan metadata
+        if output in ("timeout", "failed"):
+            return output
 
         # Calculate scan duration
         result["duration"] = duration_timestamp(start_ts, get_current_timestamp())
@@ -80,8 +83,12 @@ class ProbeHandler:
             result["state"] = "open"
         elif "closed" in out_low:
             result["state"] = "closed"
+            return result # return as we dont need to parse the rest of the output
         elif "filtered" in out_low:
             result["state"] = "filtered"
+        else:
+            # Unknown result and return the state as such
+            return result
 
         # Parse lines for valid port entries
         for line in output.splitlines():
@@ -133,3 +140,41 @@ class ProbeHandler:
                 # fall through to allow other parsing if needed
 
         return result
+
+ 
+    
+    def _default_scan(self):
+        """The default NMAP scan."""
+
+        # TODO: look into the --host-timeout, should we use it or no?
+        nmap_cmd = [
+            "nmap",
+            "-sT",
+            "-sV",
+            "-T1",
+            f"--scan-delay={NMAP_RETRY_DELAY}ms", 
+            f"--max-retries={NMAP_RETRY_ATTEMPTS}",
+            "--data-length", "20",
+            "-Pn",
+            "-p", self.target_port,
+            self.target_ip
+        ]
+        output = self._run_command(nmap_cmd)
+        return output
+    
+
+    def _without_version_scan(self):
+        """The default NMAP scan without service version flag "-sV" and no retry's."""
+        nmap_cmd = [
+            "nmap",
+            "-sT",
+            "-T1",
+            f"--max-retries=0",
+            "--data-length", "20",
+            "-Pn",
+            "-p", self.target_port,
+            self.target_ip
+        ]
+        
+        output = self._run_command(nmap_cmd)
+        return output

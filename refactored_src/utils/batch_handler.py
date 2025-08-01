@@ -47,12 +47,12 @@ class IPBatchHandler:
         """
         # TODO:[Franz]: Cleanup this function, I can hardly follow the logic
 
-        with RabbitMQ(main_queue_name) as rmq_main:
+        with RabbitMQ(main_queue_name) as rmq_conn:
             tasks: list[dict] = []
             deliveries: list = []
 
             for _ in range(scan_config.BATCH_SIZE): # Create a batch with BATCH_SIZE amount of tasks
-                response: tuple[Basic.GetOk | None, BasicProperties, bytes] = rmq_main.channel.basic_get(queue=main_queue_name, auto_ack=False)
+                response: tuple[Basic.GetOk | None, BasicProperties, bytes] = rmq_conn.channel.basic_get(queue=main_queue_name, auto_ack=False)
 
                 method_frame: Basic.GetOk | None
                 body: bytes
@@ -67,19 +67,19 @@ class IPBatchHandler:
                         tasks.append(msg)
                     else:
                         try:
-                            rmq_main.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO:[]  Related to the Ack issue 
+                            rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO:[]  Related to the Ack issue 
                         except Exception as ex:
                             logger.warning("[IPBatchHandler] Failed to nack bad payload: %s", ex)
                 except Exception:
                     try:
-                        rmq_main.enqueue_to_queue(message={"raw": body.decode()}, queue_name=scan_config.FAIL_QUEUE)
+                        rmq_conn.enqueue_to_queue(message={"raw": body.decode()}, queue_name=scan_config.FAIL_QUEUE)
                     except Exception as enqueue_ex:
                         logger.error(f"[IPBatchHandler] Failed to enqueue to fail_queue: {enqueue_ex}")
-                    rmq_main.channel.basic_ack(delivery_tag=method_frame.delivery_tag)   # TODO:[]  Related to the Ack issue 
+                    rmq_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)   # TODO:[]  Related to the Ack issue 
 
             if not tasks:
                 logger.warning("[IPBatchHandler] No valid tasks found; skipping batch creation.")
-                self._requeue_deliveries(rmq=rmq_main, deliveries=deliveries, requeue=True)
+                self._requeue_deliveries(rmq=rmq_conn, deliveries=deliveries, requeue=True)
                 return None
 
             batch_queue = f"batch_{self.batch_id}"
@@ -89,10 +89,10 @@ class IPBatchHandler:
                     for task in tasks:
                         rmq_batch_conn.enqueue_to_queue(message=task)
                 for m in deliveries:
-                    rmq_main.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO:[]  Related to the Ack issue 
+                    rmq_conn.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO:[]  Related to the Ack issue 
                 logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
             except Exception:
-                self._requeue_deliveries(rmq=rmq_main, deliveries=deliveries, requeue=True)
+                self._requeue_deliveries(rmq=rmq_conn, deliveries=deliveries, requeue=True)
                 batch_queue = None
 
         return batch_queue
@@ -199,7 +199,7 @@ class PortBatchHandler:
             return None
 
         prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[Emilia]  Look at this
-        batch_name = f"{prefix}_{port}"
+        batch_name = f"{scan_config.SCAN_NATION}.{prefix}_{port}"
 
         # HERE
         with RabbitMQ(batch_name) as rmq_conn:
