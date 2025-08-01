@@ -88,7 +88,6 @@ class DiscoveryScanner:
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[DiscoveryScanner] Fatal error: {e}", exc_info=True)
-            db_hosts.join()
             self.infraManager.stop()
             sys.exit(1)
         
@@ -116,7 +115,6 @@ class DiscoveryScanner:
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
-            db_hosts.join()
             self.infraManager.stop()
             sys.exit(1)
 
@@ -127,9 +125,6 @@ class DiscoveryScanner:
 
             # Wait for the db queue to drain (blocks until every task_done() completed)
             logger.info(f"[DiscoveryScanner] Waiting for db_hosts queue to empty.. Currently there are {db_hosts.qsize()} items in db_hosts queue.")
-            db_hosts.join()
-
-            # Lastly, stop the db listener (writer threads)
             self.infraManager.stop()
 
 
@@ -176,7 +171,8 @@ class DiscoveryScanner:
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             # Insert to Fail Queue
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-                message = {"error": "bad_payload", "raw": body.decode()}
+                message = {"ip": ip_addr, "reason": f"error: bad_payload {e}"}
+                # message = {"error": "bad_payload", "raw": body.decode()}
                 rmq_fail_conn.enqueue_to_queue(message=message)
             return
 
@@ -225,7 +221,7 @@ class DiscoveryScanner:
 
         # Commit results to database
         try:
-            db_hosts.put(record)  # TODO: Must only ack if this is sucess..
+            db_hosts.put(record)
             logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr}.")
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
@@ -252,11 +248,11 @@ class DiscoveryScanner:
         props: BasicProperties
         body: bytes
 
-        with RabbitMQ(queue_name) as rmq:
+        with RabbitMQ(queue_name) as rmq_conn:
             try: 
 
                 while True:
-                    method_frame, props, body = rmq.channel.basic_get(
+                    method_frame, props, body = rmq_conn.channel.basic_get(
                         queue=queue_name,
                         auto_ack=False
                     )
@@ -267,7 +263,7 @@ class DiscoveryScanner:
                         # Spawn a short-lived process for this one task
                         task_proc = multiprocessing.Process(
                             target=self.process_task,
-                            args=(rmq.channel, method_frame, props, body),
+                            args=(rmq_conn.channel, method_frame, props, body),
                         )
                         task_proc.start()
                         task_proc.join(timeout=BATCH_TIMEOUT_SEC)
@@ -283,17 +279,17 @@ class DiscoveryScanner:
                             try:
                                 logger.info('\n\n[DiscoveryScanner._drain_and_exit] Currently inserting into fail_queue.\n\n')
                                 payload = json.loads(body)
-                                rmq.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE)
+                                rmq_conn.enqueue_to_queue(message=payload, queue_name=FAIL_QUEUE)
                             except Exception as e:
                                 logger.error(f"[DiscoveryScanner] Failed to enqueue timed-out task: {e}")
                             finally:
-                                rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag)
+                                rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag)
 
                     except Exception as e:
                         # any unexpected error wrapping the worker
                         logger.error(f"[DiscoveryScanner] Error running timed-task wrapper: {e}")
                         try:
-                            rmq.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
+                            rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)
                         except Exception as nack_err:
                             logger.warning(f"[DiscoveryScanner] Failed to nack message after wrapper error: {nack_err}")
 
@@ -303,12 +299,11 @@ class DiscoveryScanner:
                 
                 # once we drain the queue, remove it
                 logger.debug("DiscoveryScanner _drain_and_exit calling remove_queue")
-                rmq.remove_queue()
-                rmq.close() # TODO: this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
+                rmq_conn.remove_queue()
+                # rmq_conn.close() # TODO: this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
 
             finally:
                 logger.debug(f"[DiscoveryScanner] Current running processes for db_ports: {db_hosts.qsize()} ")
-                db_hosts.join()  # block until every host task_done()
                 self.infraManager.stop() # Stop the database thread
                 logger.debug(f"[PortScanner] (try again) Current running processes for db_ports: {db_hosts.qsize()} ")
                 logger.debug(f"[PortScanner] Currently active processes are: {len(self.active_processes)}")
@@ -345,7 +340,7 @@ class DiscoveryScanner:
                 return
             
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-                logger.debug("RMQ: remaining check")
+                logger.debug("RMQ: remaining check") # TODO: this was printed 50 times for scanning 15 ips.. thats alot of open and closing connections just to check how many in queue.. or?
                 remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
