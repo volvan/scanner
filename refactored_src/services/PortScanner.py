@@ -45,7 +45,7 @@ from config.scan_config import (  # noqa: F401
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
 
-# TODO:[Emilia][Franz]: should be similar setup as DiscoveryScanner, then its easier to follow the flow by a lot
+# TODO:[Franz]: should be similar setup as DiscoveryScanner, then its easier to follow the flow by a lot
 
 
 class PortScanner:
