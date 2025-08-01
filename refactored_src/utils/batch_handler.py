@@ -214,7 +214,7 @@ class PortBatchHandler:
             return None
 
         prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[Emilia]  Look at this
-        batch_name = f"{scan_config.NATION}.{prefix}_{port}"
+        batch_name = f"{scan_config.SCAN_NATION}.{prefix}_{port}"
 
         # HERE
         with RabbitMQ(batch_name) as rmq_conn:

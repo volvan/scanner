@@ -88,7 +88,6 @@ class DiscoveryScanner:
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[DiscoveryScanner] Fatal error: {e}", exc_info=True)
-            db_hosts.join()
             self.infraManager.stop()
             sys.exit(1)
         
@@ -116,7 +115,6 @@ class DiscoveryScanner:
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
-            db_hosts.join()
             self.infraManager.stop()
             sys.exit(1)
 
@@ -127,9 +125,6 @@ class DiscoveryScanner:
 
             # Wait for the db queue to drain (blocks until every task_done() completed)
             logger.info(f"[DiscoveryScanner] Waiting for db_hosts queue to empty.. Currently there are {db_hosts.qsize()} items in db_hosts queue.")
-            db_hosts.join()
-
-            # Lastly, stop the db listener (writer threads)
             self.infraManager.stop()
 
 
@@ -175,7 +170,8 @@ class DiscoveryScanner:
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
             # Insert to Fail Queue
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-                message = {"error": "bad_payload", "raw": body.decode()}
+                message = {"ip": ip_addr, "reason": f"error: bad_payload {e}"}
+                # message = {"error": "bad_payload", "raw": body.decode()}
                 rmq_fail_conn.enqueue_to_queue(message=message)
             return
 
@@ -215,14 +211,14 @@ class DiscoveryScanner:
             # Commit results to correct queue
             with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_conn:  # TODO:[Emilia]  this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
                 queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
-                # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue ( RIGHT??)  // If its unknown -> fail queue
+                # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue ( RIGHT??)
                 rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} host result for {ip_addr}: {e}")
 
         # Commit results to database
         try:
-            db_hosts.put(record)  # TODO: Must only ack if this is sucess..
+            db_hosts.put(record)
             logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr}.")
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
@@ -307,7 +303,6 @@ class DiscoveryScanner:
 
         finally:
             logger.debug(f"[DiscoveryScanner] Current running processes for db_ports: {db_hosts.qsize()} ")
-            db_hosts.join()  # block until every host task_done()
             self.infraManager.stop() # Stop the database thread
             logger.debug(f"[PortScanner] (try again) Current running processes for db_ports: {db_hosts.qsize()} ")
             logger.debug(f"[PortScanner] Currently active processes are: {len(self.active_processes)}")
@@ -344,7 +339,7 @@ class DiscoveryScanner:
                 return
             
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-                logger.debug("RMQ: remaining check")
+                logger.debug("RMQ: remaining check") # TODO: this was printed 50 times for scanning 15 ips.. thats alot of open and closing connections just to check how many in queue.. or?
                 remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]

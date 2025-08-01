@@ -77,7 +77,6 @@ class PortScanner:
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
-            db_ports.join()
             self.infraManager.stop()
             sys.exit(1)
 
@@ -105,7 +104,6 @@ class PortScanner:
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
             logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
-            db_ports.join()
             self.infraManager.stop()
             sys.exit(1)
 
@@ -116,9 +114,6 @@ class PortScanner:
 
             # Wait for the db queue to drain (blocks until every port task_done() completed)
             logger.info(f"[PortScanner] Waiting for db_ports queue to empty.. Currently there are {db_ports.qsize()} items in db_ports queue.")
-            db_ports.join()
-
-            # Lastly, stop the db listener (writer threads)
             self.infraManager.stop()
             
 
@@ -214,7 +209,7 @@ class PortScanner:
                     rmq_fail_conn.enqueue_to_queue(message=message)
                     return
 
-                # 3) Enqueue results (open, filtered, and closed) # TODO: move logic thats in there with if port is closed etc, to here.
+                # 3) Enqueue results (open, filtered, and closed)
                 db_ports.put(scan_results)
 
             except Exception as e:
