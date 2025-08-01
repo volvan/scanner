@@ -48,7 +48,7 @@ scan_type_to_method:dict = {
     'ip_port': serviceManager.start_ip_port_scan
 }
 
-if __name__ == '__main__':
+def main():
     # Call corresponding method based on the SCAN_TYPE value
     try:
         # Verify that the ScanType value is valid
@@ -73,4 +73,9 @@ if __name__ == '__main__':
         message = template.format(type(e).__name__, e.args)
         logger.error(message)
 
+    
+
+
+if __name__ == '__main__':
+    main()
     
