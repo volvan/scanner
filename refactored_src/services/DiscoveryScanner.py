@@ -64,7 +64,7 @@ class DiscoveryScanner:
         """laterdo: Docstr."""
         self.infraManager = infraManager
         
-        self.active_processes: list[Process] = []
+        self.active_processes: list[Process] = [] # TODO: should we not close the active processes at some point?
         self.batch_id_generator = itertools.count(1)
 
     def launch_discovery_scan_pipeline(self):
@@ -303,10 +303,10 @@ class DiscoveryScanner:
                 # rmq_conn.close() # TODO: this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
 
             finally:
-                logger.debug(f"[DiscoveryScanner] Current running processes for db_ports: {db_hosts.qsize()} ")
-                self.infraManager.stop() # Stop the database thread
-                logger.debug(f"[PortScanner] (try again) Current running processes for db_ports: {db_hosts.qsize()} ")
-                logger.debug(f"[PortScanner] Currently active processes are: {len(self.active_processes)}")
+                logger.debug(f"[DiscoveryScanner] Current running processes for db_hosts: {db_hosts.qsize()} ")
+                # self.infraManager.stop() # Stop the database thread
+                # logger.debug(f"[DiscoveryScanner] (try again) Current running processes for db_hosts: {db_hosts.qsize()} ")
+                logger.debug(f"[DiscoveryScanner] Currently active processes are: {len(self.active_processes)}")
 
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""

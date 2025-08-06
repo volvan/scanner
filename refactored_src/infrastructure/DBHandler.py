@@ -163,13 +163,18 @@ class DBHandler:  # TODO:[][Priority Low] rename.. Database_Writer? maybe..
         # ask threads to exit
         self.stop_signal.set()
 
+
         # block until queues empty
-        logger.info("[DBHandler] Stop signal sent. Waiting for threads to exit.")
+        logger.info("[DBHandler] Stop signal sent. Waiting for [host] threads to exit.")
         db_hosts.join()
+        logger.debug("[DBHandler] .. Waiting for [ports] threads to exit.")
         db_ports.join()
+        logger.debug("[DBHandler] .. Waiting for [ports] threads to exit DONE.")
 
         # Wait until every writer thread (hosts and ports) has exited
-        for writer_thread in (*self.host_threads, *self.port_threads): # TODO: or mutable with self.host_threads + self.port_threads ?
+        # for writer_thread in (*self.host_threads, *self.port_threads): # TODO: or mutable with self.host_threads + self.port_threads ?
+        for writer_thread in (self.host_threads + self.port_threads): # TODO: or mutable with self.host_threads + self.port_threads ?
+            logger.debug(f"[DBHandler] Writer thread {writer_thread} exited.")
             writer_thread.join(timeout=2)
 
 

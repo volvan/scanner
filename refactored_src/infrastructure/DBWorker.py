@@ -65,7 +65,6 @@ class DBWorker:
                     application_name="Volva_dbworker",
                 )
                 cls._pool_pid = os.getpid()
-                logger.debug(f"[DBWorker] Connection pool created.")
                 logger.info("[DBWorker] Connection pool created.")
             except Exception as e:
                 logger.error(f"[DBWorker] Pool initialization failed: {e}")

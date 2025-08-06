@@ -1,7 +1,8 @@
 
+import time
+
 # ----- Manager imports -----#
 from infrastructure.InfrastructureManager import InfrastructureManager
-
 # ----- Service imports -----#
 from .PortScanner import PortScanner
 from .DiscoveryScanner import DiscoveryScanner
@@ -39,7 +40,7 @@ class ServiceManager:
         duration = duration_timestamp(start_ts, done_ts)
 
         logger.info(f"'ServiceManager.launch_discovery_scan_pipeline()' done at: {done_ts}. The duration is: {duration}.")
-        print(f"Duration of scan: {duration}")
+        print(f"Duration of Host-Discovery scan: {duration}")
 
     # ----- PortScanner Methods -----#
     def start_port_scan(self):
@@ -56,11 +57,12 @@ class ServiceManager:
         duration = duration_timestamp(start_ts, done_ts)
 
         logger.info(f"'ServiceManager.launch_port_scan_pipeline()' done at: {done_ts}. The duration is: {duration}.")
-        print(f"Duration of scan: {duration}")
+        print(f"Duration of Port scan: {duration}")
 
     # ----- Start IP then Port scan -----#
     def start_ip_port_scan(self):
         self.start_ip_scan()
+        time.sleep(2)
         self.start_port_scan()
 
     # ----- Close open connections -----#
