@@ -6,25 +6,26 @@ import os
 # --------- GLOBAL SETTINGS AND CONFIGURATIONS TO FINE TUNE THE SCANNER --------
 # ------------------------------------------------------------------------------
 
-SCAN_TYPE:str           = "port"                                      # Run discovery scan or port scan
+SCAN_TYPE:str         = "port"                                      # (DEF: ip_port)  - Run discovery scan or port scan (values: ip, port and ip_port)
+SCAN_MODE_LIGHT:bool  = False                                       # (DEF: False)  - If False, runs intense scan that adds -sV to port probes (for better version detection)
 
 
 # ----- PATHS ------------------------------------------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(os.path.dirname(BASE_DIR))
-TARGETS_FILE_PATH = os.path.join(BASE_DIR, "..", "targets")           # Stored under src/targets/ and stores 'blocks.txt', 'ports.txt'
+BASE_DIR              = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR              = os.path.dirname(os.path.dirname(BASE_DIR))
+TARGETS_FILE_PATH     = os.path.join(BASE_DIR, "..", "targets")      # Stored under src/targets/ and stores 'blocks.txt', 'ports.txt'
 # ------------------------------------------------------------------------------
 # ----- MONITORING and LOGS ------------------------------------------------------
-DEBUG_MODE = True                                                     # Debug mode will prompt user in start of run
-LOG_TO_FILE = True                                                    # If True, logs debug levels in log file, else warnings
-LOG_TO_TERMINAL = False                                               # If True, logs debug levels to terminal, else warnings
+DEBUG_MODE:bool       = True                                         # Debug mode will prompt user in start of run
+LOG_TO_FILE:bool      = True                                         # If True, logs debug levels in log file, else warnings
+LOG_TO_TERMINAL:bool  = False                                        # If True, logs debug levels to terminal, else warnings
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
-LOG_DIR = os.path.join(ROOT_DIR, "logs")                              # Where to store the logs
+CONFIG_PATH           = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
+LOG_DIR               = os.path.join(ROOT_DIR, "logs")               # Where to store the logs
 # ------------------------------------------------------------------------------
 # ----- RESOURCE LIMITS --------------------------------------------------------
-MEM_LIMIT = 1_000 * 1024**2                                           # Memory (in bytes)
-CPU_LIMIT = 70                                                        # CPU (percent)
+MEM_LIMIT = 1_000 * 1024**2                                          # Memory (in bytes)
+CPU_LIMIT = 70                                                       # CPU (percent)
 # ------------------------------------------------------------------------------
 
 

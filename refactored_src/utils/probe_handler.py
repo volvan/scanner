@@ -6,7 +6,7 @@ import sys
 from utils.timestamp import get_current_timestamp, duration_timestamp
 
 # Configuration
-from config.scan_config import NMAP_PROBE_TIMEOUT, NMAP_RETRY_DELAY, NMAP_RETRY_ATTEMPTS
+from config.scan_config import NMAP_PROBE_TIMEOUT, NMAP_RETRY_DELAY, NMAP_RETRY_ATTEMPTS, SCAN_MODE_LIGHT
 from config.logging_config import log_exception, logger
 
 sys.excepthook = log_exception
@@ -40,11 +40,11 @@ class ProbeHandler:
             logger.error(f"[ProbeHandler] Command failed: {' '.join(command)}... \n ..The output: {e.output}")
             return "failed"
 
-    def scan(self, without_version: bool = False) -> dict:
+    def scan(self, scan_light_mode: bool = False) -> dict:
         """Run a stealthy, unprivileged Nmap scan on the target IP and port.
 
         Args:
-            without_version (bool, optional): If we want to scan without the version detection (with version got timeout), this is set to True. 
+            scan_light_mode (bool, optional): If we want to scan without the version detection (with version got timeout), this is set to True. 
         """
 
         # Record start time to get the scan duration 
@@ -61,14 +61,15 @@ class ProbeHandler:
             "os": None,
             "duration": 0.0,
         }
-
-        if without_version:
-            output = self._without_version_scan()
+        
+        # If light mode, we scan without service detection
+        if scan_light_mode or SCAN_MODE_LIGHT:
+            output = self._scan_light_mode()
         else: 
-            output = self._default_scan()
+            output = self._scan_intense_mode()
             # If we get timeout, its the first time and may want to try again without version detection
             if output == "timeout":
-                return "timeout_first_try"
+                return "intense_scan_timeout"
             
         # If failure or timeout, we return that and not the scan metadata
         if output in ("timeout", "failed"):
@@ -143,7 +144,7 @@ class ProbeHandler:
 
  
     
-    def _default_scan(self):
+    def _scan_intense_mode(self):
         """The default NMAP scan."""
 
         # TODO: look into the --host-timeout, should we use it or no?
@@ -163,7 +164,7 @@ class ProbeHandler:
         return output
     
 
-    def _without_version_scan(self):
+    def _scan_light_mode(self):
         """The default NMAP scan without service version flag "-sV" and no retry's."""
         nmap_cmd = [
             "nmap",

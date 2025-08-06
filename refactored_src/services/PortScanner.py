@@ -2,6 +2,11 @@
 import multiprocessing
 import time
 from multiprocessing import Process
+import sys
+import json
+import os
+import random
+import psutil
 
 # ----- Type annotation imports -----#
 from infrastructure.InfrastructureManager import InfrastructureManager
@@ -12,18 +17,10 @@ from infrastructure.DBHandler import db_ports
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
-# ----- OLD IMPORTS -----#
-import psutil
 
 from utils.batch_handler import PortBatchHandler
 from utils.resource_status import resource_ok
 from utils.probe_handler import ProbeHandler
-
-
-import sys
-import json
-import os
-import random
 
 from config.logging_config import logger, log_exception
 from utils.ports_handler import read_ports_file
@@ -181,12 +178,12 @@ class PortScanner:
                     rmq_fail_conn.enqueue_to_queue(message=message)
                     return
 
-                # if it timed out with version detection, try to scan without version detection
-                if probe == "timeout_first_try":
+                # if intense scan ran and timed out, try to scan without version detection (lighter mode)
+                if probe == "intense_scan_timeout":
                     logger.debug(f"[PortScanner] Probe returned with {probe} scan result for {ip}:{port}; routing to fail queue and retrying without version detection.")
                     message = {"ip": ip, "port": port, "reason": probe}
                     rmq_fail_conn.enqueue_to_queue(message=message)
-                    probe = ProbeHandler(ip, str(port)).scan(without_version=True)
+                    probe = ProbeHandler(ip, str(port)).scan(scan_light_mode=True)
                 
                 # 2) Extract scan result details
                 scan_results = {
