@@ -120,41 +120,44 @@ class PortScanner:
             # Build QueryModel for port-summary
             with DBWorker() as db_conn:
 
-                # Fetch the latest summary ID for the nation
-                latest_summary_id = self.infraManager.queryHandler.fetch_latest_summary_id(country=SCAN_NATION)
-                latest_summary = db_conn.execute_query_model(latest_summary_id)
-
-                # update the existing summary
-                if latest_summary:
-                    logger.info("Summary is being updated for current scan.")
+                # Fetch the latest row (summary ID) for the nation and see if port_scan_done_ts is already set
+                query_model = self.infraManager.queryHandler.fetch_latest_summary_id(country=SCAN_NATION)
+                latest_summary = db_conn.execute_query_model(query_model)  # [(id, port_scan_done_ts)] or []
+                
+                # IF: row exists and NOT yet updated with port data
+                if latest_summary and latest_summary[0][1] is None:
                     summary_id = latest_summary[0][0]
+                    logger.info(f"[PortScanner] Updating summary #{summary_id} with port scan data.")
+                    
+                    # update the existing summary
                     update_qm = self.infraManager.queryHandler.update_summary(
                         summary_id=summary_id,
                         port_start_ts=port_start_ts,
                         port_done_ts=port_done_ts,
                         scanned_ports=scanned_ports
                     )
-                    success = db_conn.execute_query_model(update_qm)
-                    if not success:
-                        logger.critical("[PortScanner] Failed to update existing summary.")
-                    else:
-                        logger.info("Summary table updated for scan.")
-                # This will else statement will only run in a horrible error situation insert a brand-new summary row
+                    if not db_conn.execute_query_model(update_qm):
+                        logger.critical(f"[PortScanner] Failed to update existing summary #{summary_id}.")
+
+                # IF: no row, or row already has port_scan_done_ts (EDGE CASE)
                 else:
-                    logger.warning("Summary not found for scan, fallback was to insert temp values. Must take a look at this.")
+                    if latest_summary:
+                        logger.warning(f"Latest summary #{latest_summary[0][0]} already has port_scan_done_ts. Fallback: Inserting a new summary row.")
+                    else:
+                        logger.warning("No previous summary found! Fallback: Inserting a new summary row.")
+
+                    # Create a new summary
                     insert_qm = self.infraManager.queryHandler.insert_summary(
-                        discovery_start_ts=port_start_ts,   # reuse from discovery as temp value
-                        discovery_done_ts=port_start_ts,    # reuse from discovery as temp value
-                        scanned_cidrs=[],                   # no discovery CIDRs as temp
+                        discovery_start_ts=port_start_ts,   # reuse discovery ts as temp value
+                        discovery_done_ts=port_start_ts,    # reuse discovery ts as temp value
+                        scanned_cidrs=[],                   # placeholder (required field)
                         port_start_ts=port_start_ts,
                         port_done_ts=port_done_ts,
                         scanned_ports=scanned_ports
                     )
-                    success = db_conn.execute_query_model(insert_qm)
-                    if not success:
+                    if not db_conn.execute_query_model(insert_qm):
                         logger.critical("[PortScanner] Failed to insert new summary.")
-                    else:
-                        logger.info("Summary table updated for scan.")
+                    
 
         except Exception as e:
             logger.error(f"[PortScanner] Failed to write port summary: {e}", exc_info=True)

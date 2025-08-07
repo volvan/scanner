@@ -83,9 +83,13 @@ class QueryHandler:
         """Builds a SELECT QueryModel.
 
         Fetch the latest summary ID for a country.
+        
+        Returns:
+            summary_id and port_scan_done_ts (so we can tell if it's been updated).
         """
+
         sql = (
-            "SELECT id"
+            "SELECT id, port_scan_done_ts"
             " FROM summary"
             " WHERE country = %s"
             " ORDER BY id DESC"
@@ -94,9 +98,7 @@ class QueryHandler:
         return QueryModel(query=sql, params=(country,), fetch=True)
 
 
-    def update_summary(
-        self,
-        *,
+    def update_summary(self,*,
         summary_id: int,
         port_start_ts,
         port_done_ts,
