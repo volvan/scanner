@@ -71,14 +71,6 @@ class QueryHandler:
 
         return qm
 
-    # TODO:[Franz]? Verify that this is not dead code
-    # E: Note, it either is or should be used in launch_x_scan
-    #   - Because after the scan is done, it should check the latest summary ID WHERE country is NATION..
-    #   .. and if it does not have port_scan_done_ts -> It should update that summary row with the port scan data
-    #   .. If it however does have port_scan_done_ts -> It means something is wrong but should just create a new summary row..
-    #   - Note that for the host discovery scan, it should always just create a new row.
-    # So, TODO:[] Is this correctly implemented in code?
-
     def fetch_latest_summary_id(self, country: str) -> QueryModel:
         """Builds a SELECT QueryModel.
 
@@ -98,18 +90,13 @@ class QueryHandler:
         return QueryModel(query=sql, params=(country,), fetch=True)
 
 
-    def update_summary(self,*,
-        summary_id: int,
-        port_start_ts,
-        port_done_ts,
-        scanned_ports: list[str] = None,
-    ) -> QueryModel:
+    def update_summary(self,*, summary_id: int, port_start_ts, port_done_ts, scanned_ports: list[str] = None,) -> QueryModel:
         """Builds an UPDATE QueryModel.
 
         Patch the existing summary row with port-scan timestamps and scanned_ports.
         """
 
-        sql = (
+        sql_text = (
             "UPDATE summary"
             " SET port_scan_start_ts = %s,"
             "     port_scan_done_ts  = %s,"
@@ -118,7 +105,15 @@ class QueryHandler:
         )
         params = (port_start_ts, port_done_ts, scanned_ports, summary_id)
 
-        return QueryModel(query=sql, params=params, fetch=False)
+        # return a QueryModel for later execution
+        qm = QueryModel(
+            query=sql_text,
+            params=params,
+            fetch=False
+        )
+        logger.debug(f"[QueryHandler] Query model: {qm}")
+
+        return qm
 
     def insert_host_result(self, task: dict) -> QueryModel:
         """Update a host scan result in the Hosts table.
