@@ -46,4 +46,4 @@ class ConfigValidator:
                 if tasks_remaining > 0:
                     raise RuntimeError(f"[ConfigValidator] Queue '{ALL_ADDR_QUEUE}' already contains {tasks_remaining} tasks. Startup halted.")
         except Exception as e:
-            raise RuntimeError("[ConfigValidator] RabbitMQ connection or queue check failed") from e
+            raise RuntimeError(f"[ConfigValidator] RabbitMQ connection or queue check failed: {e}") 
