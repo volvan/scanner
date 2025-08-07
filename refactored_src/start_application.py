@@ -10,7 +10,6 @@ from config.logging_config import logger, configure_logging, WorkerPIDFilter, CO
 from config.scan_config import DEBUG_MODE, SCAN_TYPE
 
 
-
 def restore_terminal_echo():
     """Restore terminal echo settings when the app exits.
     
