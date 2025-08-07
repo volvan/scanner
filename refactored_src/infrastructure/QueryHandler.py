@@ -241,7 +241,7 @@ class QueryHandler:
         Notes:
             Existing entries are updated if they already exist (upsert behavior).
         """
-        # TODO: country should not be updated but stay as the NATION from scan_config -> Sometimes its missing and will cause inaccurate data
+        # TODO: look at this and verify logic
         
         if not ips:
             logger.warning("[Query_Handler] No IPs provided to seed WHOIS.")
@@ -277,7 +277,7 @@ class QueryHandler:
                     matched.get('net_type'),
                     matched.get('parent'),
                     matched.get('reg_date'),
-                    matched.get('country'),
+                    SCAN_NATION,
                     matched.get('state_prov'),
                     last_scanned_ts,
                 ))
@@ -328,6 +328,8 @@ class QueryHandler:
         Returns:
             ...
         """
+        
+        # TODO:[emilia] Verify 
         encrypted = encrypt_ip(ip)
         sql = (
             "SELECT 1"

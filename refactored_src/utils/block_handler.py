@@ -241,7 +241,6 @@ def whois_block(filename: str) -> dict:
                 "net_type": network.get("type"),
                 "parent": network.get("parent_handle"),
                 "reg_date": reg_date,
-                "country": network.get("country"),
                 "state_prov": network.get("state"),
             }
 
@@ -262,7 +261,6 @@ def whois_block(filename: str) -> dict:
                 "net_type": None,
                 "parent": None,
                 "reg_date": None,
-                "country": None,
                 "state_prov": None,
             }
 

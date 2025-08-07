@@ -422,11 +422,11 @@ class DiscoveryScanner:
             with DBWorker() as dbWorker:
                 dbWorker: DBWorker
                 with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-                    for batch_no, batch in enumerate(chunked(shuffled_ips_iter), start=1):
-                        logger.debug(f"[DiscoveryScanner.new_targets] enqueuing batch: {batch_no} of size: {len(batch)}")
+                    for batch_no, ips in enumerate(chunked(shuffled_ips_iter), start=1):
+                        logger.debug(f"[DiscoveryScanner.new_targets] enqueuing batch: {batch_no} of size: {len(ips)}")
 
                         # Insert to database
-                        queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=batch)
+                        queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=ips)
                         if queryModel is None:
                             logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
                             continue
@@ -436,8 +436,8 @@ class DiscoveryScanner:
                             continue
                         
                         # Enqueue to RMQ
-                        for batch in batch:
-                            rmq_conn.enqueue_to_queue(queue_name=ALL_ADDR_QUEUE, message={"ip": batch})
+                        for ip in ips:
+                            rmq_conn.enqueue_to_queue(queue_name=ALL_ADDR_QUEUE, message={"ip": ip})
 
                     del shuffled_ips_iter, ip_iter
                     gc.collect()

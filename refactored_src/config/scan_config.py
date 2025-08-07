@@ -6,7 +6,7 @@ import os
 # --------- GLOBAL SETTINGS AND CONFIGURATIONS TO FINE TUNE THE SCANNER --------
 # ------------------------------------------------------------------------------
 
-SCAN_TYPE:str         = "ip"                                      # (DEF: ip_port)  - Run discovery scan or port scan (values: ip, port and ip_port)
+SCAN_TYPE:str         = "port"                                      # (DEF: ip_port)  - Run discovery scan or port scan (values: ip, port and ip_port)
 SCAN_MODE_LIGHT:bool  = True                                         # (DEF: False)  - If False, runs intense scan that adds -sV to port probes (for better version detection)
 
 
