@@ -30,7 +30,7 @@ def read_ports_file(ports_file: str):
         - Port values must be integers.
         - If parsing fails for either line, the corresponding list will be empty.
     """
-    file_path = os.path.join(TARGETS_FILE_PATH, ports_file)
+    file_path = os.path.join(TARGETS_FILE_PATH, ports_file) # TODO: dont we already have PORTS_FILE ? 
     #TODO: [Franz] We need to fix this logic, it is insane.
     try:
         with open(file_path, "r") as f:

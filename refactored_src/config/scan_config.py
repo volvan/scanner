@@ -6,14 +6,17 @@ import os
 # --------- GLOBAL SETTINGS AND CONFIGURATIONS TO FINE TUNE THE SCANNER --------
 # ------------------------------------------------------------------------------
 
-SCAN_TYPE:str         = "port"                                      # (DEF: ip_port)  - Run discovery scan or port scan (values: ip, port and ip_port)
-SCAN_MODE_LIGHT:bool  = True                                       # (DEF: False)  - If False, runs intense scan that adds -sV to port probes (for better version detection)
+SCAN_TYPE:str         = "ip"                                      # (DEF: ip_port)  - Run discovery scan or port scan (values: ip, port and ip_port)
+SCAN_MODE_LIGHT:bool  = True                                         # (DEF: False)  - If False, runs intense scan that adds -sV to port probes (for better version detection)
 
 
 # ----- PATHS ------------------------------------------------------------------
 BASE_DIR              = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR              = os.path.dirname(os.path.dirname(BASE_DIR))
 TARGETS_FILE_PATH     = os.path.join(BASE_DIR, "..", "targets")      # Stored under src/targets/ and stores 'blocks.txt', 'ports.txt'
+
+TARGETS_FILE:str      = os.path.join(TARGETS_FILE_PATH, "blocks.txt")# File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
+PORTS_FILE:str        = os.path.join(TARGETS_FILE_PATH, "ports.txt") # The file containing the ports to scan
 # ------------------------------------------------------------------------------
 # ----- MONITORING and LOGS ------------------------------------------------------
 DEBUG_MODE:bool       = True                                         # Debug mode will prompt user in start of run
@@ -32,8 +35,6 @@ CPU_LIMIT = 70                                                       # CPU (perc
 # --------- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN --------------
 SCAN_NATION:str       = "IS"                                          # The Nation-code that is being scanned
 FETCH_RIX:bool        = False                                         # (DEF: True)  - If True, fetch IPs from RIX.is
-TARGETS_FILE:str      = "blocks.txt"                                  # File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
-PORTS_FILE:str        = os.path.join(TARGETS_FILE_PATH, "ports.txt")  # The file containing the ports to scan
 FAIL_QUEUE:str        = f"{SCAN_NATION}.fail_queue"                   # The RabbitMQ queue name that contains ip or (ip,port) pairs that encountered an error or failed while the scan was processing
 
 SCAN_DELAY:float      = 0.5                                           # Delay (sec) between scan attempts       # TODO: should it be used so often? (10 times in the code currently)

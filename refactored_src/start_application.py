@@ -2,6 +2,7 @@
 # ----- Manager imports ----- #
 from utils.debug_tools import run_debug_maintenance
 from services.ServiceManager import ServiceManager
+from utils.config_validator import ConfigValidator
 
 # ----- Built-in Python Modules ----- #
 from sys import exit as sys_exit
@@ -58,9 +59,17 @@ def main():
 
         logger.info(f'Initializing scan of type {SCAN_TYPE}')
 
-        # Used as a bdebug mode helper, to clean up queues and the log file
+        # Used as a debug mode helper, to clean up queues and the log file
         if DEBUG_MODE:
+            logger.info("Running in debug mode.")
             run_debug_maintenance()
+
+        # Run the config validator
+        try:
+            ConfigValidator.validate_on_startup()
+        except Exception as e:
+            logger.critical(f"[Startup] Configuration validation failed: \n {e}")
+            exit(1)
 
         # Run method based on SCAN_TYPE value
         scan_type_to_method[SCAN_TYPE]()

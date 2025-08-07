@@ -4,8 +4,7 @@ import logging
 
 from infrastructure.RabbitMQ import RabbitMQ
 from config.logging_config import LOG_FILE_PATH
-logger = logging.getLogger(__name__)
-
+from config.logging_config import logger
 
 def _confirm(prompt: str) -> bool:
     """laterdo: Docstr."""
