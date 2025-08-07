@@ -9,96 +9,67 @@ from utils.timestamp import get_current_timestamp
 
 # Configuration
 from config.logging_config import logger
+from config.scan_config import SCAN_NATION
 
 # Models
 from models.QueryModel import QueryModel
 
-# TODO:[Emilia] add context manager
 
 
-class QueryHandler:  # Database_manager old
-    """laterdo: Docstr."""
+class QueryHandler:
+    """The Database Manager."""
 
     def __init__(self) -> None:
         """laterdo: Docstr."""
         pass
 
 # TODO: have this take in dict like the other insert functions..
-    def insert_summary(
-        self,
-        *,
-        country: str,
-        discovery_start_ts,
-        discovery_done_ts,
-        scanned_cidrs: list[str],
-        scanned_ports: list[str] = None,
-        port_start_ts=None,
-        port_done_ts=None,
-        total_ips_scanned: int = None,
-        total_ips_active: int = None,
-        total_ports_scanned: int = None,
-        total_ports_open: int = None,
-        open_ports_count: dict = None,
-        products_count: dict = None,
-        services_count: dict = None,
-        os_count: dict = None,
-        versions_count: dict = None,
-        cpe_count: dict = None,
-    ) -> QueryModel:
+    def insert_summary(self, *, discovery_start_ts, discovery_done_ts, scanned_cidrs: list[str], scanned_ports: list[str] = None, port_start_ts=None, port_done_ts=None) -> QueryModel:
         """Build an INSERT QueryModel for the summary table.
 
-        Only the first four arguments are required; any others
-        that are not None will be included.
+        Required:
+            - discovery_start_ts
+            - discovery_done_ts
+            - scanned_cidrs
+
+        Optional:
+            - port_scan_start_ts
+            - port_scan_done_ts
+            - scanned_ports
         """
-        # required columns
-        req_columns = [
-            "country",
-            "discovery_scan_start_ts",
-            "discovery_scan_done_ts",
-            "scanned_cidrs",
-        ]
-        vals: list = [
-            country,
-            discovery_start_ts,
-            discovery_done_ts,
-            scanned_cidrs,
-        ]
+        
+        # Collect all possible fields in one dict
+        data = {
+            "country": SCAN_NATION,
+            "discovery_scan_start_ts": discovery_start_ts,
+            "discovery_scan_done_ts": discovery_done_ts,
+            "scanned_cidrs": scanned_cidrs,
+            "port_scan_start_ts": port_start_ts,
+            "port_scan_done_ts": port_done_ts,
+            "scanned_ports": scanned_ports,
+        }
 
-        # optional columns
-        opt_columns = [
-            ("port_scan_start_ts", port_start_ts),
-            ("port_scan_done_ts", port_done_ts),
-            ("scanned_ports", scanned_ports),
-            ("total_ips_scanned", total_ips_scanned),
-            ("total_ips_active", total_ips_active),
-            ("total_ports_scanned", total_ports_scanned),
-            ("total_ports_open", total_ports_open),
-            ("open_ports_count", open_ports_count),
-            ("products_count", products_count),
-            ("services_count", services_count),
-            ("os_count", os_count),
-            ("versions_count", versions_count),
-            ("cpe_count", cpe_count),
-        ]
-        for col, val in opt_columns:
-            if val is not None:
-                req_columns.append(col)
-                vals.append(val)
+        # Filter out any None values
+        cols_vals = [(col, val) for col, val in data.items() if val is not None]
+        cols, vals = zip(*cols_vals)
 
-        # build SQL
-        col_list = ", ".join(req_columns)
-        placeholders = ", ".join(["%s"] * len(req_columns))
+        # Build the SQL
+        cols_sql = ", ".join(cols)
+        placeholders = ", ".join(["%s"] * len(vals))
         sql_text = (
-            f"INSERT INTO summary ({col_list}) "
+            f"INSERT INTO summary ({cols_sql}) "
             f"VALUES ({placeholders})"
         )
 
         # return a QueryModel for later execution
-        return QueryModel(
+        qm = QueryModel(
             query=sql_text,
             params=tuple(vals),
             fetch=False
         )
+        logger.debug(f"[QueryHandler] Query model: {qm}")
+
+        return qm
 
     # TODO:[Franz]? Verify that this is not dead code
     # E: Note, it either is or should be used in launch_x_scan

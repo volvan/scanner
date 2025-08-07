@@ -130,11 +130,8 @@ class DiscoveryScanner:
 
     def _update_summary(self, discovery_start_ts, discovery_done_ts, scanned_blocks):
         try:
-            # TODO:[Emilia]  this is executing query, like the DB workers do, so should reuse that logic? - The same goes for PortScanner
-            # F: Is this not already sharing logic via `dbWorker.execute_query_model`?
             with DBWorker() as dbWorker:
                 queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
-                    country=SCAN_NATION,
                     discovery_start_ts=discovery_start_ts,
                     discovery_done_ts=discovery_done_ts,
                     scanned_cidrs=scanned_blocks
@@ -142,6 +139,8 @@ class DiscoveryScanner:
                 success = dbWorker.execute_query_model(queryModel)
                 if not success:
                     logger.critical('[DiscoveryScanner.launch_discovery_scan_pipeline] Something went wrong while inserting the summary.')
+                else:
+                    logger.info("Summary table updated for scan.")
         except Exception as e:
             logger.error(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Failed to write discovery summary: {e}")
 

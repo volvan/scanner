@@ -137,12 +137,12 @@ class PortScanner:
                     success = db_conn.execute_query_model(update_qm)
                     if not success:
                         logger.critical("[PortScanner] Failed to update existing summary.")
-
+                    else:
+                        logger.info("Summary table updated for scan.")
                 # This will else statement will only run in a horrible error situation insert a brand-new summary row
                 else:
                     logger.warning("Summary not found for scan, fallback was to insert temp values. Must take a look at this.")
                     insert_qm = self.infraManager.queryHandler.insert_summary(
-                        country=SCAN_NATION,
                         discovery_start_ts=port_start_ts,   # reuse from discovery as temp value
                         discovery_done_ts=port_start_ts,    # reuse from discovery as temp value
                         scanned_cidrs=[],                   # no discovery CIDRs as temp
@@ -153,6 +153,8 @@ class PortScanner:
                     success = db_conn.execute_query_model(insert_qm)
                     if not success:
                         logger.critical("[PortScanner] Failed to insert new summary.")
+                    else:
+                        logger.info("Summary table updated for scan.")
 
         except Exception as e:
             logger.error(f"[PortScanner] Failed to write port summary: {e}", exc_info=True)
