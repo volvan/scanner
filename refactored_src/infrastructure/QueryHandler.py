@@ -119,17 +119,19 @@ class QueryHandler:
         """Update a host scan result in the Hosts table.
 
         Args:
-            task (dict): A task dictionary containing at minimum 'ip' and 'host_status'.
-        Returns:
-            update_sql: str
-            values: str
+            task (dict): A task dictionary containing:
+                ip, probe_method, probe_protocol, host_state, probe_duration
         """
-        # validation
-        if 'ip' not in task or 'host_status' not in task:
+        
+        # Ensure required fields are present
+        req_columns = [
+            'ip', 'host_state'
+        ]
+        if not all(k in task for k in req_columns):
             logger.error("[QueryHandler] insert_host_result called with malformed task.")
-            return
+            return None
 
-        logger.debug(f"[QueryHandler] insert_host_result task: {task}")
+        logger.debug(f"[QueryHandler] Inserting host results task: {task}")
         try:
             encrypted_ip = encrypt_ip(task['ip'])
         except Exception as e:
@@ -141,8 +143,6 @@ class QueryHandler:
                SET probe_method       = %s,
                    probe_protocol     = %s,
                    host_state         = %s,
-                   scan_start_ts      = %s,
-                   scan_done_ts       = %s,
                    probe_duration_sec = %s,
                    last_scanned_ts    = %s
              WHERE ip_addr = %s
@@ -151,9 +151,7 @@ class QueryHandler:
         values = (
             task.get('probe_method'),
             task.get('probe_protocol'),
-            task['host_status'],
-            task.get('scan_start_ts'),
-            task.get('scan_done_ts'),
+            task['host_state'],
             float(task.get('probe_duration')) if task.get('probe_duration') else None,
             get_current_timestamp(),
             encrypted_ip,
@@ -166,12 +164,15 @@ class QueryHandler:
     def insert_port_result(self, task: dict) -> QueryModel:
         """Build an UPSERT QueryModel for a port scan result in the Ports database table.
 
+        Uses COALESCE to only set port_first_seen_ts once (when Ports.port_first_seen_ts is NULL)
+
         Args:
             task (dict): A task dictionary with keys:
                 'ip', 'port', 'port_state', 'port_service', 'port_protocol',
                 'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'.
         """
-        logger.debug(f"[QueryHandler] insert_port_result task payload: {task!r}")
+        
+        logger.debug(f"[QueryHandler] Inserting port scan results task: {task!r}")
 
         # Ensure required fields are present
         req_columns = [
@@ -182,13 +183,21 @@ class QueryHandler:
             logger.warning(f"[QueryHandler] insert_port_result task payload did not include required columns in task: {task!r}")
             return None
 
-        encrypted = encrypt_ip(task['ip'])
-        now_ts = get_current_timestamp() # TODO: isint this passed in the dict? If not, isint it still being created elsewhere? (the timestamp)
+        # Encrypt IP before inserting
+        try:
+            encrypted_ip = encrypt_ip(task['ip'])
+        except Exception as e:
+            logger.error(f"[QueryHandler] IP encryption failed: {e}")
+            return
+        
+        now_ts = get_current_timestamp()
+
+        # Build the SQL
         sql = (
             "INSERT INTO Ports ("
             " ip_addr, port, port_state, port_service, port_protocol,"
             " port_product, port_version, port_cpe, port_os,"
-            " port_first_seen_ts, port_last_seen_ts, port_scan_duration_sec"
+            " port_last_seen_ts, port_scan_duration_sec, port_first_seen_ts"
             ") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             " ON CONFLICT (ip_addr, port) DO UPDATE SET"
             " port_state             = EXCLUDED.port_state,"
@@ -202,23 +211,21 @@ class QueryHandler:
             " port_scan_duration_sec = EXCLUDED.port_scan_duration_sec,"
             " port_first_seen_ts     = COALESCE(Ports.port_first_seen_ts, EXCLUDED.port_first_seen_ts)"
         )
+        # Match params to values order:
         params = (
-            encrypted,
-            task['port'],
-            task['port_state'],
-            task['port_service'],
-            task['port_protocol'],
-            task['port_product'],
-            task['port_version'],
-            task['port_cpe'],
-            task['port_os'],
-            now_ts,
-            now_ts,
-            float(task['duration']),
-        ) # TODO: these params are wrong.. 
-        #                               (port_first_seen_ts, port_last_seen_ts, port_scan_duration_sec)
-        #   But its inserting           (now_ts,             now_ts,            float(task['duration'])
-        # And task duration isint even in the INSERT statement.. 
+            encrypted_ip,                  # ip_addr
+            task['port'],                  # port
+            task['port_state'],            # port_state
+            task['port_service'],          # port_service
+            task['port_protocol'],         # port_protocol
+            task['port_product'],          # port_product
+            task['port_version'],          # port_version
+            task['port_cpe'],              # port_cpe
+            task['port_os'],               # port_os
+            now_ts,                        # port_last_seen_ts
+            float(task['duration']),       # port_scan_duration_sec
+            now_ts,                        # port_first_seen_ts
+        )
         
         return QueryModel(query=sql, params=params, fetch=False)
 

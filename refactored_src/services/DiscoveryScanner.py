@@ -176,7 +176,6 @@ class DiscoveryScanner:
             return
 
         # Probe the host
-        start_ts = get_current_timestamp()
         try:
             # Log the IP address being processed
             logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Probing IP: {ip_addr}")
@@ -188,29 +187,24 @@ class DiscoveryScanner:
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to ping host {ip_addr}: {e}", exc_info=True)
             ping_res = {"probe_method": None, "probe_protocol": None,
-                        "host_status": "dead", "probe_duration": None}
-
-        # Get the scan done timestamp
-        done_ts = get_current_timestamp()
+                        "host_state": "dead", "probe_duration": None}
 
         # Extract scan result details
         record = {
             "ip": ip_addr,
             "probe_method": ping_res["probe_method"],
             "probe_protocol": ping_res["probe_protocol"],
-            "host_status": ping_res["host_status"],
-            "probe_duration": ping_res["probe_duration"],
-            "scan_start_ts": start_ts,
-            "scan_done_ts": done_ts
+            "host_state": ping_res["host_state"],
+            "probe_duration": ping_res["probe_duration"]
         }
 
         # Route to alive/dead rmq queues
         try:
-            host_state = ping_res["host_status"]
+            host_state = ping_res["host_state"]
             ip_status = {"ip": ip_addr, "status": host_state}
             # Commit results to correct queue
             
-            queue_name = ALIVE_ADDR_QUEUE if record["host_status"] == "alive" else DEAD_ADDR_QUEUE
+            queue_name = ALIVE_ADDR_QUEUE if record["host_state"] == "alive" else DEAD_ADDR_QUEUE
             with RabbitMQ(queue_name) as rmq_conn:  # TODO:[Emilia]  this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
                 # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue ( RIGHT??)  // If its unknown -> fail queue
                 # F: If it's dead -> no queue doesn't make sense. Why do we have a dead_addr queue if we are not going to use it?
@@ -465,7 +459,7 @@ class DiscoveryScanner:
             dict:
                 - 'probe_method' (str or None)
                 - 'probe_protocol' (str or None)
-                - 'host_status' ("alive" or "dead")
+                - 'host_state' ("alive" or "dead")
                 - 'probe_duration' (float or None)
         """
         handler = PingHandler(ip_addr)
@@ -494,7 +488,7 @@ class DiscoveryScanner:
                 return {
                     "probe_method": method,
                     "probe_protocol": proto,
-                    "host_status": "alive",
+                    "host_state": "alive",
                     "probe_duration": float(res[1]) if res and res[1] is not None else None, # TODO: well.. look at this better..
                 }
 
@@ -504,6 +498,6 @@ class DiscoveryScanner:
         return {
             "probe_method": None,
             "probe_protocol": None,
-            "host_status": "dead",
+            "host_state": "dead",
             "probe_duration": None,
         }

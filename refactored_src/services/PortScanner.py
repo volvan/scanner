@@ -162,7 +162,7 @@ class PortScanner:
         except Exception as e:
             logger.error(f"[PortScanner] Failed to write port summary: {e}", exc_info=True)
 
-    def process_task(self, ip: str, port: int): # TODO: rename or move, this is a worker process
+    def process_task(self, ip_addr: str, port: int): # TODO: rename or move, this is a worker process
         """Probe an IP:port pair and enqueue the scan result as needed.
 
         What i observed: this is the method that the worker (coming from _drain_and_exit) is running.
@@ -174,25 +174,25 @@ class PortScanner:
         with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn: # fail queue as thats the only queue we route to 
             try:
                 # 1) Run the Nmap scan
-                probe = ProbeHandler(ip, str(port)).scan()
+                probe = ProbeHandler(ip_addr, str(port)).scan()
 
                 # if timeout or failure happens
                 if probe in ("timeout", "failed"):
-                    logger.warning(f"[PortScanner] Probe returned with {probe} scan result for {ip}:{port}; routing to fail queue.")
-                    message = {"ip": ip, "port": port, "reason": probe}
+                    logger.warning(f"[PortScanner] Probe returned with {probe} scan result for {ip_addr}:{port}; routing to fail queue.")
+                    message = {"ip": ip_addr, "port": port, "reason": probe}
                     rmq_fail_conn.enqueue_to_queue(message=message)
                     return
 
                 # if intense scan ran and timed out, try to scan without version detection (lighter mode)
                 if probe == "intense_scan_timeout":
-                    logger.debug(f"[PortScanner] Probe returned with {probe} scan result for {ip}:{port}; routing to fail queue and retrying without version detection.")
-                    message = {"ip": ip, "port": port, "reason": probe}
+                    logger.debug(f"[PortScanner] Probe returned with {probe} scan result for {ip_addr}:{port}; routing to fail queue and retrying without version detection.")
+                    message = {"ip": ip_addr, "port": port, "reason": probe}
                     rmq_fail_conn.enqueue_to_queue(message=message)
-                    probe = ProbeHandler(ip, str(port)).scan(scan_light_mode=True)
+                    probe = ProbeHandler(ip_addr, str(port)).scan(scan_light_mode=True)
                 
                 # 2) Extract scan result details
                 scan_results = {
-                    "ip": ip,
+                    "ip": ip_addr,
                     "port": port,
                     "port_state": probe["state"],
                     "port_service": probe["service"],
@@ -206,17 +206,21 @@ class PortScanner:
                 
                 # if state is unknown, route to fail queue and skip insert to the database
                 if scan_results["port_state"] == "unknown":
-                    logger.info(f"[PortScanner] Unknown scan result for {ip}:{port}; routing to fail queue. ")
-                    message = {"ip": ip, "port": port, "reason": "unknown_state"}
+                    logger.info(f"[PortScanner] Unknown scan result for {ip_addr}:{port}; routing to fail queue. ")
+                    message = {"ip": ip_addr, "port": port, "reason": "unknown_state"}
                     rmq_fail_conn.enqueue_to_queue(message=message)
                     return
 
-                # 3) Enqueue results (open, filtered, and closed)
-                db_ports.put(scan_results)
+                # 3) Enqueue results to database (open, filtered, and closed)
+                try:
+                    db_ports.put(scan_results)
+                    logger.debug(f"[PortScanner|pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr}.")
+                except Exception as e:
+                    logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
 
             except Exception as e:
-                logger.exception(f"[PortScanner] Exception during scan of {ip}:{port}: {e}\nscan_results: {probe}\n\n")
-                message = {"ip": ip, "port": port, "reason": f"error: {e}"}
+                logger.exception(f"[PortScanner] Exception during scan of {ip_addr}:{port}: {e}\nscan_results: {probe}\n\n")
+                message = {"ip": ip_addr, "port": port, "reason": f"error: {e}"}
                 rmq_fail_conn.enqueue_to_queue(message=message)
 
     def _drain_and_exit(self, batch_queue: str) -> None: # TODO: rename or move, this is a worker process
@@ -243,7 +247,7 @@ class PortScanner:
                         break
                     try:
                         task = json.loads(body)
-                        self.process_task(ip=task["ip"], port=task["port"])
+                        self.process_task(ip_addr=task["ip"], port=task["port"])
                         rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: now this is ack'ed before.. should be after..
                     except Exception:
                         logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
