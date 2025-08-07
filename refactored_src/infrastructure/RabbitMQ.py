@@ -13,7 +13,7 @@ from config.scan_config import FAIL_QUEUE
 sys.excepthook = log_exception
 
 # TODO:[Emilia][P_low] rename RMQ_Handler
-# TODO:[Emilia] add contaxt manager
+
 # NOTE: 3 connections, then "[PortScanner] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function..
 # TODO:[] way too many connections, workers should be fine with passing its one connection through funcitons
 #       -- honestly it would be better if it was clear (the worker pipeline..)
@@ -242,7 +242,6 @@ class RabbitMQ:
             # self.exit()
             # self.close() # TODO:[Emilia] why close?
 
-            # TODO:[Emilia] check on this.. sometimes does not delete all queues, atleast batch 1 sometimes still exists after the run is done.
             logger.info('\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
             for task in leftovers:
                 self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=task)

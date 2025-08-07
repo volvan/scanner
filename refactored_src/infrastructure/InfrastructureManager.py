@@ -2,8 +2,6 @@
 from .DBHandler import DBHandler
 from .QueryHandler import QueryHandler
 
-# TODO:[Franz] !!!? no one is closing Database_Handler
-
 
 class InfrastructureManager:
     """laterdo: Docstr."""

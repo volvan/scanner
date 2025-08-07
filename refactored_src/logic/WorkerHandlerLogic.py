@@ -51,7 +51,7 @@ class WorkerHandlerLogic:
             finally:
                 try:
                     if rmq_conn.tasks_in_queue() == 0:
-                        # TODO: might the non-removed batches be from here?
+                        # TODO:[emilia] might the non-removed batches be from here?
                         logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
                         rmq_conn.remove_queue()
                 except Exception as cleanup_err:

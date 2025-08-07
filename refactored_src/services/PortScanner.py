@@ -269,7 +269,7 @@ class PortScanner:
             Waits if memory usage or active processes reach limits.
         """
 
-        # TODO:[Critical][] we can not be working like this.. now its 1 worker per batch and one batch is as large as all alive ips.. 
+        # TODO:[][Critical] we can not be working like this.. now its 1 worker per batch and one batch is as large as all alive ips.. 
         logger.debug(f"[PortScanner] Starting batched port-scan on '{main_queue_name}'")
 
         while True:
