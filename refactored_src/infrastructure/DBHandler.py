@@ -110,7 +110,6 @@ class DBHandler:  # TODO:[][Priority Low] rename.. Database_Writer? maybe..
         
         Notes: 
             Each thread re-uses its own DBWorker (kept in thread-local storage).
-            If a port is closed and we've never seen it before, skip inserting to database.
         """
 
         # Main loop that runs until stop_signal event is set and queue is empty
@@ -122,17 +121,6 @@ class DBHandler:  # TODO:[][Priority Low] rename.. Database_Writer? maybe..
                 continue
 
             try:
-                # Skip new closed ports that are not already in db
-                # TODO:[][P_High] this is very costly, for all closed ports we check the db, is there not a better way to do 'on conflict' in the 'insert_port_result'? 
-                if (label == "Ports" and record.get("port_state") == "closed"):
-                    if not hasattr(thread_local, "dbWorker"):
-                        thread_local.dbWorker = DBWorker()
-                    exists_qm = self.queryHandler.port_exists(record["ip"], record["port"])
-                    exists = thread_local.dbWorker.execute_query_model(exists_qm)
-                    if not exists:
-                        logger.debug(f"[DBHandler] Skipping new-closed port {record['ip']}:{record['port']}")
-                        continue
-
                 query_model = build_query_model(record)
                 if query_model is None: # validation failed
                     continue
@@ -140,7 +128,11 @@ class DBHandler:  # TODO:[][Priority Low] rename.. Database_Writer? maybe..
                 # Each thread gets its own DBWorker connection
                 if not hasattr(thread_local, "dbWorker"): 
                     thread_local.dbWorker = DBWorker()
-                thread_local.dbWorker.execute_query_model(query_model)
+                result = thread_local.dbWorker.execute_query_model(query_model)
+                if not result:  # empty list/None
+                    logger.debug(f"[DBHandler] Insert skipped due to closed brand-new port.")
+                else:
+                    logger.debug(f"[DBHandler] Row inserted or updated.")
 
             except Exception as e:
                 logger.error(f"[DBHandler] {label}-consumer {thread_id} failed: {e}")
@@ -163,17 +155,16 @@ class DBHandler:  # TODO:[][Priority Low] rename.. Database_Writer? maybe..
         # ask threads to exit
         self.stop_signal.set()
 
-
         # block until queues empty
         logger.info("[DBHandler] Stop signal sent. Waiting for [host] threads to exit.")
         db_hosts.join()
         logger.debug("[DBHandler] .. Waiting for [ports] threads to exit.")
         db_ports.join()
-        logger.debug("[DBHandler] .. Waiting for [ports] threads to exit DONE.")
+        logger.debug("[DBHandler] All threads exited.")
 
         # Wait until every writer thread (hosts and ports) has exited
-        # for writer_thread in (*self.host_threads, *self.port_threads): # TODO: or mutable with self.host_threads + self.port_threads ?
-        for writer_thread in (self.host_threads + self.port_threads): # TODO: or mutable with self.host_threads + self.port_threads ?
+        for writer_thread in (*self.host_threads, *self.port_threads): # TODO: or mutable with self.host_threads + self.port_threads ?
+        # for writer_thread in (self.host_threads + self.port_threads):
             logger.debug(f"[DBHandler] Writer thread {writer_thread} exited.")
             writer_thread.join(timeout=2)
 

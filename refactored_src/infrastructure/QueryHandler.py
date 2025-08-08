@@ -158,7 +158,10 @@ class QueryHandler:
     def insert_port_result(self, task: dict) -> QueryModel:
         """Build an UPSERT QueryModel for a port scan result in the Ports database table.
 
-        Uses COALESCE to only set port_first_seen_ts once (when Ports.port_first_seen_ts is NULL)
+
+        Notes:
+            Uses COALESCE to only set port_first_seen_ts once (when Ports.port_first_seen_ts is NULL)
+            Brand-new (ip,port that are not already in db) with a closed port are skipped.
 
         Args:
             task (dict): A task dictionary with keys:
@@ -169,10 +172,8 @@ class QueryHandler:
         logger.debug(f"[QueryHandler] Inserting port scan results task: {task!r}")
 
         # Ensure required fields are present
-        req_columns = [
-            'ip', 'port', 'port_state', 'port_service', 'port_protocol',
-            'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'
-        ]
+        req_columns = ['ip', 'port', 'port_state', 'port_service', 'port_protocol',
+            'port_product', 'port_version', 'port_cpe', 'port_os', 'duration']
         if not all(k in task for k in req_columns):
             logger.warning(f"[QueryHandler] insert_port_result task payload did not include required columns in task: {task!r}")
             return None
@@ -185,14 +186,23 @@ class QueryHandler:
             return
         
         now_ts = get_current_timestamp()
+        duration = float(task['duration'])
 
-        # Build the SQL
-        sql = (
+        # Build the SQL with a conditional insert 
+        sql_query = (
             "INSERT INTO Ports ("
             " ip_addr, port, port_state, port_service, port_protocol,"
             " port_product, port_version, port_cpe, port_os,"
             " port_last_seen_ts, port_scan_duration_sec, port_first_seen_ts"
-            ") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            ") "
+            # If row doesn't exist and port state is closed -> skipped (no insert).
+            "SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s "
+            "WHERE NOT ("
+            "  %s = 'closed' "
+            "  AND NOT EXISTS (SELECT 1 FROM Ports p WHERE p.ip_addr = %s AND p.port = %s)"
+            ") "
+            # If row exists -> update as normal.
+            # If row doesn't exist and state is open -> insert.
             " ON CONFLICT (ip_addr, port) DO UPDATE SET"
             " port_state             = EXCLUDED.port_state,"
             " port_service           = EXCLUDED.port_service,"
@@ -205,7 +215,7 @@ class QueryHandler:
             " port_scan_duration_sec = EXCLUDED.port_scan_duration_sec,"
             " port_first_seen_ts     = COALESCE(Ports.port_first_seen_ts, EXCLUDED.port_first_seen_ts)"
         )
-        # Match params to values order:
+        # Match params to values order
         params = (
             encrypted_ip,                  # ip_addr
             task['port'],                  # port
@@ -217,11 +227,19 @@ class QueryHandler:
             task['port_cpe'],              # port_cpe
             task['port_os'],               # port_os
             now_ts,                        # port_last_seen_ts
-            float(task['duration']),       # port_scan_duration_sec
+            duration,                      # port_scan_duration_sec
             now_ts,                        # port_first_seen_ts
+            # params used in WHERE NOT (...)
+            task['port_state'],            # %s = 'closed'
+            encrypted_ip,                  # EXISTS(... ip_addr = %s
+            task['port'],                  # ... AND port = %s)
         )
+
+        # return a QueryModel for later execution
+        queryModel = QueryModel(query=sql_query, params=params, fetch=False)
+        logger.debug(f"[QueryHandler] Insert Port Results - Query model: {queryModel}")
         
-        return QueryModel(query=sql, params=params, fetch=False)
+        return queryModel
 
     def new_host(self, whois_data: dict, ips: Iterable[str]) -> QueryModel:
         """Prepare a batch UPSERT of WHOIS data for one or more IPs.
