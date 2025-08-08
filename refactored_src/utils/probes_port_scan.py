@@ -8,13 +8,12 @@ from utils.timestamp import get_current_timestamp, duration_timestamp
 # Configuration
 from config.scan_config import NMAP_PROBE_TIMEOUT, NMAP_RETRY_DELAY, NMAP_RETRY_ATTEMPTS, SCAN_MODE_LIGHT
 from config.logging_config import log_exception, logger
-
 sys.excepthook = log_exception
 
-# TODO:[Emilia][P_low]: rename probes_port_scan
-# TODO: WHYYYY cant the ProbeHandler and PingHandler be more inline? They could be implemented in the same way or divided into functions the same way or something. I that might seem as a low priority but i beg to differ as its really hard to debug it when its so different as one line can be at fault. please.
 
-class ProbeHandler:
+# TODO: WHYYYY cant the ProbesPortScan and ProbesDiscoveryScan be more inline? They could be implemented in the same way or divided into functions the same way or something. I that might seem as a low priority but i beg to differ as its really hard to debug it when its so different as one line can be at fault. please.
+
+class ProbesPortScan:
     """Use Nmap to probe IP:port combinations and determine service state."""
 
     def __init__(self, target_ip: str, target_port: str):
@@ -31,13 +30,13 @@ class ProbeHandler:
                 universal_newlines=True,
                 timeout=NMAP_PROBE_TIMEOUT
             )
-            logger.debug(f"[ProbeHandler] Ran: {' '.join(command)}... \n \t ..The output: \n \t {output}")
+            logger.debug(f"[ProbesPortScan] Ran: {' '.join(command)}... \n \t ..The output: \n \t {output}")
             return output
         except subprocess.TimeoutExpired:
-            logger.info(f"[ProbeHandler] Timeout after {NMAP_PROBE_TIMEOUT}s: {' '.join(command)}. \n") 
+            logger.info(f"[ProbesPortScan] Timeout after {NMAP_PROBE_TIMEOUT}s: {' '.join(command)}. \n") 
             return "timeout"
         except Exception as e:
-            logger.error(f"[ProbeHandler] Command failed: {' '.join(command)}... \n ..The output: {e.output}")
+            logger.error(f"[ProbesPortScan] Command failed: {' '.join(command)}... \n ..The output: {e.output}")
             return "failed"
 
     def scan(self, scan_light_mode: bool = False) -> dict:

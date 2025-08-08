@@ -18,7 +18,7 @@ thread_local = threading.local()
 
 
 
-class DBHandler:  # TODO:[][Priority Low] rename.. Database_Writer? maybe..
+class DBHandler:  # TODO:[][P_Low] rename.. Database_Writer? maybe..
     """Dequeues from the db_hosts and db_ports in-memory queues to the database with thread pool."""
 
     def __init__(self, queryHandler: QueryHandler):

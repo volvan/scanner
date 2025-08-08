@@ -9,18 +9,16 @@ from utils.timestamp import get_current_timestamp, duration_timestamp
 # Configuration
 from config import scan_config
 from config.logging_config import log_exception, logger
-
-
 sys.excepthook = log_exception
 
-# TODO:[Emilia][P_low]: rename probes_discovery_scan
+
 # TODO: If we are really dismissing filtered and unknown, why spend time looking for it and returning it? 
 
-class PingHandler:
+class ProbesDiscoveryScan:
     """Performs ICMP and TCP-based discovery pings to determine host liveness."""
 
     def __init__(self, target_ip: str):
-        """Initialize PingHandler with a target IP address.
+        """Initialize ProbesDiscoveryScan with a target IP address.
 
         Args:
             target_ip (str): The IP address to probe for liveness.
@@ -43,16 +41,16 @@ class PingHandler:
                 universal_newlines=True,
                 timeout=30
             )
-            logger.debug(f"[PingHandler] Ran: {' '.join(command)}")
+            logger.debug(f"[ProbesDiscoveryScan] Ran: {' '.join(command)}")
             return output
         except subprocess.CalledProcessError:
-            logger.debug(f"[PingHandler] No response: {' '.join(command)}")
+            logger.debug(f"[ProbesDiscoveryScan] No response: {' '.join(command)}")
             return ""
         except subprocess.TimeoutExpired:
-            logger.debug(f"[PingHandler] Timeout: {' '.join(command)}")
+            logger.debug(f"[ProbesDiscoveryScan] Timeout: {' '.join(command)}")
             return ""
         except Exception as e:
-            logger.error(f"[PingHandler] Unexpected error running the command: {command}. Error: {e}")
+            logger.error(f"[ProbesDiscoveryScan] Unexpected error running the command: {command}. Error: {e}")
             return ""
 
     def icmp_ping(self) -> tuple[str, float] | None:
@@ -79,7 +77,7 @@ class PingHandler:
             elif output.strip() == "":
                 return ("unknown", duration)
         except Exception as e:
-            logger.error(f"[PingHandler] icmp_ping failed: {e}")
+            logger.error(f"[ProbesDiscoveryScan] icmp_ping failed: {e}")
         return None
 
     def tcp_syn_ping(self) -> tuple[str, float] | None:
@@ -109,7 +107,7 @@ class PingHandler:
             else:
                 return ("unknown", duration)
         except Exception as e:
-            logger.error(f"[PingHandler] tcp_syn_ping failed: {e}")
+            logger.error(f"[ProbesDiscoveryScan] tcp_syn_ping failed: {e}")
         return None
 
     def tcp_ack_ping_ttl(self) -> tuple[str, float] | None:
@@ -139,5 +137,5 @@ class PingHandler:
             else:
                 return ("unknown", duration)
         except Exception as e:
-            logger.error(f"[PingHandler] tcp_ack_ping_ttl failed: {e}")
+            logger.error(f"[ProbesDiscoveryScan] tcp_ack_ping_ttl failed: {e}")
         return None

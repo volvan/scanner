@@ -21,7 +21,7 @@ from utils.reservoir_randomize import reservoir_of_reservoirs
 from utils.timestamp import get_current_timestamp
 from utils.block_handler import read_block, whois_block
 from utils.resource_status import resource_ok
-from utils.ping_handler import PingHandler
+from utils.probes_discovery_scan import ProbesDiscoveryScan
 
 # ----- Model imports -----#
 from models.QueryModel import QueryModel
@@ -462,7 +462,7 @@ class DiscoveryScanner:
                 - 'host_state' ("alive" or "dead")
                 - 'probe_duration' (float or None)
         """
-        handler = PingHandler(ip_addr)
+        handler = ProbesDiscoveryScan(ip_addr)
 
         for method, proto, fn in [
             ("icmp_ping", "ICMP", handler.icmp_ping),

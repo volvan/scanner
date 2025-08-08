@@ -23,7 +23,6 @@ class QueryHandler:
         """laterdo: Docstr."""
         pass
 
-# TODO: have this take in dict like the other insert functions..
     def insert_summary(self, *, discovery_start_ts, discovery_done_ts, scanned_cidrs: list[str], scanned_ports: list[str] = None, port_start_ts=None, port_done_ts=None) -> QueryModel:
         """Build an INSERT QueryModel for the summary table.
 
@@ -324,24 +323,3 @@ class QueryHandler:
         queryModel = QueryModel(query=sql_query, params=params, fetch=False)
 
         return queryModel
-
-    def port_exists(self, ip: str, port: int) -> QueryModel:
-        """Build a SELECT QueryModel to check if a port record exists for a given (IP, port) pair.
-
-        Args:
-            ip (str): IP address.
-            port (int): Port number.
-
-        Returns:
-            ...
-        """
-        
-        # TODO:[emilia] Verify 
-        encrypted = encrypt_ip(ip)
-        sql_query = (
-            "SELECT 1"
-            " FROM Ports"
-            " WHERE ip_addr = %s AND port = %s"
-            " LIMIT 1"
-        )
-        return QueryModel(query=sql_query, params=(encrypted, port), fetch=True)

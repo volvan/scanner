@@ -20,7 +20,7 @@ from infrastructure.RabbitMQ import RabbitMQ
 
 from utils.batch_handler import PortBatchHandler
 from utils.resource_status import resource_ok
-from utils.probe_handler import ProbeHandler
+from utils.probes_port_scan import ProbesPortScan
 
 from config.logging_config import logger, log_exception
 from utils.ports_handler import read_ports_file
@@ -91,7 +91,7 @@ class PortScanner:
             # 1) record scan-done timestamp
             port_done_ts = get_current_timestamp()
 
-            # 2) record all ports that were scanned     # TODO: all this code really needed?
+            # 2) record all ports that were scanned     # TODO:[][P_Low] all this code really needed?
             all_ports, priority_ports = read_ports_file(PORTS_FILE)
             scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
             
@@ -174,7 +174,7 @@ class PortScanner:
         with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn: # fail queue as thats the only queue we route to 
             try:
                 # 1) Run the Nmap scan
-                probe = ProbeHandler(ip_addr, str(port)).scan()
+                probe = ProbesPortScan(ip_addr, str(port)).scan()
 
                 # if timeout or failure happens
                 if probe in ("timeout", "failed"):
@@ -188,7 +188,7 @@ class PortScanner:
                     logger.debug(f"[PortScanner] Probe returned with {probe} scan result for {ip_addr}:{port}; routing to fail queue and retrying without version detection.")
                     message = {"ip": ip_addr, "port": port, "reason": probe}
                     rmq_fail_conn.enqueue_to_queue(message=message)
-                    probe = ProbeHandler(ip_addr, str(port)).scan(scan_light_mode=True)
+                    probe = ProbesPortScan(ip_addr, str(port)).scan(scan_light_mode=True)
                 
                 # 2) Extract scan result details
                 scan_results = {
