@@ -123,7 +123,7 @@ class DBHandler:  # TODO:[][Priority Low] rename.. Database_Writer? maybe..
 
             try:
                 # Skip new closed ports that are not already in db
-                # TODO: this is very costly, for all closed ports we check the db, is there not a better way to do 'on conflict' in the 'insert_port_result'? 
+                # TODO:[][P_High] this is very costly, for all closed ports we check the db, is there not a better way to do 'on conflict' in the 'insert_port_result'? 
                 if (label == "Ports" and record.get("port_state") == "closed"):
                     if not hasattr(thread_local, "dbWorker"):
                         thread_local.dbWorker = DBWorker()

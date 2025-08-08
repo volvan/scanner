@@ -56,20 +56,17 @@ class QueryHandler:
         # Build the SQL
         cols_sql = ", ".join(cols)
         placeholders = ", ".join(["%s"] * len(vals))
-        sql_text = (
+
+        sql_query = (
             f"INSERT INTO summary ({cols_sql}) "
             f"VALUES ({placeholders})"
         )
 
         # return a QueryModel for later execution
-        qm = QueryModel(
-            query=sql_text,
-            params=tuple(vals),
-            fetch=False
-        )
-        logger.debug(f"[QueryHandler] Query model: {qm}")
+        queryModel = QueryModel(query=sql_query, params=tuple(vals), fetch=False)
+        logger.debug(f"[QueryHandler] Insert Summary - Query model: {queryModel}")
 
-        return qm
+        return queryModel
 
     def fetch_latest_summary_id(self, country: str) -> QueryModel:
         """Builds a SELECT QueryModel.
@@ -80,14 +77,14 @@ class QueryHandler:
             summary_id and port_scan_done_ts (so we can tell if it's been updated).
         """
 
-        sql = (
+        sql_query = (
             "SELECT id, port_scan_done_ts"
             " FROM summary"
             " WHERE country = %s"
             " ORDER BY id DESC"
             " LIMIT 1"
         )
-        return QueryModel(query=sql, params=(country,), fetch=True)
+        return QueryModel(query=sql_query, params=(country,), fetch=True)
 
 
     def update_summary(self,*, summary_id: int, port_start_ts, port_done_ts, scanned_ports: list[str] = None,) -> QueryModel:
@@ -96,7 +93,7 @@ class QueryHandler:
         Patch the existing summary row with port-scan timestamps and scanned_ports.
         """
 
-        sql_text = (
+        sql_query = (
             "UPDATE summary"
             " SET port_scan_start_ts = %s,"
             "     port_scan_done_ts  = %s,"
@@ -106,14 +103,10 @@ class QueryHandler:
         params = (port_start_ts, port_done_ts, scanned_ports, summary_id)
 
         # return a QueryModel for later execution
-        qm = QueryModel(
-            query=sql_text,
-            params=params,
-            fetch=False
-        )
-        logger.debug(f"[QueryHandler] Query model: {qm}")
+        queryModel = QueryModel(query=sql_query, params=params, fetch=False)
+        logger.debug(f"[QueryHandler] Update Summary - Query model: {queryModel}")
 
-        return qm
+        return queryModel
 
     def insert_host_result(self, task: dict) -> QueryModel:
         """Update a host scan result in the Hosts table.
@@ -138,7 +131,7 @@ class QueryHandler:
             logger.error(f"[QueryHandler] IP encryption failed: {e}")
             return
 
-        update_sql = """
+        sql_query = """
             UPDATE Hosts
                SET probe_method       = %s,
                    probe_protocol     = %s,
@@ -148,7 +141,7 @@ class QueryHandler:
              WHERE ip_addr = %s
         """
 
-        values = (
+        params = (
             task.get('probe_method'),
             task.get('probe_protocol'),
             task['host_state'],
@@ -157,7 +150,8 @@ class QueryHandler:
             encrypted_ip,
         )
 
-        queryModel = QueryModel(update_sql, values)
+        queryModel = QueryModel(query=sql_query, params=params)
+        logger.debug(f"[QueryHandler] Update Summary - Query model: {queryModel}")
 
         return queryModel
 
@@ -241,11 +235,7 @@ class QueryHandler:
         Notes:
             Existing entries are updated if they already exist (upsert behavior).
         """
-        # TODO: look at this and verify logic
-        
-        if not ips:
-            logger.warning("[Query_Handler] No IPs provided to seed WHOIS.")
-            return None
+        # TODO:[][P_Med] Review and verify logic
 
         # Building whois data
         rows: list[tuple] = []
@@ -258,10 +248,7 @@ class QueryHandler:
         for ip in ips:
             try:
                 ip_obj = ipaddress.ip_address(ip)
-                matched = next(
-                    (entry for cidr, entry in cidr_map.items() if ip_obj in cidr),
-                    None
-                )
+                matched = next((entry for cidr, entry in cidr_map.items() if ip_obj in cidr), None)
                 if not matched:
                     logger.warning(f"[QueryHandler] No WHOIS entry for {ip}")
                     continue
@@ -292,31 +279,33 @@ class QueryHandler:
         single_grp = "(" + ", ".join(["%s"] * num_cols) + ")"
         all_groups = ", ".join([single_grp] * len(rows))
 
-        query = f"""
-        INSERT INTO Hosts (
-            ip_addr, cidr, asn, asn_description, org,
-            net_name, net_handle, net_type, parent,
-            reg_date, country, state_prov, last_scanned_ts
-        ) VALUES {all_groups}
-        ON CONFLICT (ip_addr) DO UPDATE SET
-            cidr             = EXCLUDED.cidr,
-            asn              = EXCLUDED.asn,
-            asn_description  = EXCLUDED.asn_description,
-            org              = EXCLUDED.org,
-            net_name         = EXCLUDED.net_name,
-            net_handle       = EXCLUDED.net_handle,
-            net_type         = EXCLUDED.net_type,
-            parent           = EXCLUDED.parent,
-            reg_date         = EXCLUDED.reg_date,
-            country          = EXCLUDED.country,
-            state_prov       = EXCLUDED.state_prov,
-            last_scanned_ts  = EXCLUDED.last_scanned_ts;
-        """
+        sql_query = (
+            "INSERT INTO Hosts ("
+            " ip_addr, cidr, asn, asn_description, org,"
+            " net_name, net_handle, net_type, parent,"
+            " reg_date, country, state_prov, last_scanned_ts"
+            f") VALUES {all_groups} "
+            " ON CONFLICT (ip_addr) DO UPDATE SET"
+            "   cidr             = EXCLUDED.cidr,"
+            "   asn              = EXCLUDED.asn,"
+            "   asn_description  = EXCLUDED.asn_description,"
+            "   org              = EXCLUDED.org,"
+            "   net_name         = EXCLUDED.net_name,"
+            "   net_handle       = EXCLUDED.net_handle,"
+            "   net_type         = EXCLUDED.net_type,"
+            "   parent           = EXCLUDED.parent,"
+            "   reg_date         = EXCLUDED.reg_date,"
+            "   country          = EXCLUDED.country,"
+            "   state_prov       = EXCLUDED.state_prov,"
+            "   last_scanned_ts  = EXCLUDED.last_scanned_ts;"
+        )
 
         # Flatten [(…),(…)] into (… , … , …)
         params = tuple(itertools.chain.from_iterable(rows))
 
-        return QueryModel(query, params, fetch=False)
+        queryModel = QueryModel(query=sql_query, params=params, fetch=False)
+
+        return queryModel
 
     def port_exists(self, ip: str, port: int) -> QueryModel:
         """Build a SELECT QueryModel to check if a port record exists for a given (IP, port) pair.
@@ -331,10 +320,10 @@ class QueryHandler:
         
         # TODO:[emilia] Verify 
         encrypted = encrypt_ip(ip)
-        sql = (
+        sql_query = (
             "SELECT 1"
             " FROM Ports"
             " WHERE ip_addr = %s AND port = %s"
             " LIMIT 1"
         )
-        return QueryModel(query=sql, params=(encrypted, port), fetch=True)
+        return QueryModel(query=sql_query, params=(encrypted, port), fetch=True)

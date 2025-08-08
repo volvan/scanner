@@ -239,10 +239,7 @@ class PortScanner:
         try: 
             with RabbitMQ(batch_queue) as rmq_batch_conn:
                 while True:
-                    method_frame, _, body = rmq_batch_conn.channel.basic_get(
-                        queue=batch_queue,
-                        auto_ack=False
-                    )
+                    method_frame, _, body = rmq_batch_conn.channel.basic_get(queue=batch_queue, auto_ack=False)
                     if not method_frame:
                         break
                     try:
