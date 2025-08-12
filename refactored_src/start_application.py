@@ -9,7 +9,7 @@ from utils.config_validator import ConfigValidator
 from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
 from config.scan_config import DEBUG_MODE, SCAN_TYPE
 
-# TODO: Set /targets as example on git
+# TODO:[][P_Low] Set /targets as example on git
 
 def restore_terminal_echo():
     """Restore terminal echo settings when the app exits.

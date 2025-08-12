@@ -8,7 +8,7 @@ from infrastructure.QueryHandler import QueryHandler
 from config.scan_config import DB_HOST_WRITERS, DB_PORT_WRITERS, FAIL_QUEUE
 from config.logging_config import logger
 
-# TODO: should be inserting in batches maybe? Wont this overload at some point? (Meaning write to the database in batches, not row-by-row)
+# TODO:[][P_High] should be inserting in batches maybe? Wont this overload at some point? (Meaning write to the database in batches, not row-by-row)
 
 db_hosts: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Hosts' db table
 db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' db table
@@ -126,11 +126,11 @@ class DBHandler:  # TODO:[][P_Low] rename.. Database_Writer? maybe..
                     continue
 
                 # Each thread gets its own DBWorker connection
-                if not hasattr(thread_local, "dbWorker"): 
+                if not hasattr(thread_local, "dbWorker"):
                     thread_local.dbWorker = DBWorker()
                 result = thread_local.dbWorker.execute_query_model(query_model)
                 if not result:  # empty list/None
-                    logger.debug(f"[DBHandler] Insert skipped due to closed brand-new port.")
+                    logger.debug(f"[DBHandler] Insert skipped (might be due to closed brand-new port).")
                 else:
                     logger.debug(f"[DBHandler] Row inserted or updated.")
 
@@ -163,13 +163,13 @@ class DBHandler:  # TODO:[][P_Low] rename.. Database_Writer? maybe..
         logger.debug("[DBHandler] All threads exited.")
 
         # Wait until every writer thread (hosts and ports) has exited
-        for writer_thread in (*self.host_threads, *self.port_threads): # TODO: or mutable with self.host_threads + self.port_threads ?
+        for writer_thread in (*self.host_threads, *self.port_threads): # TODO:[][P_High] or mutable with self.host_threads + self.port_threads ?
         # for writer_thread in (self.host_threads + self.port_threads):
             logger.debug(f"[DBHandler] Writer thread {writer_thread} exited.")
             writer_thread.join(timeout=2)
 
 
 
-#     # TODO:[] ISSUE: tasks were being dequeued from the queue, and then ack'ed. But it didn't yet write to database.
+#     # TODO:[][P_High] ISSUE: tasks were being dequeued from the queue, and then ack'ed. But it didn't yet write to database.
 #     #       .. Meaning that if the program stops or errors acured, the tasks get lost because they had been ack'ed..
 #     #       .. It should be that they are ack'ed OR nack'ed AFTER probe and write to database or in worst case, log everything being flushed with .join so it can be checked later or someth

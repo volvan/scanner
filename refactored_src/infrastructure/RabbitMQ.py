@@ -15,7 +15,7 @@ sys.excepthook = log_exception
 # TODO:[Emilia][P_low] rename RMQ_Handler
 
 # NOTE: 3 connections, then "[PortScanner] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function..
-# TODO:[] way too many connections, workers should be fine with passing its one connection through funcitons
+# TODO:[][P_High] way too many connections, workers should be fine with passing its one connection through funcitons
 #       -- honestly it would be better if it was clear (the worker pipeline..)
 # So maybe (TODO)have a worker_pipeline funciton - like consumer, producer vibes
 
@@ -63,7 +63,7 @@ class RabbitMQ:
             )
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
-            # TODO:[Emilia] should really always try to declare queue??
+            # TODO:[Emilia][P_High] should really always try to declare queue??
             self.declare_queue(self.queue_name)
             # logger.debug("RMQ - Calling _connect")
         except Exception as e:
@@ -142,7 +142,7 @@ class RabbitMQ:
             logger.error(f"[RabbitMQ] Unexpected error while consuming: {e}")
         # finally:
         #     self.close() vs self.exit()
-        # TODO:[Emilia] This was self.close() BUT is that needed?
+        # TODO:[Emilia][P_Med] This was self.close() BUT is that needed?
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""

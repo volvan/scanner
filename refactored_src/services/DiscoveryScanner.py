@@ -184,8 +184,7 @@ class DiscoveryScanner:
 
         except Exception as e:
             logger.error(f"[DiscoveryScanner] Failed to ping host {ip_addr}: {e}", exc_info=True)
-            ping_res = {"probe_method": None, "probe_protocol": None,
-                        "host_state": "dead", "probe_duration": None}
+            ping_res = {"probe_method": None, "probe_protocol": None,"host_state": "dead", "probe_duration": None}
 
         # Extract scan result details
         record = {
