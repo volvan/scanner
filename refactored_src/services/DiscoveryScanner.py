@@ -46,7 +46,6 @@ from config.scan_config import (  # noqa: F401, E402
     ALL_ADDR_QUEUE,
     TARGETS_FILE,
     DEAD_ADDR_QUEUE,
-    SCAN_NATION,
     BATCH_SIZE,
     FAIL_QUEUE,
     MAX_BATCH_PROCESSES,
@@ -77,7 +76,7 @@ class DiscoveryScanner:
             # 1) Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
             filename = self.new_targets()
             if not filename: 
-                logger.error("COULD NOT READ FILE")
+                return None
 
             # 2) Record the scan-start timestamp
             discovery_start_ts = get_current_timestamp()
@@ -171,7 +170,6 @@ class DiscoveryScanner:
             # Insert to Fail Queue
             with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
                 message = {"ip": ip_addr, "reason": f"error: bad_payload {e}"}
-                # message = {"error": "bad_payload", "raw": body.decode()}
                 rmq_fail_conn.enqueue_to_queue(message=message)
             return
 
@@ -181,7 +179,7 @@ class DiscoveryScanner:
             logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Probing IP: {ip_addr}")
 
             # Ping the IP
-            ping_res = self.ping_host(ip_addr)
+            ping_res = self.ping_host(ip_addr) # Returns method, protocol, state and duration
             logger.debug(f"[DiscoveryScanner] Scan result: {ping_res}")
 
         except Exception as e:
@@ -200,17 +198,14 @@ class DiscoveryScanner:
 
         # Route to alive/dead rmq queues
         try:
-            host_state = ping_res["host_state"]
-            ip_status = {"ip": ip_addr, "status": host_state}
+            host_state = record["host_state"] # TODO: [][] This will be unknown, filtered, alive or dead - and we enqueue the (ip,state) to alive addr queue?
+            queue_name = ALIVE_ADDR_QUEUE if host_state == "alive" else DEAD_ADDR_QUEUE  # TODO:[][P_High] If ip is alive -> ALIVE_ADDR_QUEUE // if dead -> DEAD_ADDR_QUEUE // If unknown -> FAIL_ADDR_QUEUE
+
             # Commit results to correct queue
-            
-            queue_name = ALIVE_ADDR_QUEUE if record["host_state"] == "alive" else DEAD_ADDR_QUEUE
-            with RabbitMQ(queue_name) as rmq_conn:  # TODO:[Emilia]  this queue is used as placeholder, could be any queue - but do we need to open RMQ here?
-                # TODO: NO nono.. If the ip is alive -> ALIVE_ADDR_QUEUE // if its dead -> no queue ( RIGHT??)  // If its unknown -> fail queue
-                # F: If it's dead -> no queue doesn't make sense. Why do we have a dead_addr queue if we are not going to use it?
-                rmq_conn.enqueue_to_queue(queue_name=queue_name, message=ip_status)
+            with RabbitMQ(queue_name) as rmq_conn:
+                rmq_conn.enqueue_to_queue(message={"ip": ip_addr, "state": host_state})
         except Exception as e:
-            logger.error(f"[DiscoveryScanner] Failed to enqueue {host_state} host result for {ip_addr}: {e}")
+            logger.error(f"[DiscoveryScanner] Failed to enqueue host result for {ip_addr}: {e}")
 
         # Commit results to database
         try:
@@ -223,7 +218,7 @@ class DiscoveryScanner:
         time.sleep(SCAN_DELAY)
 
         # Acknowledge the message as successfully processed 
-        ch.basic_ack(delivery_tag=method.delivery_tag) # TODO: what if it wasint? later in the db pool?
+        ch.basic_ack(delivery_tag=method.delivery_tag) # TODO:[][P_Med] what if it wasint? later in the db pool?
 
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
@@ -304,36 +299,37 @@ class DiscoveryScanner:
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""
 
-        logger.debug("[start_consuming] Starting host discovery...")
-
-        # TODO:[Emilia] didn't we check just a second ago?
+        # Start discovery and check how many targets to scan
         with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
-            logger.debug(f"[DiscoveryScanner] {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'")
-            print(f"Scan started for total of {total_tasks} IPs.") # TODO:[Emilia] just debugging for now, remember to remove later
-            logger.info(f"[DiscoveryScanner] Starting a scan for total of {total_tasks} IPs.")
+            logger.info(f"[DiscoveryScanner]  Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
+            print(f"Scan started for total of {total_tasks} IPs.") # TODO:[Emilia][P_Low] just debugging for now, remember to remove later
 
         if total_tasks < THRESHOLD:
+            # TODO:[][P_low] This is almost never used.. does it really need a whole class by itself?
             logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
-            # TODO:[] This is almost never used.. does it really need a whole class by itself?
-            WorkerHandlerLogic(
-                queue_name=ALL_ADDR_QUEUE,
-                process_callback=self.process_task
-            ).start()
+            WorkerHandlerLogic(queue_name=ALL_ADDR_QUEUE, process_callback=self.process_task).start()
             return
 
         logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
-
-        while True:
-            # TODO: it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT created as example) to make sure it never creates bilions of batches.. 
+        while True:                 # TODO: it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT created as example) to make sure it never creates bilions of batches.. 
             
+            # Verify that the CPU and memory is within limits
             if not resource_ok():
-                logger.warning("Memory limit reached; shutting down")
-                sys.exit(1)
+                logger.warning("Memory high. Pausing batch creation")
+                time.sleep(5) # TODO:[][P_Med] - Sleep or exit? (It was exit, just changed it.)
                 return
             
+            # 
+            if len(self.active_processes) >= MAX_BATCH_PROCESSES:
+                # Wait 1s on the oldest process
+                oldest = self.active_processes[0]
+                oldest.join(timeout=1)
+                # Loop back and prune again
+                continue
+            
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-                logger.debug("RMQ: remaining check") # TODO: this was printed 50 times for scanning 15 ips.. thats alot of open and closing connections just to check how many in queue.. or?
+                logger.debug("RMQ: remaining check") # TODO:[][P_2] this was printed 50 times for scanning 15 ips.. thats alot of open and closing connections just to check how many in queue.. or?
                 remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
@@ -342,32 +338,22 @@ class DiscoveryScanner:
                 logger.debug("[DiscoveryScanner] All batches completed.")
                 break
 
-            if 0 < remaining < BATCH_SIZE and not self.active_processes:
-                logger.debug(f"[DiscoveryScanner] Final tail of {remaining} tasks; creating last batch.")
-                batch_id = next(self.batch_id_generator)
-                batch_queue = IPBatchHandler(batch_id, remaining).create_batch(ALL_ADDR_QUEUE)
-                if batch_queue:
-                    p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
-                    p.start()
-                    p.join()
-                break
-
             if remaining == 0:
+                logger.debug(f"[DiscoveryScanner] Remaining tasks are 0, but active processes are {self.active_processes}.")
                 self.active_processes[0].join(timeout=1)
                 continue
 
-            if len(self.active_processes) >= MAX_BATCH_PROCESSES:
-                # Wait 1s on the oldest process
-                oldest = self.active_processes[0]
-                oldest.join(timeout=1)
-                # Loop back and prune again
-                continue
+            if 0 < remaining < BATCH_SIZE and not self.active_processes:
+                logger.debug(f"[DiscoveryScanner] Final tail of {remaining} tasks; creating last batch.")
+                batch_id = next(self.batch_id_generator)
+                batch_queue = IPBatchHandler(batch_id, remaining).create_batch(main_queue_name=ALL_ADDR_QUEUE)
+                if batch_queue:
+                    p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
+                    p.start()
+                    p.join() # TODO:[][P_Med] Note that in portscanner in the same function, we use "self.active_processes.append(p)" and not join. Witch should be? 
+                break
 
-            if not resource_ok():
-                logger.warning("Memory high; pausing batch creation")
-                time.sleep(5)
-                continue
-
+            # TODO:[][P_Med] why again? this code needs comments to follow, is this the last 'remaining' items in a batch or?
             batch_id = next(self.batch_id_generator)
             batch_queue = IPBatchHandler(batch_id, remaining).create_batch(ALL_ADDR_QUEUE)
             if not batch_queue:
@@ -375,36 +361,33 @@ class DiscoveryScanner:
                 time.sleep(3)
                 continue
 
-            logger.info(f"[DiscoveryScanner] Created batch queue: {batch_queue}")
+            logger.info(f"[DiscoveryScanner] Spawned batch worker for queue: {batch_queue}")
             p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
             p.start()
             self.active_processes.append(p)
-            time.sleep(1)
 
+        # TODO:[][P_High] is this still needed here? ( its also in port scanner)
         for p in self.active_processes:
             if p.is_alive():
                 p.join(timeout=1)
 
     def new_targets(self) -> str:
-        """Extract IP addresses, randomize them, and enqueue into batches.
+        """Prepare the targeted IP addresses, randomize them, and enqueue into batches.
 
         Returns:
             str: Filename used for CIDR blocks, or None on error.
         """
         
         try:
-            if FETCH_RIX:
-                new_rix_file = block_handler.fetch_rix_blocks()
-                if not new_rix_file:
-                    logger.warning("[DiscoveryScanner] Could not fetch RIX blocks or create file.")
+            # If we don't have FETCH_RIX as True, we have targets in a file and ConfigValidator already verified that either would be set.
+            filename = block_handler.fetch_rix_blocks() if FETCH_RIX else TARGETS_FILE
+            if not filename:
                     return None
-                filename = new_rix_file
-                ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
-            elif TARGETS_FILE:
-                filename = TARGETS_FILE
-                ip_iter = block_handler.get_ip_addresses_from_block(filename=TARGETS_FILE)
+            
+            # Create an iterator of all targets
+            ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
         
-            # Randomize all ips
+            # Randomize all the targeted IPs
             shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)
 
             # Lookup with WHOIS on each block
@@ -428,18 +411,18 @@ class DiscoveryScanner:
                         # Insert to database
                         queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=ips)
                         if queryModel is None:
-                            logger.warning(f"[enqueue] batch {batch_no}: nothing to insert—skipping")
+                            logger.warning(f"[DiscoveryScanner.enqueue] batch {batch_no}: nothing to insert—skipping")
                             continue
                         success = dbWorker.execute_query_model(queryModel)
                         if not success:
-                            logger.warning(f"[enqueue] batch {batch_no}: unsuccessful query")
+                            logger.warning(f"[DiscoveryScanner.enqueue] batch {batch_no}: unsuccessful query")
                             continue
                         
                         # Enqueue to RMQ
                         for ip in ips:
                             rmq_conn.enqueue_to_queue(queue_name=ALL_ADDR_QUEUE, message={"ip": ip})
 
-                    del shuffled_ips_iter, ip_iter
+                    del shuffled_ips_iter, ip_iter # TODO: should this be also done in port scanner?
                     gc.collect()
 
             # Return the file we used for CIDR blocks
@@ -449,7 +432,7 @@ class DiscoveryScanner:
             logger.error(f"[DiscoveryScanner] Error in new_targets: {e}")
             return None
 
-    def ping_host(self, ip_addr: str) -> dict:
+    def ping_host(self, ip_addr: str) -> dict: # TODO: move function to ProbesDiscoveryScan
         """Probe a host using ICMP, TCP-SYN, and TCP-ACK in sequence.
 
         Args:
@@ -462,7 +445,10 @@ class DiscoveryScanner:
                 - 'host_state' ("alive" or "dead")
                 - 'probe_duration' (float or None)
         """
+
+        # Create the probe handler for the IP to probe
         handler = ProbesDiscoveryScan(ip_addr)
+        last_non_alive = None  # store last non-alive valid result to return accurate results
 
         for method, proto, fn in [
             ("icmp_ping", "ICMP", handler.icmp_ping),
@@ -470,34 +456,46 @@ class DiscoveryScanner:
             ("tcp_ack_ping_ttl", "TCP-ACK", handler.tcp_ack_ping_ttl),
         ]:
             try:
-                res = fn()
+                probe_results = fn() # Is None only if host state is not in ("alive", "dead", "filtered", "unknown"):
             except subprocess.TimeoutExpired:
-                logger.warning(f"[DiscoveryScanner] {method} to {ip_addr} timed out; continuing")
-                res = None
+                logger.warning(f"[DiscoveryScanner] {method} scan for {ip_addr} timed out; continuing") # TODO: [][P_High] - host state should be 'timeout' if that's the case.. 
+                probe_results = None # host state = timeout
             except Exception as e:
-                logger.warning(f"[DiscoveryScanner] {method} to {ip_addr} crashed: {e}")
-                res = None
-
-
-            if not res or len(res) !=2 or type(res[1]) != float: 
-                logger.error(f"[DiscoveryScanner] Probe returned invalid data for ip: {ip_addr}, in method: {method}.")
+                logger.warning(f"[DiscoveryScanner] {method} to {ip_addr} crashed: {e}.")
+                probe_results = None
+            
+            # If probing returns nothing, continue with the next probe type
+            if not probe_results or len(probe_results) !=2:
                 continue
-
-            if res[0] == "alive":
-
-                return {
+            
+            # If host is alive, return it as such
+            elif probe_results[0] == "alive":
+                host_state = probe_results[0]
+                duration = probe_results[1]
+                return {"probe_method": method, "probe_protocol": proto, "host_state": host_state, "probe_duration": duration,}
+            
+            # Otherwise, remember the last non-alive state
+            elif probe_results[0] in ("dead", "filtered", "unknown"):
+                last_non_alive = {
                     "probe_method": method,
                     "probe_protocol": proto,
-                    "host_state": "alive",
-                    "probe_duration": float(res[1]) if res and res[1] is not None else None, # TODO: well.. look at this better..
+                    "host_state": probe_results[0],
+                    "probe_duration": probe_results[1],
                 }
 
             time.sleep(SCAN_DELAY)
+        
+        # If host is not alive, return the last stored non-alive result if available (filtered or unknown)
+        if last_non_alive:
+            return last_non_alive
 
-        logger.info(f"[DiscoveryScanner] All probes for {ip_addr} failed with exception or timeout.") # TODO: It seems this is only trying for max 2 seconds?
+        # Lastly, if the probe did not work properly, return None values
+        logger.warning(f"[DiscoveryScanner] All probes for {ip_addr} failed with exception or timeout.")
         return {
             "probe_method": None,
             "probe_protocol": None,
-            "host_state": "dead",
+            "host_state": "unknown",
             "probe_duration": None,
         }
+            
+        

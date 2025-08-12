@@ -17,28 +17,29 @@ TARGETS_FILE_PATH     = os.path.join(BASE_DIR, "..", "targets")      # Stored un
 
 TARGETS_FILE:str      = os.path.join(TARGETS_FILE_PATH, "blocks.txt")# File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
 PORTS_FILE:str        = os.path.join(TARGETS_FILE_PATH, "ports.txt") # The file containing the ports to scan
-# ------------------------------------------------------------------------------
+CONFIG_PATH           = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
+LOG_DIR               = os.path.join(ROOT_DIR, "logs")               # Where to store the logs
+# --------------------------------------------------------------------------------
+
 # ----- MONITORING and LOGS ------------------------------------------------------
 DEBUG_MODE:bool       = True                                         # Debug mode will prompt user in start of run
 LOG_TO_FILE:bool      = True                                         # If True, logs debug levels in log file, else warnings
 LOG_TO_TERMINAL:bool  = False                                        # If True, logs debug levels to terminal, else warnings
+# -------------------------------------------------------------------------------
 
-CONFIG_PATH           = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
-LOG_DIR               = os.path.join(ROOT_DIR, "logs")               # Where to store the logs
-# ------------------------------------------------------------------------------
-# ----- RESOURCE LIMITS --------------------------------------------------------
+# ----- RESOURCE LIMITS ---------------------------------------------------------
 MEM_LIMIT = 1_000 * 1024**2                                          # Memory (in bytes)
 CPU_LIMIT = 70                                                       # CPU (percent)
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 
 
-# --------- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN --------------
+# ----- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN -------------------
 SCAN_NATION:str       = "IS"                                          # The Nation-code that is being scanned
 FETCH_RIX:bool        = False                                         # (DEF: True)  - If True, fetch IPs from RIX.is
 FAIL_QUEUE:str        = f"{SCAN_NATION}.fail_queue"                   # The RabbitMQ queue name that contains ip or (ip,port) pairs that encountered an error or failed while the scan was processing
 
 SCAN_DELAY:float      = 0.5                                           # Delay (sec) between scan attempts       # TODO: should it be used so often? (10 times in the code currently)
-MAX_BATCH_PROCESSES:int = 100                                         # Spawn new batch processes in "start_consuming", up to max limit reached
+MAX_BATCH_PROCESSES:int = 100                                         # (DEF: 100)   - Spawn new batch processes in "start_consuming", up to max limit reached # TODO:[][P_High] is this processes as in workers or proceses as of amount of batches ( rename with worker if the first one atleast)
 # ------------------------------------------------------------------------------
 
 
@@ -48,10 +49,10 @@ ALL_ADDR_QUEUE = f"{SCAN_NATION}.all_addr"                            # The Rabb
 ALIVE_ADDR_QUEUE = f"{SCAN_NATION}.alive_addr"                        # The RabbitMQ queue name that contains all IPs discovered as 'alive' 
 DEAD_ADDR_QUEUE = f"{SCAN_NATION}.dead_addr"                          # The RabbitMQ queue name that contains all IPs discovered as 'dead'
 
-WORKERS = 3                                                           # (DEF: 250)  - Number of workers to spawn
+WORKERS = 5                                                           # (DEF: 250)  - Number of workers to spawn
 THRESHOLD = 2                                                         # Direct vs batch mode threshold
-BATCH_SIZE = 10                                                       # (DEF: 500)  - Tasks per batch
-IP_MAX_BATCH_AMOUNT = 5                                               #             - Max batches that exist concurrently
+BATCH_SIZE = 4                                                        # (DEF: 500)  - Tasks (IPs) per batch
+IP_MAX_BATCH_AMOUNT = 5                                               #             - Max batches that exist concurrently # TODO: is this even in use
 WHO_IS_SCAN_DELAY = 2                                                 # (DEF: 2)    - Delay between whois lookups       # TODO: verify correct use
 # ------------------------------------------------------------------------------
 
