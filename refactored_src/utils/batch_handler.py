@@ -45,7 +45,7 @@ class IPBatchHandler:
             - Bad or invalid messages are routed to the fail queue.
             - If no valid tasks are found, messages are requeued.
         """
-        # TODO:[Franz]: Cleanup this function, I can hardly follow the logic
+        # TODO:[P_Med][Franz] -  Cleanup this function, I can hardly follow the logic
 
         with RabbitMQ(main_queue_name) as rmq_conn:
             tasks: list[dict] = []
@@ -67,7 +67,7 @@ class IPBatchHandler:
                         tasks.append(msg)
                     else:
                         try:
-                            rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO:[]  Related to the Ack issue 
+                            rmq_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False)  # TODO:[P_Med_ack][] -   Related to the Ack issue 
                         except Exception as ex:
                             logger.warning("[IPBatchHandler] Failed to nack bad payload: %s", ex)
                 except Exception:
@@ -75,7 +75,7 @@ class IPBatchHandler:
                         rmq_conn.enqueue_to_queue(message={"raw": body.decode()}, queue_name=scan_config.FAIL_QUEUE)
                     except Exception as enqueue_ex:
                         logger.error(f"[IPBatchHandler] Failed to enqueue to fail_queue: {enqueue_ex}")
-                    rmq_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)   # TODO:[]  Related to the Ack issue 
+                    rmq_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag)   # TODO:[P_Med_ack][] -   Related to the Ack issue 
 
             if not tasks:
                 logger.warning("[IPBatchHandler] No valid tasks found; skipping batch creation.")
@@ -89,7 +89,7 @@ class IPBatchHandler:
                     for task in tasks:
                         rmq_batch_conn.enqueue_to_queue(message=task)
                 for m in deliveries:
-                    rmq_conn.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO:[]  Related to the Ack issue 
+                    rmq_conn.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO:[P_Med_ack][] -   Related to the Ack issue 
                 logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
             except Exception:
                 self._requeue_deliveries(rmq=rmq_conn, deliveries=deliveries, requeue=True)
@@ -101,7 +101,7 @@ class IPBatchHandler:
         """Nack or requeue every message in deliveries."""
         for d in deliveries:
             try:
-                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)   # TODO:[]  Related to the Ack issue 
+                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)   # TODO:[P_Med_ack][] -   Related to the Ack issue 
                 logger.warning("[IPBatchHandler] Requeued message.")
             except Exception as ex:
                 logger.warning(f"[IPBatchHandler] Failed to requeue message: {ex}")
@@ -112,7 +112,7 @@ class PortBatchHandler:
 
     def __init__(self) -> None:
         """Initialize PortBatchHandler."""
-        self.used_ports = set()
+        self.used_ports = set() # # TODO:[P_High][Emilia] - Verify this logic is not double scanning ports
         self.ips_cache: list[str] | None = None
 
 
@@ -123,7 +123,7 @@ class PortBatchHandler:
             ip_queue (str): Name of the queue containing alive IP addresses.
 
         Returns:
-            list[str]: List of alive IP addresses. # TODO: This will be very consuming as a list right? Its 900k ips loaded, all at once, for all ports
+            list[str]: List of alive IP addresses. # TODO:[P_High][] -  This will be very consuming as a list right? Its 900k ips loaded, all at once, for all ports
 
         Notes:
             IPs are immediately re-published back into the queue after draining.
@@ -133,10 +133,10 @@ class PortBatchHandler:
             return self.ips_cache
 
         with RabbitMQ(queue_name) as rmq_conn:
-            all_ips: list[str] = [] #TODO: Should it really be a list?
+            all_ips: list[str] = [] # TODO:[P_High][] -  Should it really be a list?
 
             while True:
-                method, _, body = rmq_conn.channel.basic_get(queue=queue_name, auto_ack=True) # TODO: auto_ack=True, what if its false? isint it then requeued?
+                method, _, body = rmq_conn.channel.basic_get(queue=queue_name, auto_ack=True) # TODO:[P_Med_ack][] -  auto_ack=True, what if its false? isint it then requeued?
                 if not method:
                     break
                 try:
@@ -148,7 +148,7 @@ class PortBatchHandler:
                     logger.warning(f"[PortBatchHandler] Bad IP payload: {body}")
 
             # Enqueue all ips again in the same queue.
-            for ip in all_ips: #TODO: Is this the most optimal and best solution? To ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
+            for ip in all_ips: # TODO:[P_High][] -  Is this the most optimal and best solution? To ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
                 rmq_conn.enqueue_to_queue(message={"ip": ip})
 
         self.ips_cache = all_ips
@@ -167,7 +167,7 @@ class PortBatchHandler:
 
         Notes:
             The port is pulled from the port queue and associated with all cached IPs.
-            Ports already batched previously are skipped. # TODO: confirmed?
+            Ports already batched previously are skipped. # TODO:[P_High][] -  confirmed?
         """
         with RabbitMQ(port_queue) as rmq_conn:
             method, _, body = rmq_conn.channel.basic_get(queue=port_queue, auto_ack=True)
@@ -188,8 +188,8 @@ class PortBatchHandler:
         self.used_ports.add(port)
         logger.debug(f"[PortBatchHandler] currently there are {len(self.used_ports)} ports already mapped to ip and in 'used_ports'.")
 
-        ## TODO:[Emilia] this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
-        # TODO: should this not be in similar logic as the batch creation in ip scan? i know the message is not the same but else it should follow in simar terms, no?
+        # TODO:[P_High][] -  this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
+        # TODO:[P_Low][] - should this not be in similar logic as the batch creation in ip scan? i know the message is not the same but else it should follow in simar terms, no?
 
         # ips = self._load_all_ips_once(queue_name=ip_queue)
         self._load_all_ips_once(queue_name=ip_queue)
@@ -198,7 +198,7 @@ class PortBatchHandler:
             logger.warning("[PortBatchHandler] No alive IPs to batch against.")
             return None
 
-        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[Emilia]  Look at this
+        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[P_High][Emilia] -  Look at this
         batch_name = f"{scan_config.SCAN_NATION}.{prefix}_{port}"
 
         # HERE

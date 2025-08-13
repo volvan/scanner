@@ -63,7 +63,7 @@ class DiscoveryScanner:
         """laterdo: Docstr."""
         self.infraManager = infraManager
         
-        self.active_processes: list[Process] = [] # TODO: should we not close the active processes at some point?
+        self.active_processes: list[Process] = [] # TODO:[P_High][] -  should we not close the active processes at some point?
         self.batch_id_generator = itertools.count(1)
 
     def launch_discovery_scan_pipeline(self):
@@ -197,8 +197,8 @@ class DiscoveryScanner:
 
         # Route to alive/dead rmq queues
         try:
-            host_state = record["host_state"] # TODO: [][] This will be unknown, filtered, alive or dead - and we enqueue the (ip,state) to alive addr queue?
-            queue_name = ALIVE_ADDR_QUEUE if host_state == "alive" else DEAD_ADDR_QUEUE  # TODO:[][P_High] If ip is alive -> ALIVE_ADDR_QUEUE // if dead -> DEAD_ADDR_QUEUE // If unknown -> FAIL_ADDR_QUEUE
+            host_state = record["host_state"] # TODO:[P_High][Emilia] - This will be unknown, filtered, alive or dead - and we enqueue the (ip,state) to alive addr queue?
+            queue_name = ALIVE_ADDR_QUEUE if host_state == "alive" else DEAD_ADDR_QUEUE  # TODO:[P_High][] -  If ip is alive -> ALIVE_ADDR_QUEUE // if dead -> DEAD_ADDR_QUEUE // If unknown -> FAIL_ADDR_QUEUE
 
             # Commit results to correct queue
             with RabbitMQ(queue_name) as rmq_conn:
@@ -217,7 +217,7 @@ class DiscoveryScanner:
         time.sleep(SCAN_DELAY)
 
         # Acknowledge the message as successfully processed 
-        ch.basic_ack(delivery_tag=method.delivery_tag) # TODO:[][P_Med] what if it wasint? later in the db pool?
+        ch.basic_ack(delivery_tag=method.delivery_tag) # TODO:[P_Med][] -  what if it wasint? later in the db pool?
 
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
@@ -234,6 +234,8 @@ class DiscoveryScanner:
         method_frame: Basic.GetOk
         props: BasicProperties
         body: bytes
+
+        # TODO:[P_Med_ack][] - nacks on wrapper errors, but if the worker process itself throws, messages might be lost or never requeued.
 
         with RabbitMQ(queue_name) as rmq_conn:
             try: 
@@ -287,7 +289,7 @@ class DiscoveryScanner:
                 # once we drain the queue, remove it
                 logger.debug("DiscoveryScanner _drain_and_exit calling remove_queue")
                 rmq_conn.remove_queue()
-                # rmq_conn.close() # TODO: this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
+                # rmq_conn.close() # TODO:[P_High][] -  this is closing the parent rmq, but its passed in args in task_proc.. is it even used there? why not in port scanner then?
 
             finally:
                 logger.debug(f"[DiscoveryScanner] Current running processes for db_hosts: {db_hosts.qsize()} ")
@@ -302,21 +304,21 @@ class DiscoveryScanner:
         with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
             total_tasks = rmq_conn.tasks_in_queue()
             logger.info(f"[DiscoveryScanner]  Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
-            print(f"Scan started for total of {total_tasks} IPs.") # TODO:[Emilia][P_Low] just debugging for now, remember to remove later
+            print(f"Scan started for total of {total_tasks} IPs.") # TODO:[P_High][Emilia] -  just debugging for now, remember to remove later
 
         if total_tasks < THRESHOLD:
-            # TODO:[][P_low] This is almost never used.. does it really need a whole class by itself?
+            # TODO:[P_Low][] -  This is almost never used.. does it really need a whole class by itself?
             logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
             WorkerHandlerLogic(queue_name=ALL_ADDR_QUEUE, process_callback=self.process_task).start()
             return
 
         logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
-        while True:                 # TODO: it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT created as example) to make sure it never creates bilions of batches.. 
+        while True:                 # TODO:[P_High][] -  it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT created as example) to make sure it never creates bilions of batches and has an upper bound.. (((mismatches thesis's "check on MAX_BATCH_PROCESSES before creating new batches")))
             
             # Verify that the CPU and memory is within limits
             if not resource_ok():
                 logger.warning("Memory high. Pausing batch creation")
-                time.sleep(5) # TODO:[][P_Med] - Sleep or exit? (It was exit, just changed it.)
+                time.sleep(5) ## TODO:[P_Med][] -  - Sleep or exit? (It was exit, just changed it.)
                 return
             
             # 
@@ -328,7 +330,7 @@ class DiscoveryScanner:
                 continue
             
             with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-                logger.debug("RMQ: remaining check") # TODO:[][P_2] this was printed 50 times for scanning 15 ips.. thats alot of open and closing connections just to check how many in queue.. or?
+                logger.debug("RMQ: remaining check") # TODO:[P_High][] -  this was printed 50 times for scanning 15 ips.. thats alot of open and closing connections just to check how many in queue.. or?
                 remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
@@ -349,10 +351,10 @@ class DiscoveryScanner:
                 if batch_queue:
                     p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
                     p.start()
-                    p.join() # TODO:[][P_Med] Note that in portscanner in the same function, we use "self.active_processes.append(p)" and not join. Witch should be? 
+                    p.join() # TODO:[P_Med][] -  Note that in portscanner in the same function, we use "self.active_processes.append(p)" and not join. Witch should be? 
                 break
 
-            # TODO:[][P_Med] why again? this code needs comments to follow, is this the last 'remaining' items in a batch or?
+            # TODO:[P_Med][] -  why again? this code needs comments to follow, is this the last 'remaining' items in a batch or?
             batch_id = next(self.batch_id_generator)
             batch_queue = IPBatchHandler(batch_id, remaining).create_batch(ALL_ADDR_QUEUE)
             if not batch_queue:
@@ -365,7 +367,7 @@ class DiscoveryScanner:
             p.start()
             self.active_processes.append(p)
 
-        # TODO:[][P_High] is this still needed here? ( its also in port scanner)
+        # TODO:[P_High][] -  is this still needed here? ( its also in port scanner)
         for p in self.active_processes:
             if p.is_alive():
                 p.join(timeout=1)
@@ -421,7 +423,7 @@ class DiscoveryScanner:
                         for ip in ips:
                             rmq_conn.enqueue_to_queue(queue_name=ALL_ADDR_QUEUE, message={"ip": ip})
 
-                    del shuffled_ips_iter, ip_iter # TODO: should this be also done in port scanner?
+                    del shuffled_ips_iter, ip_iter # TODO:[P_High][] -  should this be also done in port scanner?
                     gc.collect()
 
             # Return the file we used for CIDR blocks
@@ -431,7 +433,7 @@ class DiscoveryScanner:
             logger.error(f"[DiscoveryScanner] Error in new_targets: {e}")
             return None
 
-    def ping_host(self, ip_addr: str) -> dict: # TODO: move function to ProbesDiscoveryScan
+    def ping_host(self, ip_addr: str) -> dict: # TODO:[P_Low][] -  move function to ProbesDiscoveryScan
         """Probe a host using ICMP, TCP-SYN, and TCP-ACK in sequence.
 
         Args:

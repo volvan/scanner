@@ -12,7 +12,7 @@ from config.logging_config import log_exception, logger
 sys.excepthook = log_exception
 
 
-# TODO: If we are really dismissing filtered and unknown, why spend time looking for it and returning it? 
+# TODO:[P_Med][] -  If we are really dismissing filtered and unknown, why spend time looking for it and returning it? 
 
 class ProbesDiscoveryScan:
     """Performs ICMP and TCP-based discovery pings to determine host liveness."""
@@ -72,7 +72,7 @@ class ProbesDiscoveryScan:
         
         # Timeouts or no replies
         if ("request timed out" in output) or ("100% packet loss" in output) or ("no answer yet" in output):
-            return "unknown"    # TODO: [][P_Med]: return timeout to keep track of all that occur bc of timeout
+            return "unknown"    # TODO:[P_Med][] -  return timeout to keep track of all that occur bc of timeout
         
         # Dead signals
         elif "host seems down" in output:
@@ -95,7 +95,7 @@ class ProbesDiscoveryScan:
         start_ts = get_current_timestamp()
         try:
             param = '-n' if platform.system().lower() == 'windows' else '-c'
-            output = self._run_command(["ping", param, "3", self.target_ip]) or "" # TODO: [][P_Low] - Move the command parameters in scan config
+            output = self._run_command(["ping", param, "3", self.target_ip]) or "" # TODO:[P_Med][] -  - Move the command parameters in scan config
 
             # If running the command returns error
             if not output:
@@ -124,7 +124,7 @@ class ProbesDiscoveryScan:
         """
         start_ts = get_current_timestamp()
         try:
-            output = self._run_command(["nmap", "-PS80,443", "-sn", self.target_ip]) or "" # TODO: [][P_Low] - Move the command parameters in scan config
+            output = self._run_command(["nmap", "-PS80,443", "-sn", self.target_ip]) or "" # TODO:[P_Med][] -  - Move the command parameters in scan config
 
             # If running the command returns error
             if not output:
@@ -154,7 +154,7 @@ class ProbesDiscoveryScan:
 
         start_ts = get_current_timestamp()
         try:
-            output = self._run_command(["nmap", "-PA80,443", "-sn", "--ttl", "1", self.target_ip]) or "" # TODO: [][P_Low] - Move the command parameters in scan config
+            output = self._run_command(["nmap", "-PA80,443", "-sn", "--ttl", "1", self.target_ip]) or "" # TODO:[P_Med][] -  - Move the command parameters in scan config
 
             # If running the command returns error
             if not output:

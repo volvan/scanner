@@ -9,8 +9,8 @@ from config.logging_config import logger, log_exception
 
 sys.excepthook = log_exception
 
-# TODO:[Emilia]  really a separate file?
-# TODO: should be one port file called priority_ports.txt and another for ports.txt and they can have the format : (1-20) or (22,443) - meaning it can be a range or a list.
+# TODO:[P_Low][] -  really a separate file?
+# TODO:[P_Med][] -  should be one port file called priority_ports.txt and another for ports.txt and they can have the format : (1-20) or (22,443) - meaning it can be a range or a list.
 
 def read_ports_file(ports_file: str):
     """Read and parse a ports file into two separate port lists.
@@ -30,8 +30,8 @@ def read_ports_file(ports_file: str):
         - Port values must be integers.
         - If parsing fails for either line, the corresponding list will be empty.
     """
-    file_path = os.path.join(TARGETS_FILE_PATH, ports_file) # TODO: dont we already have PORTS_FILE ? 
-    #TODO: [Franz] We need to fix this logic, it is insane.
+    file_path = os.path.join(TARGETS_FILE_PATH, ports_file) # TODO:[P_High][Emilia] -  dont we already have PORTS_FILE ? 
+    # TODO:[P_Med][Franz] -  We need to fix this logic, it is insane.
     try:
         with open(file_path, "r") as f:
             lines = [line.strip() for line in f if line.strip()]

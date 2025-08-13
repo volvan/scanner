@@ -252,7 +252,7 @@ class QueryHandler:
         Notes:
             Existing entries are updated if they already exist (upsert behavior).
         """
-        # TODO:[][P_Med] Review and verify logic
+        # TODO:[P_Med][] -  Review and verify logic
 
         # Building whois data
         rows: list[tuple] = []

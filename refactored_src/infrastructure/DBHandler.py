@@ -8,7 +8,7 @@ from infrastructure.QueryHandler import QueryHandler
 from config.scan_config import DB_HOST_WRITERS, DB_PORT_WRITERS, FAIL_QUEUE
 from config.logging_config import logger
 
-# TODO:[][P_High] should be inserting in batches maybe? Wont this overload at some point? (Meaning write to the database in batches, not row-by-row)
+# TODO:[P_High][] -  should be inserting in batches maybe? Wont this overload at some point? (Meaning write to the database in batches, not row-by-row)
 
 db_hosts: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Hosts' db table
 db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' db table
@@ -16,9 +16,10 @@ db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' 
 # one thread storage container for one DBWorker per writer thread
 thread_local = threading.local()
 
+# TODO:[P_High][] -  Inserting results to database should be in batches (per row now and its very expensive with 'execute_query_model' after every record)
 
 
-class DBHandler:  # TODO:[][P_Low] rename.. Database_Writer? maybe..
+class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
     """Dequeues from the db_hosts and db_ports in-memory queues to the database with thread pool."""
 
     def __init__(self, queryHandler: QueryHandler):
@@ -141,6 +142,7 @@ class DBHandler:  # TODO:[][P_Low] rename.. Database_Writer? maybe..
                     rmq_fail_conn.enqueue_to_queue(message=message)
             finally:
                 # thread is stopping so we mark the task done and return the connection so .join() on the queue can unblock
+                # TODO:[P_Med][] - if an error occurs, the record is still dropped with task_done() still called and nothing is re‑queued. A db unique‑violation or timeout will therefor silently discards scan results
                 db_queue.task_done()
 
         # Loop exited and thread is shutting down. Return connection to pool
@@ -163,13 +165,14 @@ class DBHandler:  # TODO:[][P_Low] rename.. Database_Writer? maybe..
         logger.debug("[DBHandler] All threads exited.")
 
         # Wait until every writer thread (hosts and ports) has exited
-        for writer_thread in (*self.host_threads, *self.port_threads): # TODO:[][P_High] or mutable with self.host_threads + self.port_threads ?
+        for writer_thread in (*self.host_threads, *self.port_threads): # TODO:[P_High][] - or mutable with self.host_threads + self.port_threads ?
         # for writer_thread in (self.host_threads + self.port_threads):
             logger.debug(f"[DBHandler] Writer thread {writer_thread} exited.")
             writer_thread.join(timeout=2)
 
 
 
-#     # TODO:[][P_High] ISSUE: tasks were being dequeued from the queue, and then ack'ed. But it didn't yet write to database.
-#     #       .. Meaning that if the program stops or errors acured, the tasks get lost because they had been ack'ed..
-#     #       .. It should be that they are ack'ed OR nack'ed AFTER probe and write to database or in worst case, log everything being flushed with .join so it can be checked later or someth
+# TODO:[P_High_ack][] - ISSUE: tasks were being dequeued from the queue, and then ack'ed (sometimes even auto-acked). But it didn't yet write to database.
+#       .. Meaning that if the program stops or errors acured, the tasks get lost because they had been ack'ed.. when it should be nack'ed to beguin with
+#       .. It should be that they are ack'ed OR nack'ed AFTER probe and write to database or in worst case, log everything being flushed with .join so it can be checked later or someth
+#  If the DB insert fails we lose the task In process_task, the code calls db_hosts.put(record) before ch.basic_ack. If the DB thread crashes, tasks may be ACKed but never committed, losing data.

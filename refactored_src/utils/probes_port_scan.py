@@ -11,7 +11,7 @@ from config.logging_config import log_exception, logger
 sys.excepthook = log_exception
 
 
-# TODO: WHYYYY cant the ProbesPortScan and ProbesDiscoveryScan be more inline? They could be implemented in the same way or divided into functions the same way or something. I that might seem as a low priority but i beg to differ as its really hard to debug it when its so different as one line can be at fault. please.
+# TODO:[P_Med][] -  WHYYYY cant the ProbesPortScan and ProbesDiscoveryScan be more inline? They could be implemented in the same way or divided into functions the same way or something. I that might seem as a low priority but i beg to differ as its really hard to debug it when its so different as one line can be at fault. please.
 
 class ProbesPortScan:
     """Use Nmap to probe IP:port combinations and determine service state."""
@@ -146,7 +146,7 @@ class ProbesPortScan:
     def _scan_intense_mode(self):
         """The default NMAP scan."""
 
-        # TODO: look into the --host-timeout, should we use it or no?
+        # TODO:[P_Low][] - look into the --host-timeout, should we use it or no?
         nmap_cmd = [
             "nmap",
             "-sT",

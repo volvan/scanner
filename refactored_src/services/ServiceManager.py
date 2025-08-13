@@ -58,7 +58,7 @@ class ServiceManager:
     def start_ip_port_scan(self):
         """Run IP and then Port scan"""
 
-        # TODO: Currently does not close the application
+        # TODO:[P_Med][] -  Currently does not close the application
         self.start_ip_scan()
         time.sleep(2)
         self.start_port_scan()

@@ -49,7 +49,7 @@ class PortScanner:
         """laterdo: Docstr."""
         self.infraManager = infraManager
 
-        self.active_processes: list[Process] = [] # TODO: should we not close the active processes at some point?
+        self.active_processes: list[Process] = [] # TODO:[P_High][] -  should we not close the active processes at some point?
 
     def launch_port_scan_pipeline(self):
         """Main runner."""
@@ -91,7 +91,7 @@ class PortScanner:
             # 1) record scan-done timestamp
             port_done_ts = get_current_timestamp()
 
-            # 2) record all ports that were scanned     # TODO:[][P_Low] all this code really needed?
+            # 2) record all ports that were scanned     # TODO:[P_Low][] -  all this code really needed?
             all_ports, priority_ports = read_ports_file(PORTS_FILE)
             scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
             
@@ -115,7 +115,7 @@ class PortScanner:
             
 
     def _update_summary(self, port_start_ts, port_done_ts, scanned_ports):
-        # TODO: moved here for clarity, should be done in the query model or db_worker, not here.. 
+        # TODO:[P_Low][] -  moved here for clarity, should be done in the query model or db_worker, not here.. 
         try: 
             # Build QueryModel for port-summary
             with DBWorker() as db_conn:
@@ -162,7 +162,7 @@ class PortScanner:
         except Exception as e:
             logger.error(f"[PortScanner] Failed to write port summary: {e}", exc_info=True)
 
-    def process_task(self, ip_addr: str, port: int): # TODO: rename or move, this is a worker process
+    def process_task(self, ip_addr: str, port: int): # TODO:[P_Med][] -  rename or move, this is a worker process
         """Probe an IP:port pair and enqueue the scan result as needed.
 
         What i observed: this is the method that the worker (coming from _drain_and_exit) is running.
@@ -223,7 +223,7 @@ class PortScanner:
                 message = {"ip": ip_addr, "port": port, "reason": f"error: {e}"}
                 rmq_fail_conn.enqueue_to_queue(message=message)
 
-    def _drain_and_exit(self, batch_queue: str) -> None: # TODO: rename or move, this is a worker process
+    def _drain_and_exit(self, batch_queue: str) -> None: # TODO:[P_Med][] -  rename or move, this is a worker process
         """Drain and process all tasks from a batch queue, then delete the queue.
 
         (what i observe):
@@ -245,11 +245,11 @@ class PortScanner:
                     try:
                         task = json.loads(body)
                         self.process_task(ip_addr=task["ip"], port=task["port"])
-                        rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO: now this is ack'ed before.. should be after..
+                        rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO:[P_Med_ack][] -  now this is ack'ed before.. should be after..
                     except Exception:
                         logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
-                        rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) # TODO: this also.. now this is ack'ed before.. should be after..
-                    time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO:[Emilia]: This is adding a delay between ip,port scan - but i wonder if we have already added the delay 
+                        rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) ## TODO:[P_Med_ack][] -  this also.. now this is ack'ed before.. should be after..
+                    time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO:[P_High][Emilia] -  This is adding a delay between ip,port scan - but i wonder if we have already added the delay 
                 rmq_batch_conn.remove_queue()
         finally:
             logger.debug(f"Batch worker for queue {batch_queue} has drained and exited the queue.")
@@ -266,7 +266,7 @@ class PortScanner:
             Waits if memory usage or active processes reach limits.
         """
 
-        # TODO:[][Critical] we can not be working like this.. now its 1 worker per batch and one batch is as large as all alive ips.. 
+        # TODO:[P_Crit][] -  we can not be working like this.. now its 1 worker per batch and one batch is as large as all alive ips.. 
         logger.debug(f"[PortScanner] Starting batched port-scan on '{main_queue_name}'")
 
         while True:
@@ -288,7 +288,7 @@ class PortScanner:
                 with RabbitMQ(main_queue_name) as rmq_conn:
                     remaining = rmq_conn.tasks_in_queue()
                     if remaining == 0:
-                    # if remaining == 0 and not self.active_processes: # TODO: this or that
+                    # if remaining == 0 and not self.active_processes: # TODO:[P_Med][] -  this or that
                         logger.debug("[PortScanner] All port batches completed.")
                         break
 
@@ -301,7 +301,7 @@ class PortScanner:
             p.start()
             self.active_processes.append(p)
 
-        # TODO: is this still needed here?
+        # TODO:[P_High][] -  is this still needed here?
         # for p in self.active_processes:
         #     if p.is_alive():
         #         p.join(timeout=1)

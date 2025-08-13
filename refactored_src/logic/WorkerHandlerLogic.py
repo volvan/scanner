@@ -11,7 +11,7 @@ from infrastructure.RabbitMQ import RabbitMQ
 # ----- Logger import -----#
 from config.logging_config import logger
 
-# TODO:[Franz]?  Cant we have more use of workerhandlerlogic? or something? this is messy and hard to follow the proceses..
+# TODO:[P_Med][] - Cant we have more use of workerhandlerlogic? or something? this is messy and hard to follow the proceses..
 # - If direct IP scanning mode: [WorkerHandlerLogic] - there the logic for workers is
 # - If batch IP scanning mode: [DiscoveryScanner.start_consuming (while True loop)] - there the logic is..
 # - If direct Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
@@ -51,7 +51,7 @@ class WorkerHandlerLogic:
             finally:
                 try:
                     if rmq_conn.tasks_in_queue() == 0:
-                        # TODO:[emilia] might the non-removed batches be from here?
+                        # TODO:[P_High][Emilia] - look into -  might the non-removed batches be from here?
                         logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
                         rmq_conn.remove_queue()
                 except Exception as cleanup_err:
