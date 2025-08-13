@@ -8,8 +8,6 @@ from infrastructure.QueryHandler import QueryHandler
 from config.scan_config import DB_HOST_WRITERS, DB_PORT_WRITERS, FAIL_QUEUE
 from config.logging_config import logger
 
-# TODO:[P_High][] -  should be inserting in batches maybe? Wont this overload at some point? (Meaning write to the database in batches, not row-by-row)
-
 db_hosts: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Hosts' db table
 db_ports: JoinableQueue = JoinableQueue()  # Queue for inserting to the 'Ports' db table
 

@@ -14,12 +14,11 @@ from multiprocessing import Process
 from pika.spec import Basic, BasicProperties
 
 # Utility Handlers
-from utils import block_handler
 from utils.batch_handler import IPBatchHandler
 from utils.reservoir_randomize import reservoir_of_reservoirs
 
 from utils.timestamp import get_current_timestamp
-from utils.block_handler import read_block, whois_block
+from utils.block_handler import read_block, whois_block, fetch_rix_blocks, get_ip_addresses_from_block
 from utils.resource_status import resource_ok
 from utils.probes_discovery_scan import ProbesDiscoveryScan
 
@@ -241,10 +240,7 @@ class DiscoveryScanner:
             try: 
 
                 while True:
-                    method_frame, props, body = rmq_conn.channel.basic_get(
-                        queue=queue_name,
-                        auto_ack=False
-                    )
+                    method_frame, props, body = rmq_conn.channel.basic_get(queue=queue_name, auto_ack=False)
                     if not method_frame:
                         break
 
@@ -381,12 +377,10 @@ class DiscoveryScanner:
         
         try:
             # If we don't have FETCH_RIX as True, we have targets in a file and ConfigValidator already verified that either would be set.
-            filename = block_handler.fetch_rix_blocks() if FETCH_RIX else TARGETS_FILE
-            if not filename:
-                    return None
+            filename = fetch_rix_blocks() if FETCH_RIX else TARGETS_FILE
             
             # Create an iterator of all targets
-            ip_iter = block_handler.get_ip_addresses_from_block(filename=filename)
+            ip_iter = get_ip_addresses_from_block(filename=filename)
         
             # Randomize all the targeted IPs
             shuffled_ips_iter = reservoir_of_reservoirs(ip_iter)

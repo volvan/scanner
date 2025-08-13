@@ -63,7 +63,7 @@ class PortScanner:
             logger.info(f"[PortScanner] Seeding ports into '{queue_name}'…")
 
             # 2) enqueue the ports to RMQ
-            self.new_targets(queue_name, PORTS_FILE)
+            self.new_targets(queue_name)
 
             # 3) record scan-start timestamp
             port_start_ts = get_current_timestamp()
@@ -308,12 +308,11 @@ class PortScanner:
 
         # Port scan pipeline has now concluded
 
-    def new_targets(self, queue_name: str, filename: str) -> None:
+    def new_targets(self, queue_name: str) -> None:
         """Seed a queue with randomized ports read from a file.
 
         Args:
             queue_name (str): Target queue ('all_ports' or 'priority_ports').
-            filename (str, optional): Path to the file containing ports.
 
         Raises:
             ValueError: If filename is not provided or queue name is invalid.
@@ -322,10 +321,7 @@ class PortScanner:
             Ports are randomized before enqueueing.
         """
         try:
-            all_ports, priority_ports = read_ports_file(filename)
-            if all_ports is None or priority_ports is None:
-                logger.warning("[PortScanner] Could not parse ports file.")
-                return
+            all_ports, priority_ports = read_ports_file(PORTS_FILE)
 
             if queue_name == ALL_PORTS_QUEUE:
 
