@@ -5,6 +5,9 @@ import sys
 import pika      # type: ignore
 import requests  # type: ignore
 
+# Type annotation
+from pika.spec import Basic, BasicProperties
+
 # Configuration
 from config import credentials_config
 from config.logging_config import log_exception, logger
@@ -126,6 +129,7 @@ class RabbitMQ:
         Args:
             callback (object): Function to process each message.
         """
+        # TODO:[P_Crit][] - Is this not used? If not, how are we consuming??
         queue_name = queue_name or self.queue_name
         
         if callback is None:
@@ -156,22 +160,6 @@ class RabbitMQ:
         logger.debug(f"[RabbitMQ] reconnect successful.")
 
     @staticmethod
-    def worker_consume(queue_name: str, callback: object) -> None:
-        """Create a worker to consume messages from a queue.
-
-        Args:
-            queue_name (str): Name of the queue to consume from.
-            callback (object): Callback function to process each message.
-        """
-        # TODO:[P_Med][Emilia] -  Does this need to open rmq connection? Verify..
-        try:
-            with RabbitMQ(queue_name) as rmq_conn:
-                logger.debug(f"[RabbitMQ] Worker consuming from queue: {queue_name}")
-                rmq_conn.start_consuming(callback)
-        except Exception as e:
-            logger.error(f"[RabbitMQ] Worker failed to start consuming: {e}")
-
-    @staticmethod
     def list_queues(prefix: str = "") -> list[str]:
         """Fetch a list of queue names from RabbitMQ, optionally filtered by a prefix.
 
@@ -200,6 +188,7 @@ class RabbitMQ:
         Returns:
             Optional[str]: Value associated with the key, or None if not found.
         """
+        # TODO:[P_med][Emilia] - Should be used or removed
         queue_name = queue_name or self.queue_name
         
         try:
@@ -269,9 +258,12 @@ class RabbitMQ:
         try:
             queue_name = queue_name or self.queue_name
 
+            # Ensure the queue exists, if not, create it
             self._ensure_channel(queue_name)
             if not self.queue_exists(queue_name):
                 self.declare_queue(queue_name)
+            
+            # Publish 
             self.channel.basic_publish(
                 exchange='',
                 routing_key=queue_name,
@@ -296,6 +288,19 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Failed to enqueue message to '{queue_name}': {e}")
 
+    def requeue_deliveries(self, deliveries: list[Basic.GetOk], queue_name: str = None):
+        """Nack and requeue every message in deliveries."""
+
+        # TODO:[P_Crit][] Requeueing puts the message at the front of the queue - a poison message can starve others and create hot-loop reprocessing
+
+        queue_name = queue_name or self.queue_name
+
+        for frame in deliveries:
+            try:
+                self.channel.basic_nack(delivery_tag=frame.delivery_tag, requeue=True)   # TODO:[P_Med_ack][] -   Related to the Ack issue 
+                logger.info("[RabbitMQ] Requeued message.")
+            except Exception as ex:
+                logger.warning(f"[RabbitMQ] Failed to requeue message: {ex}")
 
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""

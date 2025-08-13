@@ -3,7 +3,7 @@ import os
 import sys
 
 # Configuration
-from config.scan_config import TARGETS_FILE_PATH, PORTS_FILE
+from config.scan_config import PORTS_FILE
 from config.logging_config import logger, log_exception
 
 

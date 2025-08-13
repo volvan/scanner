@@ -17,6 +17,7 @@ from infrastructure.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
+# TODO:[P_High][Emilia]   - This needs to be checked
 
 class IPBatchHandler:
     """Handler for creating discovery scan IP batches from a main RabbitMQ queue."""
@@ -49,7 +50,9 @@ class IPBatchHandler:
 
         with RabbitMQ(main_queue_name) as rmq_conn:
             tasks: list[dict] = []
-            deliveries: list = []
+            deliveries: list = [] # Has the method_frames
+
+            # TODO:[P_High][Emilia] - Should be using either get_next_message or consume from the rmq connection and the logic should not be here...
 
             for _ in range(scan_config.BATCH_SIZE): # Create a batch with BATCH_SIZE amount of tasks
                 response: tuple[Basic.GetOk | None, BasicProperties, bytes] = rmq_conn.channel.basic_get(queue=main_queue_name, auto_ack=False)
@@ -79,32 +82,22 @@ class IPBatchHandler:
 
             if not tasks:
                 logger.warning("[IPBatchHandler] No valid tasks found; skipping batch creation.")
-                self._requeue_deliveries(rmq=rmq_conn, deliveries=deliveries, requeue=True)
+                rmq_conn.requeue_deliveries(deliveries=deliveries)
                 return None
 
             batch_queue = f"batch_{self.batch_id}"
 
             try:
-                with RabbitMQ(batch_queue) as rmq_batch_conn:
-                    for task in tasks:
-                        rmq_batch_conn.enqueue_to_queue(message=task)
-                for m in deliveries:
-                    rmq_conn.channel.basic_ack(delivery_tag=m.delivery_tag)  # TODO:[P_Med_ack][] -   Related to the Ack issue 
+                for task in tasks:
+                    rmq_conn.enqueue_to_queue(queue_name=batch_queue, message=task)
+                for frame in deliveries:
+                    rmq_conn.channel.basic_ack(delivery_tag=frame.delivery_tag)  # TODO:[P_Med_ack][] -   Related to the Ack issue 
                 logger.debug(f"[IPBatchHandler] Created batch '{batch_queue}' with {len(tasks)} IPs.")
             except Exception:
-                self._requeue_deliveries(rmq=rmq_conn, deliveries=deliveries, requeue=True)
+                rmq_conn.requeue_deliveries(deliveries=deliveries)
                 batch_queue = None
 
         return batch_queue
-
-    def _requeue_deliveries(rmq: RabbitMQ, deliveries: list[Basic.GetOk], requeue: bool = True,) -> None:
-        """Nack or requeue every message in deliveries."""
-        for d in deliveries:
-            try:
-                rmq.channel.basic_nack(delivery_tag=d.delivery_tag, requeue=requeue)   # TODO:[P_Med_ack][] -   Related to the Ack issue 
-                logger.warning("[IPBatchHandler] Requeued message.")
-            except Exception as ex:
-                logger.warning(f"[IPBatchHandler] Failed to requeue message: {ex}")
 
 
 class PortBatchHandler:

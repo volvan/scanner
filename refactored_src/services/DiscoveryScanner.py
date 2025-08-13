@@ -236,6 +236,8 @@ class DiscoveryScanner:
 
         # TODO:[P_Med_ack][] - nacks on wrapper errors, but if the worker process itself throws, messages might be lost or never requeued.
 
+        # TODO:[P_High][Emilia] - Should be using either get_next_message or consume from the rmq connection and the logic should not be here...
+        
         with RabbitMQ(queue_name) as rmq_conn:
             try: 
 

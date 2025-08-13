@@ -236,6 +236,7 @@ class PortScanner:
             This runs inside a spawned process. 
         """
 
+        # TODO:[P_High][Emilia] - Should be using either get_next_message or consume from the rmq connection and the logic should not be here...
         try: 
             with RabbitMQ(batch_queue) as rmq_batch_conn:
                 while True:

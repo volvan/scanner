@@ -45,8 +45,7 @@ class WorkerHandlerLogic:
         with RabbitMQ(self.queue_name) as rmq_conn:
             try:
                 logger.debug(f"[WorkerHandlerLogic] Worker {worker_id} starting...")
-                # RabbitMQ.worker_consume(self.queue_name, self.process_callback)
-                rmq_conn.worker_consume(self.queue_name, self.process_callback)
+                rmq_conn.start_consuming(self.process_callback)
             except KeyboardInterrupt:
                 logger.warning(f"[WorkerHandlerLogic] Worker {worker_id} received KeyboardInterrupt. Exiting.")
             except Exception as e:
@@ -54,7 +53,7 @@ class WorkerHandlerLogic:
             finally:
                 try:
                     if rmq_conn.tasks_in_queue() == 0:
-                        # TODO:[P_High][Emilia] - look into -  might the non-removed batches be from here?
+                        # TODO:[P_Med][Emilia] - look into -  might the non-removed batches be from here?
                         logger.debug(f"[WorkerHandlerLogic] Worker {worker_id}: cleaning up empty queue '{self.queue_name}'")
                         rmq_conn.remove_queue()
                 except Exception as cleanup_err:
