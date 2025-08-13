@@ -92,7 +92,7 @@ class PortScanner:
             port_done_ts = get_current_timestamp()
 
             # 2) record all ports that were scanned     # TODO:[P_Low][] -  all this code really needed?
-            all_ports, priority_ports = read_ports_file(PORTS_FILE)
+            all_ports, priority_ports = read_ports_file()
             scanned_ports = priority_ports if USE_PRIORITY_PORTS else all_ports
             
             # 3) persist summary via QueryModel
@@ -321,7 +321,7 @@ class PortScanner:
             Ports are randomized before enqueueing.
         """
         try:
-            all_ports, priority_ports = read_ports_file(PORTS_FILE)
+            all_ports, priority_ports = read_ports_file()
 
             if queue_name == ALL_PORTS_QUEUE:
 

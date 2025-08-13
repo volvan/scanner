@@ -3,7 +3,7 @@ import os
 import sys
 
 # Configuration
-from config.scan_config import TARGETS_FILE_PATH
+from config.scan_config import TARGETS_FILE_PATH, PORTS_FILE
 from config.logging_config import logger, log_exception
 
 
@@ -12,15 +12,12 @@ sys.excepthook = log_exception
 # TODO:[P_Low][] -  really a separate file?
 # TODO:[P_Med][] -  should be one port file called priority_ports.txt and another for ports.txt and they can have the format : (1-20) or (22,443) - meaning it can be a range or a list.
 
-def read_ports_file(ports_file: str):
+def read_ports_file():
     """Read and parse a ports file into two separate port lists.
 
     The ports file must contain at least two non-empty lines:
       - Line 1: A port range (e.g., "1000-2000") or a comma-separated list for the 'all_ports' queue.
       - Line 2: A comma-separated list of high-priority ports for the 'priority_ports' queue.
-
-    Args:
-        ports_file (str): Filename of the ports file to read (relative to TARGETS_FILE_PATH).
 
     Returns:
         tuple[list[int], list[int]] | tuple[None, None]: A tuple (ports_list, custom_ports_list),
@@ -29,11 +26,10 @@ def read_ports_file(ports_file: str):
     Notes:
         - Port values must be integers.
         - If parsing fails for either line, the corresponding list will be empty.
-    """
-    file_path = os.path.join(TARGETS_FILE_PATH, ports_file) # TODO:[P_High][Emilia] -  dont we already have PORTS_FILE ? 
+    """ 
     # TODO:[P_Med][Franz] -  We need to fix this logic, it is insane.
     try:
-        with open(file_path, "r") as f:
+        with open(PORTS_FILE, "r") as f:
             lines = [line.strip() for line in f if line.strip()]
     except Exception as e:
         logger.error(f"Error reading ports file: {e}")
