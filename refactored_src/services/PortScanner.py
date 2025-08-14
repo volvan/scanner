@@ -219,7 +219,7 @@ class PortScanner:
                     logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
 
             except Exception as e:
-                logger.exception(f"[PortScanner] Exception during scan of {ip_addr}:{port}: {e}\nscan_results: {probe}\n\n")
+                logger.exception(f"[PortScanner] Exception during scan of {ip_addr}:{port}: {e}\n scan_results: {probe}\n\n")
                 message = {"ip": ip_addr, "port": port, "reason": f"error: {e}"}
                 rmq_fail_conn.enqueue_to_queue(message=message)
 
@@ -236,21 +236,43 @@ class PortScanner:
             This runs inside a spawned process. 
         """
 
-        # TODO:[P_High][Emilia] - Should be using either get_next_message or consume from the rmq connection and the logic should not be here...
         try: 
             with RabbitMQ(batch_queue) as rmq_batch_conn:
                 while True:
-                    method_frame, _, body = rmq_batch_conn.channel.basic_get(queue=batch_queue, auto_ack=False)
-                    if not method_frame:
-                        break
+                    task = rmq_batch_conn.get_next_message(auto_ack=False, parse_json=True)
+                    if not task:
+                        break # empty queue OR bad JSON already ACK'ed inside
+
+                    method_frame, props, body = task
+                    tag = method_frame.delivery_tag
+                    
+                    # Validate payload
+                    if not isinstance(body, dict) or "ip" not in body or "port" not in body:
+                        rmq_batch_conn.enqueue_to_queue(queue_name=FAIL_QUEUE, message={"raw": body, "reason": "bad_payload"})
+                        rmq_batch_conn.ack(tag)
+                        continue
+
+                    ip_addr = body["ip"]
+                    port = body["port"]
+
                     try:
-                        task = json.loads(body)
-                        self.process_task(ip_addr=task["ip"], port=task["port"])
-                        rmq_batch_conn.channel.basic_ack(delivery_tag=method_frame.delivery_tag) # TODO:[P_Med_ack][] -  now this is ack'ed before.. should be after..
-                    except Exception:
-                        logger.error(f"[PortScanner] Error processing task with ip {task['ip']} and port {task['port']} ")
-                        rmq_batch_conn.channel.basic_nack(delivery_tag=method_frame.delivery_tag, requeue=False) ## TODO:[P_Med_ack][] -  this also.. now this is ack'ed before.. should be after..
+                        self.process_task(ip_addr=ip_addr, port=port)
+                        rmq_batch_conn.ack(tag) # Success, so we ACK
+                        
+                    except Exception as e:
+                        logger.error(f"[PortScanner] Error processing task with ip {ip_addr} and port {port}: {e} ")
+                        try:
+                            rmq_batch_conn.enqueue_to_queue(queue_name=FAIL_QUEUE, message={"ip": ip_addr, "port": port, "err": str(e)})
+                            rmq_batch_conn.ack(tag)
+                        except Exception as e:
+                            logger.error(f"[PortScanner] Also failed to send to FAIL_QUEUE: {e}")
+                            # Last resort is to give it back
+                            rmq_batch_conn.nack(tag, requeue=True)
+
+                    # pause between tasks
                     time.sleep(SCAN_DELAY + random.uniform(0, PROBE_JITTER_MAX))  # TODO:[P_High][Emilia] -  This is adding a delay between ip,port scan - but i wonder if we have already added the delay 
+                
+                # once we drain the queue, remove it
                 rmq_batch_conn.remove_queue()
         finally:
             logger.debug(f"Batch worker for queue {batch_queue} has drained and exited the queue.")
