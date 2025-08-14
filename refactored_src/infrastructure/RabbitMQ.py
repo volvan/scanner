@@ -18,9 +18,8 @@ sys.excepthook = log_exception
 # TODO:[P_Low][Emilia] -  rename RMQ_Handler
 
 # NOTE: 3 connections, then "[PortScanner] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function..
-# TODO:[P_High][] -  way too many connections, workers should be fine with passing its one connection through funcitons
-#       -- honestly it would be better if it was clear (the worker pipeline..)
-# So maybe (TODO)have a worker_pipeline funciton - like consumer, producer vibes
+
+# ..maybe (TODO)have a worker_pipeline funciton - like consumer, producer vibes
 
 
 class RabbitMQ:
@@ -276,11 +275,6 @@ class RabbitMQ:
             for task in leftovers:
                 self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=task)
 
-            # with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-            #     logger.info(f'\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
-            #     for task in leftovers:
-            #         rmq_fail_conn.enqueue_to_queue(message=task)
-
             logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{queue_name}'.")
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{queue_name}': {e}")
@@ -314,7 +308,7 @@ class RabbitMQ:
             logger.debug(f"[RabbitMQ enqueue_to_queue()]: enqueued {message} to {queue_name}")
 
         except (pika.exceptions.ChannelClosedByBroker, pika.exceptions.ConnectionClosed) as e:
-            logger.debug(f"[RabbitMQ] Failed to enqueue (closed channel): {e}. Will reconnect..") # TODO:[P_High][Emilia] -  For now this is set to debug, set to warning later but as a patch this is used for creating the fail queue
+            logger.warning(f"[RabbitMQ] Failed to enqueue (closed channel): {e}. Will reconnect..") 
             try:
                 self.reconnect()
                 self.channel.queue_declare(queue=queue_name, durable=True)
@@ -345,7 +339,6 @@ class RabbitMQ:
 
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
-        # TODO:[P_High][Emilia] - this should be removed after verified its not in use
         # logger.debug("RMQ - Calling close")
         try:
             if hasattr(self, "connection") and not self.connection.is_closed:
@@ -354,7 +347,6 @@ class RabbitMQ:
         except Exception as e:
             logger.error(f"[RabbitMQ] Error closing connection: {e}")
 
-    # TODO:[P_Med][Emilia] -  Context manager (after using only context manager, move self.connect from init)
     def __enter__(self):
         """Support context manager entry (with-statement)."""
         # logger.debug("RMQ - Calling enter")
@@ -363,6 +355,4 @@ class RabbitMQ:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Support context manager exit (with-statement) to close the RMQ connection safely."""
-        # logger.debug("RMQ - Calling exit")
-
         self.close()

@@ -253,11 +253,13 @@ class DiscoveryScanner:
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""
 
+        shared_RMQ_connection = RabbitMQ(ALL_ADDR_QUEUE)
+
         # Start discovery and check how many targets to scan
-        with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-            total_tasks = rmq_conn.tasks_in_queue()
-            logger.info(f"[DiscoveryScanner]  Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
-            print(f"Scan started for total of {total_tasks} IPs.") # TODO:[P_High][Emilia] -  just debugging for now, remember to remove later
+
+        total_tasks = shared_RMQ_connection.tasks_in_queue()
+        logger.info(f"[DiscoveryScanner]  Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
+        print(f"Scan started for total of {total_tasks} IPs.")
 
         if total_tasks < THRESHOLD:
             # TODO:[P_Low][] -  This is almost never used.. does it really need a whole class by itself?
@@ -282,11 +284,7 @@ class DiscoveryScanner:
                 # Loop back and prune again
                 continue
             
-            shared_RMQ_connection = RabbitMQ(ALL_ADDR_QUEUE)
             remaining = shared_RMQ_connection.tasks_in_queue()
-            # with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
-            #     logger.debug("RMQ: remaining check") # TODO:[P_High][] -  this was printed 50 times for scanning 15 ips.. thats alot of open and closing connections just to check how many in queue.. or?
-            #     remaining = rmq_conn.tasks_in_queue()
 
             self.active_processes = [p for p in self.active_processes if p.is_alive()]
 
