@@ -179,26 +179,66 @@ class RabbitMQ:
             logger.error(f"[RabbitMQ] Error fetching queue list: {e}")
             return []
 
-    def get_next_message(self, key: str, queue_name: str = None) -> str | None:
-        """Get the next message from the queue and extract a specific key.
+    # TODO:[P_med][Emilia] - Should be used or removed
+    def get_next_message(self, queue_name: str = None, auto_ack: bool = True, parse_json: bool = False):
+        """Get the next message from the queue.
 
         Args:
-            key (str): The key to extract from the message payload.
+            queue_name (str): Queue to read from. Defaults to self.queue_name.
+            auto_ack (bool): Whether to automatically ack the message.
+            parse_json (bool): If True, parse body as JSON and return a dict.
 
         Returns:
-            Optional[str]: Value associated with the key, or None if not found.
+            tuple[Basic.GetOk, BasicProperties, Any] | None:
+                method_frame, properties, body (bytes or dict if parse_json=True),
+                or None if queue is empty.
         """
-        # TODO:[P_med][Emilia] - Should be used or removed
         queue_name = queue_name or self.queue_name
         
         try:
-            method_frame, _, body = self.channel.basic_get(queue=queue_name, auto_ack=True)
-            if method_frame:
-                data = json.loads(body)
-                return data.get(key)
+            method_frame, props, _body = self.channel.basic_get(queue=queue_name, auto_ack=auto_ack)
+            if not method_frame:
+                return None # empty queue
+            
+            if not parse_json:
+                return method_frame, props, _body
+            
+            try:
+                body = json.loads(_body)
+                if not isinstance(body, dict):
+                    raise ValueError("[RabbitMQ] JSON is not an object.")
+                return method_frame, props, body
+            except Exception as e:
+                # JSON decode error or not a dict
+                logger.error(f"[RabbitMQ] JSON decode error: {e}. Enqueuing to Fail Queue.")
+                try: 
+                    message = {"Body": _body, "reason": f"error: bad_payload {e}"}
+                    self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=message)
+                finally:
+                    try:
+                        self.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
+                    except Exception as ack_err:
+                        logger.warning(f"[RabbitMQ] Failed to ack bad JSON message: {ack_err}")
+
+                return None # seems nothing is usable
+            
         except Exception as e:
             logger.error(f"[RabbitMQ] Failed to fetch next message from '{queue_name}': {e}")
-        return None
+            return None
+
+    def ack(self, delivery_tag: int) -> None:
+        try:
+            # logger.debug(f"Message acked with delivery tag: {delivery_tag}")
+            self.channel.basic_ack(delivery_tag=delivery_tag)
+        except Exception as e:
+            logger.warning(f"[RabbitMQ] Failed to ack {delivery_tag}: {e}")
+
+    def nack(self, delivery_tag: int, requeue: bool = True) -> None:
+        try:
+            self.channel.basic_nack(delivery_tag=delivery_tag, requeue=requeue)
+        except Exception as e:
+            logger.warning(f"[RabbitMQ] Failed to nack {delivery_tag}: {e}")
+
 
     def remove_queue(self, queue_name: str = None):
         """Remove the managed queue.
@@ -217,6 +257,7 @@ class RabbitMQ:
             logger.info(f"[RabbitMQ] {queue_name} is not empty. Draining to 'fail_queue'.")
             leftovers = []
             while True:
+                
                 method_frame, _, body = self.channel.basic_get(queue=queue_name, auto_ack=True)  # TODO:[P_Med][] -  IS this not dangerous? auto acking all? what if anything happens while here? lost tasks or?
                 if not method_frame:
                     break

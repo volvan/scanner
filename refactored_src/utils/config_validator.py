@@ -1,7 +1,7 @@
 import os
 
 from infrastructure.RabbitMQ import RabbitMQ
-from config.scan_config import PORTS_FILE,TARGETS_FILE, FETCH_RIX, ALL_ADDR_QUEUE
+from config.scan_config import PORTS_FILE,TARGETS_FILE, FETCH_RIX, ALL_ADDR_QUEUE, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE
 from utils.block_handler import fetch_rix_blocks
 from utils.ports_handler import read_ports_file
 
@@ -16,7 +16,8 @@ class ConfigValidator:
 
         ConfigValidator._check_required_values()
         ConfigValidator._check_required_files()
-        ConfigValidator._check_queue_status()
+        ConfigValidator._check_rmq_queues()
+
 
     @staticmethod
     def _check_required_values():
@@ -51,13 +52,17 @@ class ConfigValidator:
         
 
     @staticmethod
-    def _check_queue_status():
-        """Verifies on the RMQ queue. """
+    def _check_rmq_queues():
+        """Verifies the the RMQ queue."""
 
         try:
-            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
+            # Ensure (create) all the main queues so they exist
+            for q in [ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE]:
+                with RabbitMQ(q) as rmq:
+                    rmq.declare_queue(q)
 
-                # Verify its empty, if not we cant start the application
+            # Verify its empty, if not we cant start the application
+            with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                 tasks_remaining = rmq_conn.tasks_in_queue()
                 if tasks_remaining > 0:
                     raise RuntimeError(f"[ConfigValidator] Queue '{ALL_ADDR_QUEUE}' already contains {tasks_remaining} tasks. Startup halted.")
