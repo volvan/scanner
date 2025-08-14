@@ -116,11 +116,9 @@ class QueryHandler:
         """
         
         # Ensure required fields are present
-        req_columns = [
-            'ip', 'host_state'
-        ]
+        req_columns = ['ip', 'host_state']
         if not all(k in task for k in req_columns):
-            logger.error("[QueryHandler] insert_host_result called with malformed task.")
+            logger.warning(f"[QueryHandler] insert_host_result task payload did not include required columns in task: {task!r}")
             return None
 
         logger.debug(f"[QueryHandler] Inserting host results task: {task}")
@@ -129,6 +127,9 @@ class QueryHandler:
         except Exception as e:
             logger.error(f"[QueryHandler] IP encryption failed: {e}")
             return
+        
+        now_ts = get_current_timestamp() # last_scanned_ts
+        duration = float(task.get('probe_duration')) if task.get('probe_duration') else None,
 
         sql_query = """
             UPDATE Hosts
@@ -144,8 +145,8 @@ class QueryHandler:
             task.get('probe_method'),
             task.get('probe_protocol'),
             task['host_state'],
-            float(task.get('probe_duration')) if task.get('probe_duration') else None,
-            get_current_timestamp(),
+            duration,
+            now_ts,
             encrypted_ip,
         )
 
