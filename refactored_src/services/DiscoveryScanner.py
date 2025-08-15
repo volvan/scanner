@@ -116,7 +116,7 @@ class DiscoveryScanner:
             sys.exit(1)
 
         finally:
-            # 4) Port scan is now done, now we wait for processes
+            # 4) Host discover scan is now done, now we wait for processes
             logger.debug(f"Current running processes for db_hosts: {db_hosts.qsize()} and active processes are: {len(self.active_processes)}")
             logger.info("Discovery Scan done.")
 

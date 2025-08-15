@@ -245,8 +245,8 @@ def whois_block(filename: str) -> dict:
             }
 
             logger.debug(f"[block_handler] WHOIS lookup complete for {cidr}")
-            if filename:
-                time.sleep(WHO_IS_SCAN_DELAY)
+            time.sleep(WHO_IS_SCAN_DELAY)
+
 
         except Exception as e:
             logger.error(f"[block_handler] WHOIS failed for {cidr}: {e}")

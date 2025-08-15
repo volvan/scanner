@@ -118,7 +118,7 @@ class QueryHandler:
         # Ensure required fields are present
         req_columns = ['ip', 'host_state']
         if not all(k in task for k in req_columns):
-            logger.warning(f"[QueryHandler] insert_host_result task payload did not include required columns in task: {task!r}")
+            logger.error(f"[QueryHandler] insert_host_result task payload did not include required columns in task: {task!r}")
             return None
 
         logger.debug(f"[QueryHandler] Inserting host results task: {task}")
@@ -175,7 +175,7 @@ class QueryHandler:
         req_columns = ['ip', 'port', 'port_state', 'port_service', 'port_protocol',
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration']
         if not all(k in task for k in req_columns):
-            logger.warning(f"[QueryHandler] insert_port_result task payload did not include required columns in task: {task!r}")
+            logger.error(f"[QueryHandler] insert_port_result task payload did not include required columns in task: {task!r}")
             return None
 
         # Encrypt IP before inserting

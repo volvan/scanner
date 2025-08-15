@@ -7,7 +7,7 @@ from psycopg2.pool import PoolError
 
 # Configuration
 from config import credentials_config
-from config.scan_config import DB_MAX_CONN, DB_MIN_CONN
+from config.scan_config import DB_MAX_CONN, DB_MIN_CONN, DB_TASK_TIMEOUT
 from config.logging_config import logger
 
 # Services
@@ -30,8 +30,21 @@ class DBWorker:
     _pool_lock = threading.Lock()
     _pool_pid = None
 
+    def __init__(self) -> None:
+        """Acquire a database connection from the pool."""
+        self._returned = False
+
+        # ensure pool exists (handles its own locking)
+        DBWorker._initialize_pool()
+
+        # get a connection (briefly lock to be safe)
+        with DBWorker._pool_lock:
+            self._conn: connection = DBWorker._pool.getconn()
+            logger.debug("[DBWorker] Acquired DB connection from pool.")
+
+
     @classmethod
-    def initialize_pool(cls) -> None:
+    def _initialize_pool(cls) -> None:
         """Initialize the shared PostgreSQL connection pool.
 
         Raises:
@@ -53,6 +66,16 @@ class DBWorker:
         # worker_pid = str(os.getpid())
         
         with cls._pool_lock:
+            # if we forked, close inherited sockets
+            if cls._pool_pid and cls._pool_pid != os.getpid():
+                try: cls._pool.closeall()
+                except Exception:
+                    pass
+                cls._pool = None
+            
+            if cls._pool is not None and cls._pool_pid == os.getpid():
+                return  # already good for this process
+            
             try:
                 cls._pool = ThreadedConnectionPool(
                     minconn=DB_MIN_CONN, # Min connections to PSQL
@@ -70,25 +93,6 @@ class DBWorker:
                 logger.error(f"[DBWorker] Pool initialization failed: {e}")
                 raise
 
-    def __init__(self) -> None:
-        """Acquire a database connection from the pool."""
-        self._returned = False
-
-#        if DBWorker._pool_pid != os.getpid():
-#            if DBWorker._pool:  # gently close the inherited sockets
-#                DBWorker._pool.closeall()
-#            DBWorker.initialize_pool()
-
-        if DBWorker._pool is None or DBWorker._pool_pid != os.getpid():
-            DBWorker._pool = None
-            DBWorker.initialize_pool()
-        try:
-            self._conn: connection = DBWorker._pool.getconn()
-            logger.debug("[DBWorker] Acquired DB connection from pool.")
-        except Exception as e:
-            logger.error(f"[DBWorker] Failed to acquire connection: {e}")
-            raise
-        return
 
     def __enter__(self):
         """Support context manager entry (with-statement)."""
@@ -101,18 +105,16 @@ class DBWorker:
             return
 
         # Mark that it has been returned
+        if self._returned:
+            return
         self._returned = True
-        # if DBWorker._pool_pid != os.getpid():
-        #     if DBWorker._pool: # gently close the inherited sockets
-        #         DBWorker._pool.closeall()
+
 
         if DBWorker._pool is None:
             logger.warning("[DBWorker] close() called but pool not initialized.")
-            raise AssertionError('Issues in [DBWorker].close() for "if DBWorker._pool is None:"')
             return
         if not getattr(self, '_conn', None):
             logger.warning("[DBWorker] close() called but no connection to return.")
-            raise AssertionError('Issues in [DBWorker].close() for `if not getattr(self, \'connection\', None)`')
             return
         try:
             DBWorker._pool.putconn(self._conn)
@@ -131,7 +133,7 @@ class DBWorker:
         if cls._pool:
             cls._pool.closeall()
             cls._pool = None
-            logger.info("[DBWorker] Connection pool closed")
+            logger.info("[DBWorker] Connection pool closed.")
 
 
     def _execute_sql(self, query: str, params=None, fetch: bool = False) -> (list[tuple] | int):
@@ -148,6 +150,7 @@ class DBWorker:
         """
         try:
             with self._conn.cursor() as cur:
+                # cur.execute("SET LOCAL statement_timeout = %s", (DB_TASK_TIMEOUT,)) # timeout for this transaction only
                 cur.execute(query, params)
                 if fetch:
                     result = cur.fetchall()
@@ -161,11 +164,9 @@ class DBWorker:
 
         except Exception as e:
             # roll back on any error to keep the connection in a clean state
-            try:
-                self._conn.rollback()
+            try: self._conn.rollback()
             except Exception as rollback_err:
                 logger.error(f"[DBWorker] rollback failed: {rollback_err}")
-
             logger.exception(f"[DBWorker] execute_sql failed: {e}")
             raise
 

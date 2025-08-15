@@ -58,7 +58,6 @@ def main():
         logger.error(f"Invalid SCAN_TYPE '{SCAN_TYPE}'. Available types: {tuple(scan_methods)}. Exiting.")
         sys.exit(1)
 
-    logger.info(f"Initializing '{SCAN_TYPE}' scan.")
 
     # Run the config validator to validate all in scan_config
     try:
@@ -69,6 +68,7 @@ def main():
 
     # Run method based on SCAN_TYPE value
     try:
+        logger.info(f"Initializing '{SCAN_TYPE}' scan.")
         scan_methods[SCAN_TYPE]()
     except Exception as e:
         logger.error(f"An unexpected exception of type {type(e).__name__}: {e}")

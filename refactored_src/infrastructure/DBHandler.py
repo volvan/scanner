@@ -1,6 +1,8 @@
 import threading
 import queue
 from multiprocessing import JoinableQueue
+from itertools import chain
+
 
 from infrastructure.RabbitMQ import RabbitMQ
 from infrastructure.DBWorker import DBWorker
@@ -16,6 +18,9 @@ thread_local = threading.local()
 
 # TODO:[P_High][] -  Inserting results to database should be in batches (per row now and its very expensive with 'execute_query_model' after every record)
 
+# TODO:[P_Med_ack][] - ISSUE: tasks were being dequeued from the queue, and then ack'ed before it was written to database.
+#       .. Meaning that if the program stops or errors acured, the tasks get lost because they had been ack'ed
+#       .. It should be that they are ack'ed OR nack'ed AFTER probe and write to database or in worst case, log everything being flushed with .join so it can be checked later or someth
 
 class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
     """Dequeues from the db_hosts and db_ports in-memory queues to the database with thread pool."""
@@ -136,11 +141,10 @@ class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
             except Exception as e:
                 logger.error(f"[DBHandler] {label}-consumer {thread_id} failed: {e}")
                 with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-                    message = {"ip": record["ip"], "port": record["port"], "reason": f"DBHandler_error: {e}"}
+                    message = {"ip": record.get("ip"), "port": record.get("port"), "reason": f"DBHandler_error: {e}"}
                     rmq_fail_conn.enqueue_to_queue(message=message)
-            finally:
+            finally:                
                 # thread is stopping so we mark the task done and return the connection so .join() on the queue can unblock
-                # TODO:[P_Med][] - if an error occurs, the record is still dropped with task_done() still called and nothing is re‑queued. A db unique‑violation or timeout will therefor silently discards scan results
                 db_queue.task_done()
 
         # Loop exited and thread is shutting down. Return connection to pool
@@ -155,22 +159,25 @@ class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
         # ask threads to exit
         self.stop_signal.set()
 
-        # block until queues empty
-        logger.info("[DBHandler] Stop signal sent. Waiting for [host] threads to exit.")
+        # Let threads drain queues (blocks until queues empty)
+        logger.info("[DBHandler] Stop signal sent. Waiting for threads to exit.")
         db_hosts.join()
-        logger.debug("[DBHandler] .. Waiting for [ports] threads to exit.")
         db_ports.join()
-        logger.debug("[DBHandler] All threads exited.")
+        logger.info("[DBHandler] All threads drained.")
 
-        # Wait until every writer thread (hosts and ports) has exited
-        for writer_thread in (*self.host_threads, *self.port_threads): # TODO:[P_High][] - or mutable with self.host_threads + self.port_threads ?
-        # for writer_thread in (self.host_threads + self.port_threads):
-            logger.debug(f"[DBHandler] Writer thread {writer_thread} exited.")
-            writer_thread.join(timeout=2)
+        # Now close (join) the threads (blocks until every writer thread exits)
+        for thread in chain(self.host_threads, self.port_threads):
+            thread.join(timeout=2)
+            logger.debug(f"[DBHandler] Writer thread {thread.name} exited={not thread.is_alive()}.")
+        # for any thread that didn't exit in time
+        for thread in chain(self.host_threads, self.port_threads):
+            if thread.is_alive():
+                logger.warning(f"[DBHandler] {thread.name} still alive after timeout.")
 
+        # now clear registries
+        self.host_threads.clear()
+        self.port_threads.clear()
 
-
-# TODO:[P_High_ack][] - ISSUE: tasks were being dequeued from the queue, and then ack'ed (sometimes even auto-acked). But it didn't yet write to database.
-#       .. Meaning that if the program stops or errors acured, the tasks get lost because they had been ack'ed.. when it should be nack'ed to beguin with
-#       .. It should be that they are ack'ed OR nack'ed AFTER probe and write to database or in worst case, log everything being flushed with .join so it can be checked later or someth
-#  If the DB insert fails we lose the task In process_task, the code calls db_hosts.put(record) before ch.basic_ack. If the DB thread crashes, tasks may be ACKed but never committed, losing data.
+        # Lastly, close the pool
+        DBWorker.close_all()
+        

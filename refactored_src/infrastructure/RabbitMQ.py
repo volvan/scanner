@@ -16,9 +16,6 @@ from config.scan_config import FAIL_QUEUE
 sys.excepthook = log_exception
 
 # TODO:[P_Low][Emilia] -  rename RMQ_Handler
-
-# NOTE: 3 connections, then "[PortScanner] Ready to manag.." BEFORE going in the launch_discovery_scan_pipeline function..
-
 # ..maybe (TODO)have a worker_pipeline funciton - like consumer, producer vibes
 
 

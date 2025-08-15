@@ -36,6 +36,7 @@ class ServiceManager:
         duration = duration_timestamp(start_ts, done_ts)
 
         logger.info(f"'ServiceManager.launch_discovery_scan_pipeline()' done at: {done_ts}. The duration is: {duration}.")
+        print(f"'Discovery scan' done at: {done_ts}. The duration is: {duration}.")
 
 
     def start_port_scan(self):
@@ -53,6 +54,7 @@ class ServiceManager:
         duration = duration_timestamp(start_ts, done_ts)
 
         logger.info(f"'ServiceManager.launch_port_scan_pipeline()' done at: {done_ts}. The duration is: {duration}.")
+        print(f"'Port scan' done at: {done_ts}. The duration is: {duration}.")
 
 
     def start_ip_port_scan(self):
