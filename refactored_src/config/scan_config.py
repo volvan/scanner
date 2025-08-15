@@ -38,8 +38,15 @@ SCAN_NATION:str       = "IS"                                          # The Nati
 FETCH_RIX:bool        = False                                         # (DEF: True)  - If True, fetch IPs from RIX.is
 FAIL_QUEUE:str        = f"{SCAN_NATION}.fail_queue"                   # The RabbitMQ queue name that contains ip or (ip,port) pairs that encountered an error or failed while the scan was processing
 
+TOTAL_MAX_WORKERS     = 10                                            # (DEF: 250)  - Number of workers/processes to spawn 
 SCAN_DELAY:float      = 0.5                                           # Delay (sec) between scan attempts       # TODO: should it be used so often? (10 times in the code currently)
-MAX_BATCH_PROCESSES:int = 100                                         # (DEF: 100)   - Spawn new batch processes in "start_consuming", up to max limit reached # TODO:[][P_High] is this processes as in workers or proceses as of amount of batches ( rename with worker if the first one atleast)
+
+# Batches
+BATCH_WORKERS_PER_QUEUE_MAX = 1                                       # (DEF: 100)  - Workers concurrently working on tasks per queue 
+BATCH_QUEUES_ACTIVE_MAX = 5                                           #             - Max batches that exist concurrently
+BATCH_CREATED_QUEUES_MAX = 10                                         # Extra prebuilt batches waiting for workers to work on them (buffer)
+
+BATCH_QUEUE_TIMEOUT_SEC = 300                                         # Max time allowed per batch queue        # TODO: IF this is what i think it is, its the max time a process can live when its working on a batch.. if so it should be implemented in port scan also right? or that all processes (in batch or not) should have a timeout? the name of this const is atleast not descriptive.. it seems to me at first glance that port x on all ips is = batch - meaning that a process can scan all those targets only in this timeframe
 # ------------------------------------------------------------------------------
 
 
@@ -49,47 +56,43 @@ ALL_ADDR_QUEUE = f"{SCAN_NATION}.all_addr"                            # The Rabb
 ALIVE_ADDR_QUEUE = f"{SCAN_NATION}.alive_addr"                        # The RabbitMQ queue name that contains all IPs discovered as 'alive' 
 DEAD_ADDR_QUEUE = f"{SCAN_NATION}.dead_addr"                          # The RabbitMQ queue name that contains all IPs discovered as 'dead'
 
-WORKERS = 5                                                           # (DEF: 250)  - Number of workers to spawn
-THRESHOLD = 2                                                         # Direct vs batch mode threshold
-BATCH_SIZE = 4                                                        # (DEF: 500)  - Tasks (IPs) per batch
-IP_MAX_BATCH_AMOUNT = 5                                               #             - Max batches that exist concurrently # TODO: is this even in use
+THRESHOLD = 20                                                        # Direct vs batch mode threshold
 WHO_IS_SCAN_DELAY = 2                                                 # (DEF: 2)    - Delay between whois lookups       # TODO: verify correct use
+BATCH_QUEUE_SIZE_MAX = 8                                              # (DEF: 500)  - Tasks (IPs) per batch
+
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
 # --------------------------- PORT SCAN PARAMS ---------------------------------
-ALL_PORTS_QUEUE = f"{SCAN_NATION}.all_ports"                          # The RabbitMQ queue name that contains all ports to scan 
-PRIORITY_PORTS_QUEUE = f"{SCAN_NATION}.priority_ports"                # The RabbitMQ queue name that contains all ports to scan when USE_PRIORITY_PORTS is True
-
 USE_PRIORITY_PORTS = False                                            # Set this to True if ports file consists of priority ports
 
-PORT_MAX_BATCH_AMOUNT = 100                                           # Concurrent port batches                 # TODO: verify correctly used
-BATCH_TIMEOUT_SEC = 300                                               # Max time allowed per batch queue        # TODO: IF this is what i think it is, its the max time a process can live when its working on a batch.. if so it should be implemented in port scan also right? or that all processes (in batch or not) should have a timeout? the name of this const is atleast not descriptive.. it seems to me at first glance that port x on all ips is = batch - meaning that a process can scan all those targets only in this timeframe
+ALL_PORTS_QUEUE = f"{SCAN_NATION}.all_ports"                          # The RabbitMQ queue name that contains all ports to scan 
+PRIORITY_PORTS_QUEUE = f"{SCAN_NATION}.priority_ports"                # The RabbitMQ queue name that contains all ports to scan when USE_PRIORITY_PORTS is True
 
 PROBE_JITTER_MAX = float(0.1)                                         # jitter to add on top of SCAN_DELAY (in seconds) # TODO:[emilia] verify
 
 NMAP_RETRY_DELAY = 200                                                # (DEF: 200ms)  - Minimum delay between two probes to the same port
 NMAP_RETRY_ATTEMPTS = 1                                               # How many extra probes may be sent if there's no reply (excluding the initial probe)
-T1_TIMEOUT = 15                                                       # (helper)    - T1 probes wait up to 15s for a response by design
+_T1_TIMEOUT = 15                                                      # (helper)    - T1 probes wait up to 15s for a response by design
 NMAP_PROBE_TIMEOUT = (                                                # (DEF: 60) The scan will have this max seconds to scan its target port on any ip before going for timeout
     (NMAP_RETRY_DELAY / 1000) * (1 + NMAP_RETRY_ATTEMPTS)                   # delay * retry attempts
-  + (T1_TIMEOUT * (1 + NMAP_RETRY_ATTEMPTS))                                # RTT waits * retry attempts
+  + (_T1_TIMEOUT * (1 + NMAP_RETRY_ATTEMPTS))                               # RTT waits * retry attempts
   + 30                                                                      # the added slack
 ) 
 # ------------------------------------------------------------------------------
 
 
-
 # ----- DATABASE WRITER  -------------------------------------------------------    # TODO: not all in use atm, should implement 
 DB_MIN_CONN = 1                                                       # Min number of PSQL connections in the thread pool
 DB_MAX_CONN = 20                                                      # Max number of PSQL connections in the thread pool
+
 DB_HOST_WRITERS = 4                                                   # Amount of database writer threads (pulling from db_hosts)
-DB_PORT_WRITERS = 4                                                   # Amount of database writer threads (pulling from db_ports)
+DB_PORT_WRITERS = 5                                                   # Amount of database writer threads (pulling from db_ports)
+
 DB_MAX_BATCH_SIZE = 500                                               # Max db rows to flush in each iteration from the db_* queues to the database
+DB_TASK_TIMEOUT = 15_000                                              # (ms) The task the worker is executing has a timeout of this 
 DB_BATCH_TIMEOUT = float(0.7)                                         # Flush at least this often from the db_* queues to the database or until DB_BATCH_SIZE is reached
 # ------------------------------------------------------------------------------
-
-
 
 
 

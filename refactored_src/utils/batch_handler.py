@@ -108,21 +108,21 @@ class PortBatchHandler:
             rmq_conn.ack(tag)# success path, we accepted this port
             logger.debug(f"[PortBatchHandler] used_ports size={len(self.used_ports)}")
 
-        # TODO:[P_High][] -  this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
-        # TODO:[P_Low][] - should this not be in similar logic as the batch creation in ip scan? i know the message is not the same but else it should follow in simar terms, no?
+            # TODO:[P_High][] -  this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
+            # TODO:[P_Low][] - should this not be in similar logic as the batch creation in ip scan? i know the message is not the same but else it should follow in simar terms, no?
 
-        # ips = self._load_all_ips_once(queue_name=ip_queue)
-        self._load_all_ips_once(queue_name=ip_queue)
+            # ips = self._load_all_ips_once(queue_name=ip_queue)
+            self._load_all_ips_once(queue_name=ip_queue)
 
-        if not self.ips_cache:
-            logger.warning("[PortBatchHandler] No alive IPs to batch against.")
-            return None
+            if not self.ips_cache:
+                logger.warning("[PortBatchHandler] No alive IPs to batch against.")
+                return None
 
-        prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[P_High][Emilia] -  Look at this
-        batch_name = f"{scan_config.SCAN_NATION}.{prefix}_{port}"
+            prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[P_High][Emilia] -  Look at this
+            batch_name = f"{scan_config.SCAN_NATION}.{prefix}_{port}"
 
-        encrypted_ips = reservoir_of_reservoirs(self.ips_cache)
-        for ip in encrypted_ips:
-            rmq_conn.enqueue_to_queue(queue_name=batch_name, message={"ip": ip, "port": port})
-        logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {len(self.ips_cache)} tasks.")
-        return batch_name
+            encrypted_ips = reservoir_of_reservoirs(self.ips_cache)
+            for ip in encrypted_ips:
+                rmq_conn.enqueue_to_queue(queue_name=batch_name, message={"ip": ip, "port": port})
+            logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {len(self.ips_cache)} tasks.")
+            return batch_name

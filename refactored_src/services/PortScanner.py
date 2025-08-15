@@ -35,9 +35,12 @@ from config.scan_config import (  # noqa: F401
     ALIVE_ADDR_QUEUE,
     FAIL_QUEUE,
     SCAN_NATION,
-    MAX_BATCH_PROCESSES,
+    TOTAL_MAX_WORKERS,
     SCAN_DELAY,
     PROBE_JITTER_MAX,
+    BATCH_WORKERS_PER_QUEUE_MAX,
+    BATCH_QUEUES_ACTIVE_MAX,
+    BATCH_CREATED_QUEUES_MAX,
 )
 sys.excepthook = log_exception
 proc = psutil.Process(os.getpid())
@@ -49,7 +52,9 @@ class PortScanner:
         """laterdo: Docstr."""
         self.infraManager = infraManager
 
-        self.active_processes: list[Process] = [] # TODO:[P_High][] -  should we not close the active processes at some point?
+        # TODO:[P_High][] -  should we not close the active processes at some point?
+        self.active_workers: list[Process] = [] # [(proc, batch_queue)]
+        self.ready_batches: list[str] = []      # created batch queues waiting to be drained
 
     def launch_port_scan_pipeline(self):
         """Main runner."""
@@ -69,7 +74,7 @@ class PortScanner:
             port_start_ts = get_current_timestamp()
 
             # 4) run the scan (blocks until complete)
-            self.start_consuming(queue_name)
+            self.start_consuming(port_queue_name= queue_name)
 
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
@@ -80,7 +85,7 @@ class PortScanner:
         finally:
             # 5) Pipeline is now done, need to wait for every batch process to exit
             logger.info("Port scan pipeline has concluded, now workers continue scanning.")
-            for p in self.active_processes:
+            for p in self.active_workers:
                 p.join()
 
 
@@ -106,7 +111,7 @@ class PortScanner:
 
         finally:
             # 4) Port scan is now done, now we wait for processes
-            logger.debug(f"Current running processes for db_ports: {db_ports.qsize()} and active processes are: {len(self.active_processes)}")
+            logger.debug(f"Current running processes for db_ports: {db_ports.qsize()} and active processes are: {len(self.active_workers)}")
             logger.info("Port scan done.")
 
             # Wait for the db queue to drain (blocks until every port task_done() completed)
@@ -168,10 +173,11 @@ class PortScanner:
         What i observed: this is the method that the worker (coming from _drain_and_exit) is running.
 
         Args:
-            ip (str): IP address to scan.
+            ip_addr (str): IP address to scan.
             port (int): Port to scan.
         """
-        with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn: # fail queue as thats the only queue we route to 
+        
+        with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
             try:
                 # 1) Run the Nmap scan
                 probe = ProbesPortScan(ip_addr, str(port)).scan()
@@ -266,7 +272,6 @@ class PortScanner:
                             rmq_batch_conn.ack(tag)
                         except Exception as e:
                             logger.error(f"[PortScanner] Also failed to send to FAIL_QUEUE: {e}")
-                            # Last resort is to give it back
                             rmq_batch_conn.nack(tag, requeue=True)
 
                     # pause between tasks
@@ -278,58 +283,98 @@ class PortScanner:
             logger.debug(f"Batch worker for queue {batch_queue} has drained and exited the queue.")
 
 
-    def start_consuming(self, main_queue_name: str) -> None:
+    def start_consuming(self, port_queue_name: str) -> None:
         """Start the main port scanning loop using batched multiprocessing.
 
         Args:
             main_queue_name (str): Name of the RabbitMQ queue to pull IPs from.
 
         Notes:
-            Spawns new processes for each port-batch queue up to MAX_BATCH_PROCESSES.
+            Spawns new processes for each port-batch queue up to TOTAL_MAX_WORKERS.
             Waits if memory usage or active processes reach limits.
         """
 
         # TODO:[P_Crit][] -  we can not be working like this.. now its 1 worker per batch and one batch is as large as all alive ips.. 
-        logger.debug(f"[PortScanner] Starting batched port-scan on '{main_queue_name}'")
 
-        while True:
-            self.active_processes = [p for p in self.active_processes if p.is_alive()]
+        try:
+            # Open a shared RMQ connection to check tasks in queue and other small things
+            shared_RMQ_connection = RabbitMQ(port_queue_name)
 
-            if not resource_ok():
-                logger.warning("Memory limit reached; shutting down")
-                sys.exit(1)
-                return
+            # Start port scan and check how many ports to scan
+            total_ports = shared_RMQ_connection.tasks_in_queue()
+            logger.info(f"[PortScanner] Starting batched port-scan on '{port_queue_name}' with {total_ports} ports to scan.")
+            print(f"Scan started for total of {total_ports} Ports.")
 
-            if len(self.active_processes) >= MAX_BATCH_PROCESSES:
-                oldest = self.active_processes[0]
-                oldest.join(timeout=1)
-                continue
+            while True:
+                # self.active_workers = [p for p in self.active_workers if p.is_alive()]
+                
+                # Verify that the CPU and memory is within limits
+                if not resource_ok():
+                    logger.warning("Memory limit reached. Pausing in Port scan")
+                    time.sleep(5)
+                    continue
 
-            batch_queue = PortBatchHandler().create_port_batch(ip_queue=ALIVE_ADDR_QUEUE, port_queue=main_queue_name)
+                # Wait for worker to finish
+                alive: list[multiprocessing.Process] = []
+                for worker in self.active_workers:
+                    if worker.is_alive():
+                        alive.append(worker)
+                    else:
+                        try:
+                            worker.join(timeout=0)   # reap exit status, avoid zombies
+                        except Exception: pass
+                        if worker.exitcode not in (0, None):
+                            # crashed or terminated; queue should have been deleted in _drain_and_exit
+                            logger.warning(f"[PortScanner] Worker {worker.pid} exited with code {worker.exitcode}")
+                self.active_workers = alive
 
-            if not batch_queue:
-                with RabbitMQ(main_queue_name) as rmq_conn:
-                    remaining = rmq_conn.tasks_in_queue()
-                    if remaining == 0:
-                    # if remaining == 0 and not self.active_processes: # TODO:[P_Med][] -  this or that
-                        logger.debug("[PortScanner] All port batches completed.")
+                remaining = shared_RMQ_connection.tasks_in_queue()
+
+                # Stop as nothing is left anywhere
+                if remaining == 0 and not self.ready_batches and not self.active_workers:
+                    logger.debug("[PortScanner] All batches completed.")
+                    break
+
+                # Assign ready batches to free worker slots
+                max_running_allowed = min(TOTAL_MAX_WORKERS, BATCH_QUEUES_ACTIVE_MAX)
+                while self.ready_batches and len(self.active_workers) < max_running_allowed:
+                    batch_queue = self.ready_batches.pop()  # take last (LIFO)
+                    # Create x amount of workers to work on each batch # TODO:[P_High][] - does not support more than 1 worker 
+                    for _ in range(BATCH_WORKERS_PER_QUEUE_MAX):
+                        p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
+                        p.start()
+                        self.active_workers.append(p)
+                        logger.info(f"[PortScanner] Worker started on {batch_queue} "
+                                    f"(Workers running={len(self.active_workers)}/{max_running_allowed}, "
+                                    f"ready batches={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}, "
+                                    f"main queue remaining={remaining})")
+                        
+                # pre create batches exactly up to BATCH_CREATED_QUEUES_MAX concurrently
+                while len(self.ready_batches) < BATCH_CREATED_QUEUES_MAX and remaining > 0:
+                    # batch_queue = self.create_batch() 
+                    batch_queue = PortBatchHandler().create_port_batch(ip_queue=ALIVE_ADDR_QUEUE, port_queue=port_queue_name)
+                    
+                    if not batch_queue:
+                        logger.debug("[PortScanner] Waiting for a free slot to spawn next batch...")
+                        # transient issue, so don't tight-loop
+                        time.sleep(0.5)
                         break
+                    self.ready_batches.append(batch_queue)
+                    logger.debug(f"[PortScanner] Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
 
-                logger.debug("[PortScanner] Waiting for a free slot to spawn next batch...")
-                time.sleep(2)
-                continue
+                # Small backoff to avoid busy loop
+                if self.ready_batches or len(self.active_workers) < max_running_allowed:
+                    time.sleep(0.1)
+                else:
+                    # fully saturated on running; give them time to progress
+                    time.sleep(0.5)
 
-            logger.debug(f"[PortScanner] Spawned batch worker for queue: {batch_queue}")
-            p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
-            p.start()
-            self.active_processes.append(p)
+        finally:
+            shared_RMQ_connection.close()
+            for p in self.active_workers:
+                if p.is_alive():
+                    p.join(timeout=1)
 
-        # TODO:[P_High][] -  is this still needed here?
-        # for p in self.active_processes:
-        #     if p.is_alive():
-        #         p.join(timeout=1)
-
-        # Port scan pipeline has now concluded
 
     def new_targets(self, queue_name: str) -> None:
         """Seed a queue with randomized ports read from a file.

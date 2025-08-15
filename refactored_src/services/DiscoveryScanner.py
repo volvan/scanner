@@ -149,10 +149,7 @@ class DiscoveryScanner:
         """Process a RabbitMQ task.
 
         Args:
-            ch: RabbitMQ channel object.
-            method: Delivery metadata for the message.
-            properties: Message properties.
-            body (bytes): Raw message body containing JSON with "ip" key.
+            ip_addr (str): IP address to scan.
 
         Raises:
             ValueError: If the message payload does not contain an "ip" key.
@@ -272,7 +269,7 @@ class DiscoveryScanner:
 
             logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
 
-            while True:                 # TODO:[P_High][] -  it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT) to make sure it never creates bilions of batches and has an upper bound.. (((mismatches thesis's "check on TOTAL_MAX_WORKERS before creating new batches")))    
+            while True:
                 # Verify that the CPU and memory is within limits
                 if not resource_ok():
                     logger.warning("Memory high. Pausing batch creation")
@@ -290,7 +287,7 @@ class DiscoveryScanner:
                         except Exception: pass
                         if worker.exitcode not in (0, None):
                             # crashed or terminated; queue should have been deleted in _drain_and_exit
-                            logger.warning(f"[Discovery] Worker {worker.pid} exited with code {worker.exitcode}")
+                            logger.warning(f"[DiscoveryScanner] Worker {worker.pid} exited with code {worker.exitcode}")
                 self.active_workers = alive
 
                 remaining = shared_RMQ_connection.tasks_in_queue()
@@ -303,16 +300,16 @@ class DiscoveryScanner:
                 # Assign ready batches to free worker slots
                 max_running_allowed = min(TOTAL_MAX_WORKERS, BATCH_QUEUES_ACTIVE_MAX)
                 while self.ready_batches and len(self.active_workers) < max_running_allowed:
-                    batch_queue = self.ready_batches.pop()  # take last (LIFO); use pop(0) for FIFO
-                    # Create x amount of workers to work on each batch
+                    batch_queue = self.ready_batches.pop()  # take last (LIFO)
+                    # Create x amount of workers to work on each batch # TODO:[P_High][] - does not support more than 1 worker 
                     for _ in range(BATCH_WORKERS_PER_QUEUE_MAX):
                         p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
                         p.start()
                         self.active_workers.append(p)
-                        logger.info(f"[Discovery] Worker started on {batch_queue} "
-                                    f"(running={len(self.active_workers)}/{max_running_allowed}, "
-                                    f"ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}, "
-                                    f"rmq_remaining={remaining})")
+                        logger.info(f"[DiscoveryScanner] Worker started on {batch_queue} "
+                                    f"(Workers running={len(self.active_workers)}/{max_running_allowed}, "
+                                    f"ready batches={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}, "
+                                    f"main queue remaining={remaining})")
 
                 # pre create batches exactly up to BATCH_CREATED_QUEUES_MAX concurrently
                 while len(self.ready_batches) < BATCH_CREATED_QUEUES_MAX and remaining > 0:
@@ -328,7 +325,7 @@ class DiscoveryScanner:
                     self.ready_batches.append(batch_queue)
                     # rough decrement (we re-check remaining each loop anyway)
                     remaining = max(0, remaining - BATCH_QUEUE_SIZE_MAX)
-                    logger.debug(f"[Discovery] Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
+                    logger.debug(f"[DiscoveryScanner] Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
 
                 # Small backoff to avoid busy loop
                 if self.ready_batches or len(self.active_workers) < max_running_allowed:
@@ -339,8 +336,6 @@ class DiscoveryScanner:
 
         finally:
             shared_RMQ_connection.close()
-
-            # TODO:[P_High][] -  is this still needed here? ( its also in port scanner)
             for p in self.active_workers:
                 if p.is_alive():
                     p.join(timeout=1)

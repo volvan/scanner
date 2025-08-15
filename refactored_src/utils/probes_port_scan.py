@@ -144,7 +144,7 @@ class ProbesPortScan:
  
     
     def _scan_intense_mode(self):
-        """The default NMAP scan."""
+        """The default NMAP scan command with flags."""
 
         # TODO:[P_Low][] - look into the --host-timeout, should we use it or no?
         nmap_cmd = [
@@ -164,7 +164,7 @@ class ProbesPortScan:
     
 
     def _scan_light_mode(self):
-        """The default NMAP scan without service version flag "-sV" and no retry's."""
+        """The default NMAP scan command with flags, BUT without service version flag "-sV" and no retry's."""
         nmap_cmd = [
             "nmap",
             "-sT",
