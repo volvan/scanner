@@ -44,12 +44,15 @@ from config.scan_config import (  # noqa: F401, E402
     ALL_ADDR_QUEUE,
     TARGETS_FILE,
     DEAD_ADDR_QUEUE,
-    BATCH_SIZE,
+    BATCH_QUEUE_SIZE_MAX,
     FAIL_QUEUE,
-    MAX_BATCH_PROCESSES,
+    TOTAL_MAX_WORKERS,
     SCAN_DELAY,
     THRESHOLD,
-    BATCH_TIMEOUT_SEC,
+    BATCH_QUEUE_TIMEOUT_SEC,
+    BATCH_WORKERS_PER_QUEUE_MAX,
+    BATCH_QUEUES_ACTIVE_MAX,
+    BATCH_CREATED_QUEUES_MAX,
     FETCH_RIX
 )
 
@@ -60,8 +63,10 @@ class DiscoveryScanner:
     def __init__(self, infraManager: InfrastructureManager):
         """laterdo: Docstr."""
         self.infraManager = infraManager
-        
-        self.active_processes: list[Process] = [] # TODO:[P_High][] -  should we not close the active processes at some point?
+
+        # TODO:[P_High][] -  should we not close the active processes at some point?
+        self.active_workers: list[Process] = [] # [(proc, batch_queue)]
+        self.ready_batches: list[str] = []      # created batch queues waiting to be drained
         self.batch_id_generator = itertools.count(1)
 
     def launch_discovery_scan_pipeline(self):
@@ -91,7 +96,7 @@ class DiscoveryScanner:
         finally:
             # 4) Pipeline is now done, need to wait for every batch process to exit
             logger.info("Host Discovery scan pipeline has concluded, now workers continue scanning.")
-            for p in self.active_processes:
+            for p in self.active_workers:
                 p.join()
     
         # Now start the cleanup after the scan has concluded
@@ -117,13 +122,12 @@ class DiscoveryScanner:
 
         finally:
             # 4) Host discover scan is now done, now we wait for processes
-            logger.debug(f"Current running processes for db_hosts: {db_hosts.qsize()} and active processes are: {len(self.active_processes)}")
+            logger.debug(f"Current running processes for db_hosts: {db_hosts.qsize()} and active processes are: {len(self.active_workers)}")
             logger.info("Discovery Scan done.")
 
             # Wait for the db queue to drain (blocks until every task_done() completed)
             logger.info(f"[DiscoveryScanner] Waiting for db_hosts queue to empty.. Currently there are {db_hosts.qsize()} items in db_hosts queue.")
             self.infraManager.stop()
-
 
     def _update_summary(self, discovery_start_ts, discovery_done_ts, scanned_blocks):
         try:
@@ -140,7 +144,6 @@ class DiscoveryScanner:
                     logger.info("Summary table updated for scan.")
         except Exception as e:
             logger.error(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Failed to write discovery summary: {e}")
-
 
     def process_task(self, ip_addr: str) -> None:
         """Process a RabbitMQ task.
@@ -197,7 +200,6 @@ class DiscoveryScanner:
         # Add a small delay between tasks to control scan rate
         time.sleep(SCAN_DELAY)
 
-
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
 
@@ -253,76 +255,95 @@ class DiscoveryScanner:
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode."""
 
-        shared_RMQ_connection = RabbitMQ(ALL_ADDR_QUEUE)
+        try:
+            # Open a shared RMQ connection to check tasks in queue and other small things
+            shared_RMQ_connection = RabbitMQ(ALL_ADDR_QUEUE)
 
-        # Start discovery and check how many targets to scan
+            # Start discovery and check how many targets to scan
+            total_tasks = shared_RMQ_connection.tasks_in_queue()
+            logger.info(f"[DiscoveryScanner]  Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
+            print(f"Scan started for total of {total_tasks} IPs.")
 
-        total_tasks = shared_RMQ_connection.tasks_in_queue()
-        logger.info(f"[DiscoveryScanner]  Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
-        print(f"Scan started for total of {total_tasks} IPs.")
-
-        if total_tasks < THRESHOLD:
-            # TODO:[P_Low][] -  This is almost never used.. does it really need a whole class by itself?
-            logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
-            WorkerHandlerLogic(queue_name=ALL_ADDR_QUEUE, process_callback=self.process_task).start()
-            return
-
-        logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
-
-        while True:                 # TODO:[P_High][] -  it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT created as example) to make sure it never creates bilions of batches and has an upper bound.. (((mismatches thesis's "check on MAX_BATCH_PROCESSES before creating new batches")))    
-            # Verify that the CPU and memory is within limits
-            if not resource_ok():
-                logger.warning("Memory high. Pausing batch creation")
-                time.sleep(5) ## TODO:[P_Med][] -  - Sleep or exit? (It was exit, just changed it.)
+            if total_tasks < THRESHOLD:
+                # TODO:[P_Low][] -  This is almost never used.. does it really need a whole class by itself?
+                logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
+                WorkerHandlerLogic(queue_name=ALL_ADDR_QUEUE, process_callback=self.process_task).start()
                 return
-            
-            # 
-            if len(self.active_processes) >= MAX_BATCH_PROCESSES:
-                # Wait 1s on the oldest process
-                oldest = self.active_processes[0]
-                oldest.join(timeout=1)
-                # Loop back and prune again
-                continue
-            
-            remaining = shared_RMQ_connection.tasks_in_queue()
 
-            self.active_processes = [p for p in self.active_processes if p.is_alive()]
+            logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
 
-            if remaining == 0 and not self.active_processes:
-                logger.debug("[DiscoveryScanner] All batches completed.")
-                break
+            while True:                 # TODO:[P_High][] -  it should NOT create all the batches.. it should check on (MAX_BATCH_AMOUNT) to make sure it never creates bilions of batches and has an upper bound.. (((mismatches thesis's "check on TOTAL_MAX_WORKERS before creating new batches")))    
+                # Verify that the CPU and memory is within limits
+                if not resource_ok():
+                    logger.warning("Memory high. Pausing batch creation")
+                    time.sleep(5)
+                    continue
+                
+                # Wait for worker to finish
+                alive: list[multiprocessing.Process] = []
+                for worker in self.active_workers:
+                    if worker.is_alive():
+                        alive.append(worker)
+                    else:
+                        try:
+                            worker.join(timeout=0)   # reap exit status, avoid zombies
+                        except Exception: pass
+                        if worker.exitcode not in (0, None):
+                            # crashed or terminated; queue should have been deleted in _drain_and_exit
+                            logger.warning(f"[Discovery] Worker {worker.pid} exited with code {worker.exitcode}")
+                self.active_workers = alive
 
-            if remaining == 0:
-                logger.debug(f"[DiscoveryScanner] Remaining tasks are 0, but active processes are {self.active_processes}.")
-                self.active_processes[0].join(timeout=1)
-                continue
+                remaining = shared_RMQ_connection.tasks_in_queue()
 
-            if 0 < remaining < BATCH_SIZE and not self.active_processes:
-                logger.debug(f"[DiscoveryScanner] Final tail of {remaining} tasks; creating last batch.")
-                batch_queue = self.create_batch(amount=remaining)
-                if batch_queue:
-                    p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
-                    p.start()
-                    p.join() # This is the last set of tasks and we want to block until it finishes before breaking out of the loop
-                break
+                # Stop as nothing is left anywhere
+                if remaining == 0 and not self.ready_batches and not self.active_workers:
+                    logger.debug("[DiscoveryScanner] All batches completed.")
+                    break
 
-            batch_queue = self.create_batch()
-            if not batch_queue:
-                logger.warning("[DiscoveryScanner] No batch created - retrying.")
-                time.sleep(3)
-                continue
+                # Assign ready batches to free worker slots
+                max_running_allowed = min(TOTAL_MAX_WORKERS, BATCH_QUEUES_ACTIVE_MAX)
+                while self.ready_batches and len(self.active_workers) < max_running_allowed:
+                    batch_queue = self.ready_batches.pop()  # take last (LIFO); use pop(0) for FIFO
+                    # Create x amount of workers to work on each batch
+                    for _ in range(BATCH_WORKERS_PER_QUEUE_MAX):
+                        p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
+                        p.start()
+                        self.active_workers.append(p)
+                        logger.info(f"[Discovery] Worker started on {batch_queue} "
+                                    f"(running={len(self.active_workers)}/{max_running_allowed}, "
+                                    f"ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}, "
+                                    f"rmq_remaining={remaining})")
 
-            logger.info(f"[DiscoveryScanner] Spawned batch worker for queue: {batch_queue}")
-            p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
-            p.start()
-            self.active_processes.append(p)
+                # pre create batches exactly up to BATCH_CREATED_QUEUES_MAX concurrently
+                while len(self.ready_batches) < BATCH_CREATED_QUEUES_MAX and remaining > 0:
+                    if BATCH_QUEUE_SIZE_MAX > remaining:
+                        batch_queue = self.create_batch(amount=remaining) 
+                    else:
+                        batch_queue = self.create_batch() 
+                        
+                    if not batch_queue:
+                        # transient issue, so don't tight-loop
+                        time.sleep(0.5)
+                        break
+                    self.ready_batches.append(batch_queue)
+                    # rough decrement (we re-check remaining each loop anyway)
+                    remaining = max(0, remaining - BATCH_QUEUE_SIZE_MAX)
+                    logger.debug(f"[Discovery] Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
 
-        shared_RMQ_connection.close()
+                # Small backoff to avoid busy loop
+                if self.ready_batches or len(self.active_workers) < max_running_allowed:
+                    time.sleep(0.1)
+                else:
+                    # fully saturated on running; give them time to progress
+                    time.sleep(0.5)
 
-        # TODO:[P_High][] -  is this still needed here? ( its also in port scanner)
-        for p in self.active_processes:
-            if p.is_alive():
-                p.join(timeout=1)
+        finally:
+            shared_RMQ_connection.close()
+
+            # TODO:[P_High][] -  is this still needed here? ( its also in port scanner)
+            for p in self.active_workers:
+                if p.is_alive():
+                    p.join(timeout=1)
 
     def new_targets(self) -> str:
         """Prepare the targeted IP addresses, randomize them, and enqueue into batches.
@@ -344,7 +365,7 @@ class DiscoveryScanner:
             # Lookup with WHOIS on each block
             whois_info = whois_block(filename=filename)
 
-            def chunked(iterator, size=BATCH_SIZE):  # noqa: D103
+            def chunked(iterator, size=BATCH_QUEUE_SIZE_MAX):  # noqa: D103
                 it = iter(iterator)
                 while True:
                     batch = list(itertools.islice(it, size))
@@ -449,8 +470,7 @@ class DiscoveryScanner:
             "probe_duration": None,
         }
             
-
-    def create_batch(self, amount:int = BATCH_SIZE) -> str | None:
+    def create_batch(self, amount:int = BATCH_QUEUE_SIZE_MAX) -> str | None:
         """Create a batch queue from tasks pulled from the main queue.
 
         Stream tasks from all_IP queue to the batch_queue.
