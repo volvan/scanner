@@ -124,7 +124,14 @@ class ProbesDiscoveryScan:
         """
         start_ts = get_current_timestamp()
         try:
-            output = self._run_command(["nmap", "-PS80,443", "-sn", self.target_ip]) or "" # TODO:[P_Med][] -  - Move the command parameters in scan config
+            nmap_cmd = [
+                "nmap",
+                "-PS80,443",
+                "-sn",
+                self.target_ip
+            ] or ""
+            # output = self._run_command(["nmap", "-PS80,443", "-sn", self.target_ip]) or ""
+            output = self._run_command(nmap_cmd)
 
             # If running the command returns error
             if not output:
