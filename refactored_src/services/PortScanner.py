@@ -50,11 +50,12 @@ class PortScanner:
 
     def __init__(self, infraManager: InfrastructureManager):
         """laterdo: Docstr."""
+
         self.infraManager = infraManager
 
-        # TODO:[P_High][] -  should we not close the active processes at some point?
-        self.active_workers: list[Process] = [] # [(proc, batch_queue)]
-        self.ready_batches: list[str] = []      # created batch queues waiting to be drained
+        # TODO:[P_High][] -  make sure we close the active processes
+        self.active_workers: list[tuple[Process, str]] = [] # [(proc, batch_queue)]
+        self.ready_batches: list[str] = [] # created batch queues waiting to be drained
 
     def launch_port_scan_pipeline(self):
         """Main runner."""
@@ -306,8 +307,6 @@ class PortScanner:
             print(f"Scan started for total of {total_ports} Ports.")
 
             while True:
-                # self.active_workers = [p for p in self.active_workers if p.is_alive()]
-                
                 # Verify that the CPU and memory is within limits
                 if not resource_ok():
                     logger.warning("Memory limit reached. Pausing in Port scan")
@@ -316,9 +315,9 @@ class PortScanner:
 
                 # Wait for worker to finish
                 alive: list[multiprocessing.Process] = []
-                for worker in self.active_workers:
+                for worker, batch_q in self.active_workers:
                     if worker.is_alive():
-                        alive.append(worker)
+                        alive.append(worker, batch_q)
                     else:
                         try:
                             worker.join(timeout=0)   # reap exit status, avoid zombies
@@ -343,7 +342,7 @@ class PortScanner:
                     for _ in range(BATCH_WORKERS_PER_QUEUE_MAX):
                         p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
                         p.start()
-                        self.active_workers.append(p)
+                        self.active_workers.append((p, batch_queue))
                         logger.info(f"[PortScanner] Worker started on {batch_queue} "
                                     f"(Workers running={len(self.active_workers)}/{max_running_allowed}, "
                                     f"ready batches={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}, "
