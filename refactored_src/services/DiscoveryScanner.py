@@ -62,11 +62,12 @@ class DiscoveryScanner:
 
     def __init__(self, infraManager: InfrastructureManager):
         """laterdo: Docstr."""
+
         self.infraManager = infraManager
 
-        # TODO:[P_High][] -  should we not close the active processes at some point?
-        self.active_workers: list[Process] = [] # [(proc, batch_queue)]
-        self.ready_batches: list[str] = []      # created batch queues waiting to be drained
+        # TODO:[P_High][] -  make sure we close the active processes
+        self.active_workers: list[tuple[Process, str]] = [] # [(proc, batch_queue)]
+        self.ready_batches: list[str] = [] # created batch queues waiting to be drained
         self.batch_id_generator = itertools.count(1)
 
     def launch_discovery_scan_pipeline(self):
@@ -211,10 +212,11 @@ class DiscoveryScanner:
         
         try:
             with RabbitMQ(queue_name) as rmq_conn:
+                idle_streak = 0
                 while True:
                     task = rmq_conn.get_next_message(auto_ack=False, parse_json=True)
                     if not task:
-                        break # empty queue OR bad JSON already ACK'ed inside
+                       break
 
                     method_frame, props, body = task
                     tag = method_frame.delivery_tag
@@ -242,7 +244,7 @@ class DiscoveryScanner:
                             rmq_conn.nack(tag, requeue=True)
 
                     # pause between tasks
-                    # time.sleep(SCAN_DELAY)
+                    time.sleep(SCAN_DELAY)
 
                 # once we drain the queue, remove it
                 rmq_conn.remove_queue()
@@ -250,7 +252,10 @@ class DiscoveryScanner:
             logger.debug(f"Worker for queue {queue_name} has drained and exited the queue.")
 
     def start_consuming(self) -> None:
-        """Start consuming tasks from the main queue, choosing direct or batch mode."""
+        """Start consuming tasks from the main queue, choosing direct or batch mode.
+        
+        Creates batches and drains from them. 
+        """
 
         try:
             # Open a shared RMQ connection to check tasks in queue and other small things
@@ -259,10 +264,10 @@ class DiscoveryScanner:
             # Start discovery and check how many targets to scan
             total_tasks = shared_RMQ_connection.tasks_in_queue()
             logger.info(f"[DiscoveryScanner]  Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
-            print(f"Scan started for total of {total_tasks} IPs.")
+            print(f"\n Scan started for total of {total_tasks} IPs.")
 
             if total_tasks < THRESHOLD:
-                # TODO:[P_Low][] -  This is almost never used.. does it really need a whole class by itself?
+                # TODO:[P_Low][] -  This is almost never used.. and should be re-factored (does not work as intended) or purged.
                 logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
                 WorkerHandlerLogic(queue_name=ALL_ADDR_QUEUE, process_callback=self.process_task).start()
                 return
@@ -277,17 +282,17 @@ class DiscoveryScanner:
                     continue
                 
                 # Wait for worker to finish
-                alive: list[multiprocessing.Process] = []
-                for worker in self.active_workers:
+                alive: list[tuple[multiprocessing.Process, str]] = []
+                for worker, batch_q in self.active_workers:
                     if worker.is_alive():
-                        alive.append(worker)
+                        alive.append((worker, batch_q))
                     else:
                         try:
                             worker.join(timeout=0)   # reap exit status, avoid zombies
                         except Exception: pass
                         if worker.exitcode not in (0, None):
                             # crashed or terminated; queue should have been deleted in _drain_and_exit
-                            logger.warning(f"[DiscoveryScanner] Worker {worker.pid} exited with code {worker.exitcode}")
+                            logger.warning(f"[DiscoveryScanner] Worker {worker.pid} on {batch_q} exited with code {worker.exitcode}")
                 self.active_workers = alive
 
                 remaining = shared_RMQ_connection.tasks_in_queue()
@@ -305,7 +310,7 @@ class DiscoveryScanner:
                     for _ in range(BATCH_WORKERS_PER_QUEUE_MAX):
                         p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
                         p.start()
-                        self.active_workers.append(p)
+                        self.active_workers.append((p, batch_queue))
                         logger.info(f"[DiscoveryScanner] Worker started on {batch_queue} "
                                     f"(Workers running={len(self.active_workers)}/{max_running_allowed}, "
                                     f"ready batches={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}, "
@@ -322,9 +327,9 @@ class DiscoveryScanner:
                         # transient issue, so don't tight-loop
                         time.sleep(0.5)
                         break
+                    
                     self.ready_batches.append(batch_queue)
-                    # rough decrement (we re-check remaining each loop anyway)
-                    remaining = max(0, remaining - BATCH_QUEUE_SIZE_MAX)
+                    remaining = shared_RMQ_connection.tasks_in_queue()
                     logger.debug(f"[DiscoveryScanner] Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
 
                 # Small backoff to avoid busy loop
