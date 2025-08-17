@@ -17,7 +17,7 @@ from infrastructure.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
-# TODO:[P_High][Emilia]   - This needs to be checked - can be more inline with ip-create-batch
+# TODO:[P_High][Emilia]   - This needs to re-done. We are wasting alot of resources on this.
 
 
 class PortBatchHandler:
@@ -49,25 +49,24 @@ class PortBatchHandler:
             all_ips: list[str] = [] # TODO:[P_High][] -  Should it really be a list?
 
             while True:
-                
-                method, _, body = rmq_conn.channel.basic_get(queue=queue_name, auto_ack=True) # TODO:[P_Med_ack][] -  auto_ack=True, what if its false? isint it then requeued?
-                if not method:
+                task = rmq_conn.get_next_message(auto_ack=True, parse_json=True) # TODO:[P_Med_ack][] -  auto_ack=True danger
+                if not task:
                     break
-                try:
-                    msg = json.loads(body)
-                    ip = msg.get("ip")
-                    if ip:
-                        all_ips.append(ip)
-                except Exception:
-                    logger.warning(f"[PortBatchHandler] Bad IP payload: {body}")
+                
+                method_frame, props, body = task
 
+                # Validate payload
+                ip_addr = body["ip"]
+                if ip_addr:
+                    all_ips.append(ip_addr)
+                    
             # Enqueue all ips again in the same queue.
-            for ip in all_ips: # TODO:[P_High][] -  Is this the most optimal and best solution? To ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
+            for ip in all_ips: # TODO:[P_High][] -  Is this the most optimal and best solution? To auto-ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
                 rmq_conn.enqueue_to_queue(message={"ip": ip})
 
         self.ips_cache = all_ips
         logger.debug(f"[PortBatchHandler] Cached {len(all_ips)} alive IPs.")
-        # return all_ips
+
 
     def create_port_batch(self, ip_queue: str, port_queue: str) -> str | None:
         """Create a port scan batch by pairing one port with all alive IPs.
@@ -83,8 +82,9 @@ class PortBatchHandler:
             The port is pulled from the port queue and associated with all cached IPs.
             Ports already batched previously are skipped. # TODO:[P_High][] -  confirmed?
         """
+        
         with RabbitMQ(port_queue) as rmq_conn:
-
+            # Get next port from all ports queue
             task = rmq_conn.get_next_message(auto_ack=False, parse_json=True)
             if not task:
                 return None
