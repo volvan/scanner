@@ -17,7 +17,7 @@ from infrastructure.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
-# TODO:[P_High][Emilia]   - This needs to be checked
+# TODO:[P_High][Emilia]   - This needs to be checked - can be more inline with ip-create-batch
 
 
 class PortBatchHandler:

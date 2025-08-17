@@ -1,5 +1,5 @@
 # ----- Config imports -----#
-from config.scan_config import WORKERS
+from config.scan_config import TOTAL_MAX_WORKERS
 
 # ----- Standard library -----#
 from multiprocessing import Process
@@ -19,7 +19,6 @@ from config.logging_config import logger
 
 # - If direct Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
 # - If batch Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
-# - Then there is also something funny happening in _drain_and_exit in both scanners..
 
 
 class WorkerHandlerLogic:
@@ -34,7 +33,7 @@ class WorkerHandlerLogic:
         """
         self.queue_name = queue_name
         self.process_callback = process_callback
-        self.workers_count = WORKERS
+        self.workers_count = TOTAL_MAX_WORKERS
 
     def _safe_worker(self, worker_id: int):
         """Worker process logic with error handling.
@@ -45,7 +44,7 @@ class WorkerHandlerLogic:
         with RabbitMQ(self.queue_name) as rmq_conn:
             try:
                 logger.debug(f"[WorkerHandlerLogic] Worker {worker_id} starting...")
-                rmq_conn.start_consuming(self.process_callback)
+                rmq_conn.start_consuming(self.process_callback) # TODO:[P_High][] this function does not even handle consume correctly
             except KeyboardInterrupt:
                 logger.warning(f"[WorkerHandlerLogic] Worker {worker_id} received KeyboardInterrupt. Exiting.")
             except Exception as e:
