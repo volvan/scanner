@@ -125,7 +125,8 @@ class RabbitMQ:
         Args:
             callback (object): Function to process each message.
         """
-        # TODO:[P_Crit][] - Is this not used? If not, how are we consuming??
+        # TODO:[P_Med][] - Dead code - only used for small scans and should be deleted 
+
         queue_name = queue_name or self.queue_name
         
         if callback is None:
@@ -175,7 +176,7 @@ class RabbitMQ:
             logger.error(f"[RabbitMQ] Error fetching queue list: {e}")
             return []
 
-    # TODO:[P_med][Emilia] - Should be used or removed
+    
     def get_next_message(self, queue_name: str = None, auto_ack: bool = True, parse_json: bool = False):
         """Get the next message from the queue.
 
@@ -192,21 +193,29 @@ class RabbitMQ:
         queue_name = queue_name or self.queue_name
         
         try:
-            method_frame, props, _body = self.channel.basic_get(queue=queue_name, auto_ack=auto_ack)
+            try: 
+                method_frame, props, _body = self.channel.basic_get(queue=queue_name, auto_ack=auto_ack)
+            except (pika.exceptions.ChannelClosedByBroker, pika.exceptions.ConnectionClosed):
+                # single reconnect and retry
+                self.reconnect()
+                method_frame, props, _body = self.channel.basic_get(queue=queue_name, auto_ack=auto_ack)
+            
             if not method_frame:
-                return None # empty queue
+                    return None # empty queue
             
             if not parse_json:
                 return method_frame, props, _body
             
+            # if parse_json=True
             try:
                 body = json.loads(_body)
                 if not isinstance(body, dict):
                     raise ValueError("[RabbitMQ] JSON is not an object.")
                 return method_frame, props, body
+            
             except Exception as e:
-                # JSON decode error or not a dict
-                logger.error(f"[RabbitMQ] JSON decode error: {e}. Enqueuing to Fail Queue.")
+                # Bad payload so we send to FAILQ and ACK (so we don't hot-loop it)
+                logger.error(f"[RabbitMQ] Bad JSON from '{queue_name}': {e}. Enqueuing to Fail Queue.")
                 try: 
                     message = {"Body": _body, "reason": f"error: bad_payload {e}"}
                     self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=message)
@@ -245,36 +254,42 @@ class RabbitMQ:
 
         # TODO:[P_Med][] -  what is happening here though? in all this function....
         try:
-            if self.tasks_in_queue(queue_name) == 0:
-                logger.debug(f"[RabbitMQ] {queue_name} is empty. Deleting.")
+            remaining = self.tasks_in_queue(queue_name)
+
+            # Queue is empty condition
+            if remaining == 0:
+                logger.debug(f"[RabbitMQ] Deleting empty queue '{queue_name}'.")
                 self.channel.queue_delete(queue=queue_name)
-                return
-
+                return 
+            
+            # Else, queue is not empty, drain to fail queue 
             logger.info(f"[RabbitMQ] {queue_name} is not empty. Draining to 'fail_queue'.")
-            leftovers = []
-            while True:
-                
-                method_frame, _, body = self.channel.basic_get(queue=queue_name, auto_ack=True)  # TODO:[P_Med][] -  IS this not dangerous? auto acking all? what if anything happens while here? lost tasks or?
-                if not method_frame:
+            
+            for _ in range(remaining):
+                # Get one-by-one task thats remaining
+                task = self.get_next_message(queue_name=queue_name, auto_ack=False, parse_json=True)
+                if not task:
                     break
-                try:
-                    task = json.loads(body)
-                    leftovers.append(task)
-                except Exception as e:
-                    logger.error(f"[RabbitMQ] Failed to decode task: {e}")
 
-            self.channel.queue_delete(queue=queue_name)
-
-            # self.exit()
-            # self.close() # TODO:[P_Med][Emilia] -  why close?
-
-            logger.info('\n\n[RabbitMQ.remove_queue()] Currently inserting into fail_queue. \n\n')
-            for task in leftovers:
+                method_frame, props, body = task
+                tag = method_frame.delivery_tag
+                
+                # Publish it to fail queue and ack it
                 self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=task)
+                self.ack(tag)
 
-            logger.debug(f"[RabbitMQ] Moved {len(leftovers)} tasks to 'fail_queue' and deleted '{queue_name}'.")
+            # Safely delete the empty queue
+            self.channel.queue_delete(queue=queue_name)
+            logger.debug(f"[RabbitMQ] Moved {remaining} tasks to 'fail_queue' and deleted '{queue_name}'.")
+        
+        except pika.exceptions.ChannelClosedByBroker as e:
+            # queue may already be gone. Lets treat it as success
+            if "NOT_FOUND" in str(e):
+                logger.debug(f"[RabbitMQ] Queue '{queue_name}' already deleted.")
+                self.reconnect()  # restore channel for future ops
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{queue_name}': {e}")
+            
 
     # TODO:[P_Low][Emilia] - : enqueue_to_queue rename to something descriptive
     def enqueue_to_queue(self, message: dict, queue_name: str = None):
@@ -319,20 +334,6 @@ class RabbitMQ:
                 logger.error(f"[RabbitMQ] Failed to enqueue (closed channel) and reconnection failed for '{queue_name}': {ex}")
         except Exception as e:
             logger.error(f"[RabbitMQ] Failed to enqueue message to '{queue_name}': {e}")
-
-    def requeue_deliveries(self, deliveries: list[Basic.GetOk], queue_name: str = None):
-        """Nack and requeue every message in deliveries."""
-
-        # TODO:[P_Crit][] Requeueing puts the message at the front of the queue - a poison message can starve others and create hot-loop reprocessing
-
-        queue_name = queue_name or self.queue_name
-
-        for frame in deliveries:
-            try:
-                self.channel.basic_nack(delivery_tag=frame.delivery_tag, requeue=True)   # TODO:[P_Med_ack][] -   Related to the Ack issue 
-                logger.info("[RabbitMQ] Requeued message.")
-            except Exception as ex:
-                logger.warning(f"[RabbitMQ] Failed to requeue message: {ex}")
 
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
