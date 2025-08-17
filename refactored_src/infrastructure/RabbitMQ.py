@@ -116,7 +116,21 @@ class RabbitMQ:
             queue_info = self.channel.queue_declare(queue=queue_name, passive=True)
             return queue_info.method.message_count
         except Exception as e:
-            logger.error(f"[RabbitMQ] Error checking queue: {e}")
+            logger.error(f"[RabbitMQ] Error checking tasks in queue: {e}")
+            return 0
+        
+    def consumers_in_queue(self, queue_name: str = None) -> int:
+        """Number of consumers assigned to a queue.
+
+        Returns:
+            int: Number of consumers in the queue.
+        """
+        queue_name = queue_name or self.queue_name
+        try:
+            queue_info = self.channel.queue_declare(queue=queue_name, passive=True)
+            return queue_info.method.consumer_count
+        except Exception as e:
+            logger.error(f"[RabbitMQ] Error checking consumers in queue: {e}")
             return 0
 
     def start_consuming(self, callback: object,  queue_name: str = None) -> None:
@@ -255,12 +269,13 @@ class RabbitMQ:
         # TODO:[P_Med][] -  what is happening here though? in all this function....
         try:
             remaining = self.tasks_in_queue(queue_name)
+            consumers = self.consumers_in_queue(queue_name)
 
             # Queue is empty condition
-            if remaining == 0:
+            if remaining == 0 and consumers == 0:
                 logger.debug(f"[RabbitMQ] Deleting empty queue '{queue_name}'.")
                 self.channel.queue_delete(queue=queue_name)
-                return 
+                return
             
             # Else, queue is not empty, drain to fail queue 
             logger.info(f"[RabbitMQ] {queue_name} is not empty. Draining to 'fail_queue'.")
@@ -289,7 +304,7 @@ class RabbitMQ:
                 self.reconnect()  # restore channel for future ops
         except Exception as e:
             logger.error(f"[RabbitMQ] Error during queue removal for '{queue_name}': {e}")
-            
+
 
     # TODO:[P_Low][Emilia] - : enqueue_to_queue rename to something descriptive
     def enqueue_to_queue(self, message: dict, queue_name: str = None):
