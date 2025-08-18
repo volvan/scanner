@@ -43,7 +43,7 @@ python start_application.py
 
 **Detach from the session:**
 
-When you have started the scan you can detach and leave it running in the background by pressing `Ctrl` + `B`, and then `D`.
+When you have started the scan, you can detach and leave it running in the background by pressing `Ctrl` + `B`, and then `D`.
 
 **Re-attach to the session:**
 
