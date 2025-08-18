@@ -44,7 +44,7 @@ logger = logging.getLogger("GlobalHandler")
 # --- Console Handler ---
 console_handler = logging.StreamHandler()
 console_formatter = logging.Formatter(
-    f"[%(levelname)s] %(asctime)s - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
+    f"[%(levelname)s] %(asctime)s - {SERVICE_TAG} - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
 )
 console_handler.setFormatter(console_formatter)
 console_handler.setLevel(logging.DEBUG if LOG_TO_TERMINAL else logging.WARNING)
@@ -61,7 +61,7 @@ if LOG_TO_FILE:
     )
     file_formatter = logging.Formatter(
         # 2025-08-18 17:13:00,673 - ip_scan - INFO - [main] - Initializing 'ip' scan.
-        f"%(asctime)s - {SERVICE_TAG} - %(levelname)s - [%(funcName)s] - %(message)s"
+        # f"%(asctime)s - {SERVICE_TAG} - %(levelname)s - [%(funcName)s] - %(message)s"
 
         # 2025-08-18 17:13:00,673 - INFO - [main] - Initializing 'ip' scan.
         f"%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s"
