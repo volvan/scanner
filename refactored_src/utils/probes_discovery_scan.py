@@ -46,7 +46,7 @@ class ProbesDiscoveryScan:
         for method, proto, fn in [
             ("icmp_ping", "ICMP", self.icmp_ping),
             ("tcp_syn_ping", "TCP-SYN", self.tcp_syn_ping),
-            ("tcp_ack_ping_ttl", "TCP-ACK", self.tcp_ack_ping_ttl),
+            # ("tcp_ack_ping_ttl", "TCP-ACK", self.tcp_ack_ping_ttl),
         ]:
             try:
                 probe_results = fn() # Is None only if host state is not in ("alive", "dead", "filtered", "unknown"):
@@ -130,7 +130,7 @@ class ProbesDiscoveryScan:
         output = cmd_output.lower()
 
         # Alive signals
-        if ("ttl=" in output) or ("0% packet loss" in output) or ("bytes from" in output) or ("host is up" in output) or ("reply from" in output):
+        if ("ttl=" in output) or ("0% packet loss" in output) or (f"Host {self.target_ip} is up" in output) or ("bytes from" in output) or ("host is up" in output) or ("reply from" in output):
             return "alive"
         
         # Filtered signals
@@ -224,10 +224,13 @@ class ProbesDiscoveryScan:
               - "dead" if host unreachable
               - "unknown" if uncertain
         """
+
+        # TODO:[P_Crit][]   - How does it make sense to have ttl as 1 ? 
         
         start_ts = get_current_timestamp()
         try:
-            output = self._run_command(["nmap", "-PA80,443", "-sn", "--ttl", "1", self.target_ip]) or "" # TODO:[P_Med][] -  - Move the command parameters in scan config
+            nmap_cmd = ["nmap", "-PA80,443", "-sn", "--ttl", "1", self.target_ip] # TODO:[P_Med][] -  - Move the command parameters in scan config
+            output = self._run_command(nmap_cmd)
 
             # If running the command returns error
             if not output:
