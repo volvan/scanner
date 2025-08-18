@@ -183,7 +183,9 @@ class DiscoveryScanner:
                 rmq_fail_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message={"ip": ip_addr, "state": host_state})
             # Route to Dead RMQ queue
             elif host_state in ("dead", "filtered"):
-                rmq_fail_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message={"ip": ip_addr, "state": host_state})
+                # TODO:[P_None][]   - Commented out for now, dont need dead-addr queue as of now
+                # rmq_fail_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message={"ip": ip_addr, "state": host_state})
+                pass
             # Route to Fail RMQ queue
             else:
                 rmq_fail_conn.enqueue_to_queue(message={"ip": ip_addr, "state": host_state})
