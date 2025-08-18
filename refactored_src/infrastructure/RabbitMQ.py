@@ -68,6 +68,17 @@ class RabbitMQ:
             logger.critical(f"Connection error: {e}")
             raise
 
+
+    def create_queue(self, queue_name:str = None) -> None:
+        """This is a quick patch to not get the "Channel closed" error msg when creating a new queue."""
+        queue_name = queue_name or self.queue_name
+
+        try:
+            self.channel.queue_declare(queue=queue_name, durable=True)
+        except Exception as e:
+            logger.error(f"Failed to declare queue '{queue_name}': {e}")
+
+
     def declare_queue(self, queue_name:str = None) -> None:
         """Declare the managed queue if it does not already exist."""
         queue_name = queue_name or self.queue_name

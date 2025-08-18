@@ -314,10 +314,10 @@ class PortScanner:
                     continue
 
                 # Wait for worker to finish
-                alive: list[multiprocessing.Process] = []
+                alive: list[tuple[multiprocessing.Process, str]] = []
                 for worker, batch_q in self.active_workers:
                     if worker.is_alive():
-                        alive.append(worker, batch_q)
+                        alive.append((worker, batch_q))
                     else:
                         try:
                             worker.join(timeout=0)   # reap exit status, avoid zombies

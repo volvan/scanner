@@ -123,6 +123,8 @@ class PortBatchHandler:
 
             encrypted_ips = reservoir_of_reservoirs(self.ips_cache)
             for ip in encrypted_ips:
+                # This "create_queue" is a patch TODO:[P_Low][]
+                rmq_conn.create_queue(queue_name=batch_name)
                 rmq_conn.enqueue_to_queue(queue_name=batch_name, message={"ip": ip, "port": port})
             logger.debug(f"Created batch '{batch_name}' with {len(self.ips_cache)} tasks.")
             return batch_name
