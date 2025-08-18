@@ -30,13 +30,13 @@ class ProbesPortScan:
                 universal_newlines=True,
                 timeout=NMAP_PROBE_TIMEOUT
             )
-            logger.debug(f"[ProbesPortScan] Ran: {' '.join(command)}... \n \t ..The output: \n \t {output}")
+            logger.debug(f"Ran: {' '.join(command)}... \n \t ..The output: \n \t {output}")
             return output
         except subprocess.TimeoutExpired:
-            logger.info(f"[ProbesPortScan] Timeout after {NMAP_PROBE_TIMEOUT}s: {' '.join(command)}. \n") 
+            logger.info(f"Timeout after {NMAP_PROBE_TIMEOUT}s: {' '.join(command)}. \n") 
             return "timeout"
         except Exception as e:
-            logger.error(f"[ProbesPortScan] Command failed: {' '.join(command)}... \n ..The output: {e.output}")
+            logger.error(f"Command failed: {' '.join(command)}... \n ..The output: {e.output}")
             return "failed"
 
     def scan(self, scan_light_mode: bool = False) -> dict:

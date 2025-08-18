@@ -63,7 +63,7 @@ class QueryHandler:
 
         # return a QueryModel for later execution
         queryModel = QueryModel(query=sql_query, params=tuple(vals), fetch=False)
-        logger.debug(f"[QueryHandler] Insert Summary - Query model: {queryModel}")
+        logger.debug(f"Insert Summary Query model: {queryModel}")
 
         return queryModel
 
@@ -103,7 +103,7 @@ class QueryHandler:
 
         # return a QueryModel for later execution
         queryModel = QueryModel(query=sql_query, params=params, fetch=False)
-        logger.debug(f"[QueryHandler] Update Summary - Query model: {queryModel}")
+        logger.debug(f"Update Summary - Query model: {queryModel}")
 
         return queryModel
 
@@ -118,14 +118,14 @@ class QueryHandler:
         # Ensure required fields are present
         req_columns = ['ip', 'host_state']
         if not all(k in task for k in req_columns):
-            logger.error(f"[QueryHandler] insert_host_result task payload did not include required columns in task: {task!r}")
+            logger.error(f"Task payload did not include required columns in task: {task!r}")
             return None
 
-        logger.debug(f"[QueryHandler] Inserting host results task: {task}")
+        logger.debug(f"Inserting host results task: {task}")
         try:
             encrypted_ip = encrypt_ip(task['ip'])
         except Exception as e:
-            logger.error(f"[QueryHandler] IP encryption failed: {e}")
+            logger.error(f"IP encryption failed: {e}")
             return
         
         now_ts = get_current_timestamp() # last_scanned_ts
@@ -151,7 +151,7 @@ class QueryHandler:
         )
 
         queryModel = QueryModel(query=sql_query, params=params)
-        logger.debug(f"[QueryHandler] Update Summary - Query model: {queryModel}")
+        logger.debug(f"Update Summary - Query model: {queryModel}")
 
         return queryModel
 
@@ -169,20 +169,20 @@ class QueryHandler:
                 'port_product', 'port_version', 'port_cpe', 'port_os', 'duration'.
         """
         
-        logger.debug(f"[QueryHandler] Inserting port scan results task: {task!r}")
+        logger.debug(f"Inserting port scan results task: {task!r}")
 
         # Ensure required fields are present
         req_columns = ['ip', 'port', 'port_state', 'port_service', 'port_protocol',
             'port_product', 'port_version', 'port_cpe', 'port_os', 'duration']
         if not all(k in task for k in req_columns):
-            logger.error(f"[QueryHandler] insert_port_result task payload did not include required columns in task: {task!r}")
+            logger.error(f"Task payload did not include required columns in task: {task!r}")
             return None
 
         # Encrypt IP before inserting
         try:
             encrypted_ip = encrypt_ip(task['ip'])
         except Exception as e:
-            logger.error(f"[QueryHandler] IP encryption failed: {e}")
+            logger.error(f"IP encryption failed: {e}")
             return
         
         now_ts = get_current_timestamp()
@@ -237,7 +237,7 @@ class QueryHandler:
 
         # return a QueryModel for later execution
         queryModel = QueryModel(query=sql_query, params=params, fetch=False)
-        logger.debug(f"[QueryHandler] Insert Port Results - Query model: {queryModel}")
+        logger.debug(f"Insert Port Results - Query model: {queryModel}")
         
         return queryModel
 
@@ -268,7 +268,7 @@ class QueryHandler:
                 ip_obj = ipaddress.ip_address(ip)
                 matched = next((entry for cidr, entry in cidr_map.items() if ip_obj in cidr), None)
                 if not matched:
-                    logger.warning(f"[QueryHandler] No WHOIS entry for {ip}")
+                    logger.warning(f"No WHOIS entry for {ip}")
                     continue
 
                 rows.append((
@@ -287,7 +287,7 @@ class QueryHandler:
                     last_scanned_ts,
                 ))
             except Exception as e:
-                logger.error(f"[QueryHandler] Error prepping WHOIS row for {ip}: {e}")
+                logger.error(f"Error prepping WHOIS row for {ip}: {e}")
 
         if not rows:
             return None  # nothing to insert

@@ -90,7 +90,7 @@ class DiscoveryScanner:
 
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
-            logger.critical(f"[DiscoveryScanner] Fatal error: {e}", exc_info=True)
+            logger.critical(f"Fatal error: {e}", exc_info=True)
             self.infraManager.stop()
             sys.exit(1)
         
@@ -110,14 +110,14 @@ class DiscoveryScanner:
             # 2) record all blocks that were scanned
             blocks = read_block(filename)
             if not blocks: 
-                logger.error("COULD NOT READ blocks")
+                logger.error("COULD NOT READ blocks.")
 
             # 3) persist summary via QueryModel
             self._update_summary(discovery_start_ts, discovery_done_ts, blocks)
 
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
-            logger.critical(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Fatal error: {e}", exc_info=True)
+            logger.critical(f"Fatal error: {e}", exc_info=True)
             self.infraManager.stop()
             sys.exit(1)
 
@@ -127,7 +127,7 @@ class DiscoveryScanner:
             logger.info("Discovery Scan done.")
 
             # Wait for the db queue to drain (blocks until every task_done() completed)
-            logger.info(f"[DiscoveryScanner] Waiting for db_hosts queue to empty.. Currently there are {db_hosts.qsize()} items in db_hosts queue.")
+            logger.info(f"Waiting for db_hosts queue to empty.. Currently there are {db_hosts.qsize()} items in db_hosts queue.")
             self.infraManager.stop()
 
     def _update_summary(self, discovery_start_ts, discovery_done_ts, scanned_blocks):
@@ -140,11 +140,11 @@ class DiscoveryScanner:
                 )
                 success = dbWorker.execute_query_model(queryModel)
                 if not success:
-                    logger.critical('[DiscoveryScanner.launch_discovery_scan_pipeline] Something went wrong while inserting the summary.')
+                    logger.critical('Something went wrong while inserting the summary.')
                 else:
                     logger.info("Summary table updated for scan.")
         except Exception as e:
-            logger.error(f"[DiscoveryScanner.launch_discovery_scan_pipeline] Failed to write discovery summary: {e}")
+            logger.error(f"Failed to write discovery summary: {e}")
 
     def process_task(self, ip_addr: str) -> None:
         """Process a RabbitMQ task.
@@ -158,13 +158,13 @@ class DiscoveryScanner:
 
         with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
             # Log the IP address being processed
-            logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Probing IP: {ip_addr}")
+            logger.debug(f"[pid={os.getpid()}] Probing IP: {ip_addr}")
             
             # 1. Ping the IP
             ping_res = self.ping_host(ip_addr) # Returns dict as method, protocol, state and duration. OR None
-            logger.debug(f"[DiscoveryScanner] Scan result: {ping_res}")
+            logger.debug(f"Scan result: {ping_res}")
             if not ping_res:
-                logger.error(f"[DiscoveryScanner] Failed to ping host {ip_addr}")
+                logger.error(f"Failed to ping host {ip_addr}")
                 ping_res = {"probe_method": None, "probe_protocol": None, "host_state": "unknown", "probe_duration": None}
             
             # Extract scan result details
@@ -191,9 +191,9 @@ class DiscoveryScanner:
         # Commit results to database
         try:
             db_hosts.put(scan_results)
-            logger.debug(f"[DiscoveryScanner|pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr}.")
+            logger.debug(f"[pid={os.getpid()}] Inserted to db_hosts queue the ip: {ip_addr}.")
         except Exception as e:
-            logger.error(f"[DiscoveryScanner] Failed to enqueue host result to db_hosts: {e}")
+            logger.error(f"Failed to enqueue host result to db_hosts: {e}")
 
         # Add a small delay between tasks to control scan rate
         time.sleep(SCAN_DELAY)
@@ -216,7 +216,14 @@ class DiscoveryScanner:
                 while True:
                     task = rmq_conn.get_next_message(auto_ack=False, parse_json=True)
                     if not task:
-                       break
+                        # queue might be temporarily empty while other workers still ack..
+                        # ..backoff a little and try again
+                        idle_streak += 1
+                        if idle_streak > 20:   # approx 2s if sleep(0.1)
+                            break # empty queue
+                        time.sleep(0.1)
+                        continue
+                    idle_streak = 0
 
                     method_frame, props, body = task
                     tag = method_frame.delivery_tag
@@ -235,12 +242,12 @@ class DiscoveryScanner:
 
                     except Exception as e:
                         # any unexpected error wrapping the worker
-                        logger.error(f"[DiscoveryScanner] Error processing ip {ip_addr}: {e} ")
+                        logger.error(f"Error processing ip {ip_addr}: {e} ")
                         try:
                             rmq_conn.enqueue_to_queue(queue_name=FAIL_QUEUE, message={"ip": ip_addr, "err": str(e)})
                             rmq_conn.ack(tag)
                         except Exception as e:
-                            logger.error(f"[DiscoveryScanner] Also failed to send to FAIL_QUEUE: {e}")
+                            logger.error(f"Also failed to send to FAIL_QUEUE: {e}")
                             rmq_conn.nack(tag, requeue=True)
 
                     # pause between tasks
@@ -254,7 +261,7 @@ class DiscoveryScanner:
     def start_consuming(self) -> None:
         """Start consuming tasks from the main queue, choosing direct or batch mode.
         
-        Creates batches and drains from them. 
+        Creates batches and ONE WORKER drains from each queue.
         """
 
         try:
@@ -263,16 +270,16 @@ class DiscoveryScanner:
 
             # Start discovery and check how many targets to scan
             total_tasks = shared_RMQ_connection.tasks_in_queue()
-            logger.info(f"[DiscoveryScanner]  Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
+            logger.info(f"Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
             print(f"\n Scan started for total of {total_tasks} IPs.")
 
             if total_tasks < THRESHOLD:
                 # TODO:[P_Low][] -  This is almost never used.. and should be re-factored (does not work as intended) or purged.
-                logger.info("[DiscoveryScanner] Direct processing mode (small scan).")
+                logger.info("Direct processing mode (small scan).")
                 WorkerHandlerLogic(queue_name=ALL_ADDR_QUEUE, process_callback=self.process_task).start()
                 return
 
-            logger.info("[DiscoveryScanner] Batch processing mode (large scan).")
+            logger.info("Batch processing mode (large scan).")
 
             while True:
                 # Verify that the CPU and memory is within limits
@@ -283,35 +290,37 @@ class DiscoveryScanner:
                 
                 # Wait for worker to finish
                 alive: list[tuple[multiprocessing.Process, str]] = []
+
                 for worker, batch_q in self.active_workers:
                     if worker.is_alive():
                         alive.append((worker, batch_q))
                     else:
-                        try:
-                            worker.join(timeout=0)   # reap exit status, avoid zombies
+                        try: worker.join(timeout=0)   # reap exit status, avoid zombies
                         except Exception: pass
                         if worker.exitcode not in (0, None):
                             # crashed or terminated; queue should have been deleted in _drain_and_exit
-                            logger.warning(f"[DiscoveryScanner] Worker {worker.pid} on {batch_q} exited with code {worker.exitcode}")
+                            logger.warning(f"Worker {worker.pid} on {batch_q} exited with code {worker.exitcode}")
                 self.active_workers = alive
 
                 remaining = shared_RMQ_connection.tasks_in_queue()
 
                 # Stop as nothing is left anywhere
                 if remaining == 0 and not self.ready_batches and not self.active_workers:
-                    logger.debug("[DiscoveryScanner] All batches completed.")
+                    logger.debug("All batches completed.")
                     break
 
                 # Assign ready batches to free worker slots
                 max_running_allowed = min(TOTAL_MAX_WORKERS, BATCH_QUEUES_ACTIVE_MAX)
                 while self.ready_batches and len(self.active_workers) < max_running_allowed:
-                    batch_queue = self.ready_batches.pop()  # take last (LIFO)
+                    batch_queue = self.ready_batches.pop(0)  # take first (FIFO)
+                    
                     # Create x amount of workers to work on each batch # TODO:[P_High][] - does not support more than 1 worker 
-                    for _ in range(BATCH_WORKERS_PER_QUEUE_MAX):
+                    # for _ in range(BATCH_WORKERS_PER_QUEUE_MAX): # TODO[P_High][]   - Should be used, now its only one
+                    for _ in range(1):
                         p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
                         p.start()
                         self.active_workers.append((p, batch_queue))
-                        logger.info(f"[DiscoveryScanner] Worker started on {batch_queue} "
+                        logger.info(f"Worker started on {batch_queue} "
                                     f"(Workers running={len(self.active_workers)}/{max_running_allowed}, "
                                     f"ready batches={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}, "
                                     f"main queue remaining={remaining})")
@@ -330,7 +339,7 @@ class DiscoveryScanner:
                     
                     self.ready_batches.append(batch_queue)
                     remaining = shared_RMQ_connection.tasks_in_queue()
-                    logger.debug(f"[DiscoveryScanner] Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
+                    logger.debug(f"Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
 
                 # Small backoff to avoid busy loop
                 if self.ready_batches or len(self.active_workers) < max_running_allowed:
@@ -346,7 +355,7 @@ class DiscoveryScanner:
                     p.join(timeout=1)
 
     def new_targets(self) -> str:
-        """Prepare the targeted IP addresses, randomize them, and enqueue into batches.
+        """Prepare the targeted IP addresses, randomize them, and enqueue to add_addr queue in bulks/batches.
 
         Returns:
             str: Filename used for CIDR blocks, or None on error.
@@ -365,6 +374,7 @@ class DiscoveryScanner:
             # Lookup with WHOIS on each block
             whois_info = whois_block(filename=filename)
 
+            # Insert to all_addr queue in bulks/batches
             def chunked(iterator, size=BATCH_QUEUE_SIZE_MAX):  # noqa: D103
                 it = iter(iterator)
                 while True:
@@ -378,16 +388,16 @@ class DiscoveryScanner:
                 dbWorker: DBWorker
                 with RabbitMQ(ALL_ADDR_QUEUE) as rmq_conn:
                     for batch_no, ips in enumerate(chunked(shuffled_ips_iter), start=1):
-                        logger.debug(f"[DiscoveryScanner.new_targets] enqueuing batch: {batch_no} of size: {len(ips)}")
+                        logger.debug(f"Enqueuing bulk/batch: {batch_no} of size: {len(ips)}.")
 
                         # Insert to database
                         queryModel = self.infraManager.queryHandler.new_host(whois_data=whois_info, ips=ips)
                         if queryModel is None:
-                            logger.warning(f"[DiscoveryScanner.enqueue] batch {batch_no}: nothing to insert—skipping")
+                            logger.warning(f"Batch {batch_no}: nothing to insert—skipping")
                             continue
                         success = dbWorker.execute_query_model(queryModel)
                         if not success:
-                            logger.warning(f"[DiscoveryScanner.enqueue] batch {batch_no}: unsuccessful query")
+                            logger.warning(f"Batch {batch_no}: unsuccessful query")
                             continue
                         
                         # Enqueue to RMQ
@@ -401,7 +411,7 @@ class DiscoveryScanner:
             return filename
 
         except Exception as e:
-            logger.error(f"[DiscoveryScanner] Error in new_targets: {e}")
+            logger.error(f"Error in new_targets: {e}")
             return None
 
     def ping_host(self, ip_addr: str) -> dict: # TODO:[P_Low][] -  move function to ProbesDiscoveryScan
@@ -430,10 +440,10 @@ class DiscoveryScanner:
             try:
                 probe_results = fn() # Is None only if host state is not in ("alive", "dead", "filtered", "unknown"):
             except subprocess.TimeoutExpired:
-                logger.warning(f"[DiscoveryScanner] {method} scan for {ip_addr} timed out; continuing") # TODO: [][P_High] - host state should be 'timeout' if that's the case.. 
+                logger.warning(f"Method: {method} scan for {ip_addr} timed out; continuing") # TODO: [][P_High] - host state should be 'timeout' if that's the case.. 
                 probe_results = None # host state = timeout
             except Exception as e:
-                logger.warning(f"[DiscoveryScanner] {method} to {ip_addr} crashed: {e}.")
+                logger.warning(f"Method: {method} to {ip_addr} crashed: {e}.")
                 probe_results = None
             
             # If probing returns nothing, continue with the next probe type
@@ -462,7 +472,7 @@ class DiscoveryScanner:
             return last_non_alive
 
         # Lastly, if the probe did not work properly, return None values
-        logger.warning(f"[DiscoveryScanner] All probes for {ip_addr} failed with exception or timeout.")
+        logger.warning(f"All probes for {ip_addr} failed with exception or timeout.")
         return {
             "probe_method": None,
             "probe_protocol": None,
@@ -514,13 +524,13 @@ class DiscoveryScanner:
                         total_tasks += 1
                     except Exception as e:
                         # If publishing fails, give the current task back and stop this batch
-                        logger.error(f"[DiscoveryScanner] Publish to '{batch_queue}' failed: {e}")
+                        logger.error(f"Publish to '{batch_queue}' failed: {e}")
                         rmq_consumer.nack(tag, requeue=True)
                         break
 
         if total_tasks == 0:
-            logger.warning("[DiscoveryScanner] No valid tasks found or publish failed immediately; no batch created.")
+            logger.warning("No valid tasks found or publish failed immediately; no batch created.")
             return None
 
-        logger.debug(f"[DiscoveryScanner] Created batch '{batch_queue}' with {total_tasks} IPs.")
+        logger.debug(f"Created batch '{batch_queue}' with {total_tasks} IPs.")
         return batch_queue

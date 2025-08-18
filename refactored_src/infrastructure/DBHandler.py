@@ -44,7 +44,7 @@ class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
             registry=self.host_threads,
             label="Hosts",
         )
-        logger.info("[DBHandler] Host thread started.")
+        logger.info("Host thread started.")
 
     def start_ports(self):
         """Start database writer threads for the "Ports" table."""
@@ -54,7 +54,7 @@ class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
             registry=self.port_threads,
             label="Ports",
         )
-        logger.info("[DBHandler] Port thread started.")
+        logger.info("Port thread started.")
 
     def _spawn_consumers(self, amount: int, target, registry: list[threading.Thread], label: str):
         """Start daemon threads running target and register them.
@@ -74,7 +74,7 @@ class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
                 name=f"{label}-consumer-{i}",
             )
             thread.start()
-            logger.debug(f"[DBHandler] {thread.name} started.")
+            logger.info(f"Thread: {thread.name} started.")
             registry.append(thread)
 
     def _consume_hosts(self, thread_id: int):
@@ -134,12 +134,12 @@ class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
                     thread_local.dbWorker = DBWorker()
                 result = thread_local.dbWorker.execute_query_model(query_model)
                 if not result:  # empty list/None
-                    logger.debug(f"[DBHandler] Insert skipped (might be due to closed brand-new port).")
+                    logger.debug(f"Insert skipped (might be due to closed brand-new port).")
                 else:
-                    logger.debug(f"[DBHandler] Row inserted or updated.")
+                    logger.debug(f"Row inserted or updated.")
 
             except Exception as e:
-                logger.error(f"[DBHandler] {label}-consumer {thread_id} failed: {e}")
+                logger.error(f"{label}-consumer {thread_id} failed: {e}")
                 with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
                     message = {"ip": record.get("ip"), "port": record.get("port"), "reason": f"DBHandler_error: {e}"}
                     rmq_fail_conn.enqueue_to_queue(message=message)
@@ -149,7 +149,7 @@ class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
 
         # Loop exited and thread is shutting down. Return connection to pool
         if hasattr(thread_local, "dbWorker"):
-            logger.debug(f"[DBHandler] {label}-consumer {thread_id} stopped.")
+            logger.info(f"{label}-consumer {thread_id} stopped.")
             thread_local.dbWorker.__exit__(None, None, None) # manually calling __exit__
             del thread_local.dbWorker
 
@@ -160,19 +160,19 @@ class DBHandler:  # TODO:[P_Low][] -  rename.. Database_Writer? maybe..
         self.stop_signal.set()
 
         # Let threads drain queues (blocks until queues empty)
-        logger.info("[DBHandler] Stop signal sent. Waiting for threads to exit.")
+        logger.info("Stop signal sent. Waiting for threads to exit.")
         db_hosts.join()
         db_ports.join()
-        logger.info("[DBHandler] All threads drained.")
+        logger.info("All threads drained.")
 
         # Now close (join) the threads (blocks until every writer thread exits)
         for thread in chain(self.host_threads, self.port_threads):
             thread.join(timeout=2)
-            logger.debug(f"[DBHandler] Writer thread {thread.name} exited={not thread.is_alive()}.")
+            logger.debug(f" Writer thread {thread.name} exited={not thread.is_alive()}.")
         # for any thread that didn't exit in time
         for thread in chain(self.host_threads, self.port_threads):
             if thread.is_alive():
-                logger.warning(f"[DBHandler] {thread.name} still alive after timeout.")
+                logger.warning(f"{thread.name} still alive after timeout.")
 
         # now clear registries
         self.host_threads.clear()

@@ -4,7 +4,7 @@ import json
 import logging
 import logging.config
 from logging.handlers import RotatingFileHandler
-from config.scan_config import CONFIG_PATH, LOG_DIR, LOG_TO_FILE, LOG_TO_TERMINAL, LOG_TO_FILE
+from config.scan_config import CONFIG_PATH, LOG_DIR, LOG_TO_FILE, LOG_TO_TERMINAL, LOG_TO_FILE, SCAN_TYPE
 
 
 class WorkerPIDFilter(logging.Filter):
@@ -34,7 +34,7 @@ def configure_logging(config_path: str):
 with open(CONFIG_PATH, "r") as f:
     config = json.load(f)
 
-SERVICE_TAG = config.get("service_tag", "core")
+SERVICE_TAG = SCAN_TYPE + "_scan"
 LOG_FILE_PATH = os.path.join(LOG_DIR, f"{SERVICE_TAG}.log")
 
 # --- Logger setup ---
@@ -44,7 +44,7 @@ logger = logging.getLogger("GlobalHandler")
 # --- Console Handler ---
 console_handler = logging.StreamHandler()
 console_formatter = logging.Formatter(
-    f"[%(levelname)s] %(asctime)s - {SERVICE_TAG} - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
+    f"[%(levelname)s] %(asctime)s - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
 )
 console_handler.setFormatter(console_formatter)
 console_handler.setLevel(logging.DEBUG if LOG_TO_TERMINAL else logging.WARNING)
@@ -60,7 +60,11 @@ if LOG_TO_FILE:
         backupCount=3
     )
     file_formatter = logging.Formatter(
-        f"%(asctime)s - {SERVICE_TAG} - %(levelname)s - %(name)s - %(message)s"
+        # 2025-08-18 17:13:00,673 - ip_scan - INFO - [main] - Initializing 'ip' scan.
+        f"%(asctime)s - {SERVICE_TAG} - %(levelname)s - [%(funcName)s] - %(message)s"
+
+        # 2025-08-18 17:13:00,673 - INFO - [main] - Initializing 'ip' scan.
+        f"%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s"
     )
     file_handler.setFormatter(file_formatter)
     file_handler.setLevel(logging.DEBUG if LOG_TO_FILE else logging.WARNING)

@@ -40,7 +40,7 @@ class DBWorker:
         # get a connection (briefly lock to be safe)
         with DBWorker._pool_lock:
             self._conn: connection = DBWorker._pool.getconn()
-            logger.debug("[DBWorker] Acquired DB connection from pool.")
+            logger.debug("Acquired DB connection from pool.")
 
 
     @classmethod
@@ -88,9 +88,9 @@ class DBWorker:
                     application_name="Volva_dbworker",
                 )
                 cls._pool_pid = os.getpid()
-                logger.info("[DBWorker] Connection pool created.")
+                logger.info("Connection pool created.")
             except Exception as e:
-                logger.error(f"[DBWorker] Pool initialization failed: {e}")
+                logger.error(f"Pool initialization failed: {e}")
                 raise
 
 
@@ -111,21 +111,21 @@ class DBWorker:
 
 
         if DBWorker._pool is None:
-            logger.warning("[DBWorker] close() called but pool not initialized.")
+            logger.warning("close() called but pool not initialized.")
             return
         if not getattr(self, '_conn', None):
-            logger.warning("[DBWorker] close() called but no connection to return.")
+            logger.warning("close() called but no connection to return.")
             return
         try:
             DBWorker._pool.putconn(self._conn)
         except PoolError as e:
-            logger.error(f"[DBWorker] ExceptionType=`{type(e).__name__}` Failed to return connection: Error: {e}")
+            logger.error(f"ExceptionType=`{type(e).__name__}` Failed to return connection: Error: {e}")
             try:
                 # close outright if cannot return to pool
                 self._conn.close()
-                logger.debug("[DBWorker] Closed unpooled connection.")
+                logger.debug("Closed unpooled connection.")
             except Exception as e2:
-                logger.error(f"[DBWorker] Failed to close connection outright: {e2}")
+                logger.error(f"Failed to close connection outright: {e2}")
 
     @classmethod
     def close_all(cls) -> None:
@@ -133,7 +133,7 @@ class DBWorker:
         if cls._pool:
             cls._pool.closeall()
             cls._pool = None
-            logger.info("[DBWorker] Connection pool closed.")
+            logger.info("Connection pool closed.")
 
 
     def _execute_sql(self, query: str, params=None, fetch: bool = False) -> (list[tuple] | int):
@@ -159,15 +159,14 @@ class DBWorker:
 
             # commit outside the cursor context
             self._conn.commit()
-            logger.debug(f"[DBWorker] execute_sql fetch={fetch} returned {result!r}")
             return result
 
         except Exception as e:
             # roll back on any error to keep the connection in a clean state
             try: self._conn.rollback()
             except Exception as rollback_err:
-                logger.error(f"[DBWorker] rollback failed: {rollback_err}")
-            logger.exception(f"[DBWorker] execute_sql failed: {e}")
+                logger.error(f"Rollback failed: {rollback_err}")
+            logger.error(f"Executing SQL failed: {e}")
             raise
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
@@ -177,5 +176,4 @@ class DBWorker:
             List[Tuple]: If 'fetch=True', returns rows from query results.
             int: If 'fetch=False', returns affected rowcount.
         """
-        logger.debug("[DBWorker] execute_query_model() called")
         return self._execute_sql(model.query, model.params, fetch=model.fetch)

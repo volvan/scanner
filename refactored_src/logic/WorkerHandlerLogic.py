@@ -42,7 +42,7 @@ class WorkerHandlerLogic:
         """
         with RabbitMQ(self.queue_name) as rmq_conn:
             try:
-                logger.debug(f"[WorkerHandlerLogic] Worker {worker_id} starting...")
+                logger.debug(f"Worker {worker_id} starting...")
                 rmq_conn.start_consuming(self.process_callback) # TODO:[P_High][] this function does not even handle consume correctly
             except KeyboardInterrupt:
                 logger.warning(f"[WorkerHandlerLogic] Worker {worker_id} received KeyboardInterrupt. Exiting.")

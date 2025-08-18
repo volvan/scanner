@@ -64,9 +64,8 @@ class RabbitMQ:
             self.channel = self.connection.channel()
             # TODO:[P_High][Emilia] -  should really always try to declare queue??
             self.declare_queue(self.queue_name)
-            # logger.debug("RMQ - Calling _connect")
         except Exception as e:
-            logger.error(f"[RabbitMQ] Connection error: {e}")
+            logger.critical(f"Connection error: {e}")
             raise
 
     def declare_queue(self, queue_name:str = None) -> None:
@@ -77,20 +76,20 @@ class RabbitMQ:
             self._ensure_channel(queue_name)
             self.channel.queue_declare(queue=queue_name, durable=True)
         except Exception as e:
-            logger.error(f"[RabbitMQ] Failed to declare queue '{queue_name}': {e}")
+            logger.error(f"Failed to declare queue '{queue_name}': {e}")
 
     def _ensure_channel(self, queue_name: str = None) -> None:
         """Ensure channel is open; reconnect and redeclare if closed."""
         queue_name = queue_name or self.queue_name
 
         if not hasattr(self, 'channel') or self.channel.is_closed:
-            logger.info(f"[RabbitMQ] Channel closed for '{queue_name}'; reconnecting...")
+            logger.info(f"Channel closed for '{queue_name}'; reconnecting...")
             
             try:
                 self.reconnect()
                 self.channel.queue_declare(queue=queue_name, durable=True)
             except Exception as e:
-                logger.error(f"[RabbitMQ] Failed to redeclare queue '{queue_name}': {e}")
+                logger.error(f"Failed to redeclare queue '{queue_name}': {e}")
 
     def queue_exists(self,queue_name: str = None) -> bool:
         """Check if the managed queue exists.
@@ -116,7 +115,7 @@ class RabbitMQ:
             queue_info = self.channel.queue_declare(queue=queue_name, passive=True)
             return queue_info.method.message_count
         except Exception as e:
-            logger.error(f"[RabbitMQ] Error checking tasks in queue: {e}")
+            logger.error(f"Error checking tasks in queue: {e}")
             return 0
         
     def consumers_in_queue(self, queue_name: str = None) -> int:
@@ -130,7 +129,7 @@ class RabbitMQ:
             queue_info = self.channel.queue_declare(queue=queue_name, passive=True)
             return queue_info.method.consumer_count
         except Exception as e:
-            logger.error(f"[RabbitMQ] Error checking consumers in queue: {e}")
+            logger.error(f"Error checking consumers in queue: {e}")
             return 0
 
     def start_consuming(self, callback: object,  queue_name: str = None) -> None:
@@ -161,14 +160,14 @@ class RabbitMQ:
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
-        logger.debug("[RabbitMQ] Reconnecting to RabbitMQ...")
+        logger.debug("Reconnecting to RabbitMQ...")
         try:
             # TODO:[P_Med][] -  ---- wait, can this work?
             self.close()  # or self.exit()
         except Exception as e:
-            logger.error(f"[RabbitMQ] Error during reconnect close: {e}")
+            logger.error(f"Error during reconnect close: {e}")
         self._connect()
-        logger.debug(f"[RabbitMQ] reconnect successful.")
+        logger.debug(f"Reconnect successful.")
 
     @staticmethod
     def list_queues(prefix: str = "") -> list[str]:
@@ -187,7 +186,7 @@ class RabbitMQ:
             queues = response.json()
             return [q["name"] for q in queues if q["name"].startswith(prefix)]
         except Exception as e:
-            logger.error(f"[RabbitMQ] Error fetching queue list: {e}")
+            logger.error(f"Error fetching queue list: {e}")
             return []
 
     
@@ -224,12 +223,12 @@ class RabbitMQ:
             try:
                 body = json.loads(_body)
                 if not isinstance(body, dict):
-                    raise ValueError("[RabbitMQ] JSON is not an object.")
+                    raise ValueError("JSON is not an object.")
                 return method_frame, props, body
             
             except Exception as e:
                 # Bad payload so we send to FAILQ and ACK (so we don't hot-loop it)
-                logger.error(f"[RabbitMQ] Bad JSON from '{queue_name}': {e}. Enqueuing to Fail Queue.")
+                logger.error(f"Bad JSON from '{queue_name}': {e}. Enqueuing to Fail Queue.")
                 try: 
                     message = {"Body": _body, "reason": f"error: bad_payload {e}"}
                     self.enqueue_to_queue(queue_name=FAIL_QUEUE, message=message)
@@ -237,12 +236,12 @@ class RabbitMQ:
                     try:
                         self.channel.basic_ack(delivery_tag=method_frame.delivery_tag)
                     except Exception as ack_err:
-                        logger.warning(f"[RabbitMQ] Failed to ack bad JSON message: {ack_err}")
+                        logger.warning(f"Failed to ack bad JSON message: {ack_err}")
 
                 return None # seems nothing is usable
             
         except Exception as e:
-            logger.error(f"[RabbitMQ] Failed to fetch next message from '{queue_name}': {e}")
+            logger.error(f"Failed to fetch next message from '{queue_name}': {e}")
             return None
 
     def ack(self, delivery_tag: int) -> None:
@@ -250,13 +249,13 @@ class RabbitMQ:
             # logger.debug(f"Message acked with delivery tag: {delivery_tag}")
             self.channel.basic_ack(delivery_tag=delivery_tag)
         except Exception as e:
-            logger.warning(f"[RabbitMQ] Failed to ack {delivery_tag}: {e}")
+            logger.warning(f"Failed to ack {delivery_tag}: {e}")
 
     def nack(self, delivery_tag: int, requeue: bool = True) -> None:
         try:
             self.channel.basic_nack(delivery_tag=delivery_tag, requeue=requeue)
         except Exception as e:
-            logger.warning(f"[RabbitMQ] Failed to nack {delivery_tag}: {e}")
+            logger.warning(f"Failed to nack {delivery_tag}: {e}")
 
 
     def remove_queue(self, queue_name: str = None):
@@ -273,12 +272,12 @@ class RabbitMQ:
 
             # Queue is empty condition
             if remaining == 0 and consumers == 0:
-                logger.debug(f"[RabbitMQ] Deleting empty queue '{queue_name}'.")
+                logger.debug(f"Deleting empty queue '{queue_name}'.")
                 self.channel.queue_delete(queue=queue_name)
                 return
             
             # Else, queue is not empty, drain to fail queue 
-            logger.info(f"[RabbitMQ] {queue_name} is not empty. Draining to 'fail_queue'.")
+            logger.info(f"{queue_name} is not empty. Draining to 'fail_queue'.")
             
             for _ in range(remaining):
                 # Get one-by-one task thats remaining
@@ -295,15 +294,15 @@ class RabbitMQ:
 
             # Safely delete the empty queue
             self.channel.queue_delete(queue=queue_name)
-            logger.debug(f"[RabbitMQ] Moved {remaining} tasks to 'fail_queue' and deleted '{queue_name}'.")
+            logger.debug(f"Moved {remaining} tasks to 'fail_queue' and deleted '{queue_name}'.")
         
         except pika.exceptions.ChannelClosedByBroker as e:
             # queue may already be gone. Lets treat it as success
             if "NOT_FOUND" in str(e):
-                logger.debug(f"[RabbitMQ] Queue '{queue_name}' already deleted.")
+                logger.debug(f"Queue '{queue_name}' already deleted.")
                 self.reconnect()  # restore channel for future ops
         except Exception as e:
-            logger.error(f"[RabbitMQ] Error during queue removal for '{queue_name}': {e}")
+            logger.error(f"Error during queue removal for '{queue_name}': {e}")
 
 
     # TODO:[P_Low][Emilia] - : enqueue_to_queue rename to something descriptive
@@ -332,10 +331,10 @@ class RabbitMQ:
                 body=json.dumps(message),
                 properties=pika.BasicProperties(delivery_mode=2)
             )
-            logger.debug(f"[RabbitMQ enqueue_to_queue()]: enqueued {message} to {queue_name}")
+            logger.debug(f"Enqueued {message} to RMQ: {queue_name}")
 
         except (pika.exceptions.ChannelClosedByBroker, pika.exceptions.ConnectionClosed) as e:
-            logger.warning(f"[RabbitMQ] Failed to enqueue (closed channel): {e}. Will reconnect..") 
+            logger.warning(f"Failed to enqueue (closed channel): {e}. Will reconnect..") 
             try:
                 self.reconnect()
                 self.channel.queue_declare(queue=queue_name, durable=True)
@@ -346,23 +345,23 @@ class RabbitMQ:
                     properties=pika.BasicProperties(delivery_mode=2)
                 )
             except Exception as ex:
-                logger.error(f"[RabbitMQ] Failed to enqueue (closed channel) and reconnection failed for '{queue_name}': {ex}")
+                logger.error(f"Failed to enqueue (closed channel) and reconnection failed for '{queue_name}': {ex}")
         except Exception as e:
-            logger.error(f"[RabbitMQ] Failed to enqueue message to '{queue_name}': {e}")
+            logger.error(f"Failed to enqueue message to '{queue_name}': {e}")
 
     def close(self) -> None:
         """Close the RabbitMQ connection safely."""
-        # logger.debug("RMQ - Calling close")
+
         try:
             if hasattr(self, "connection") and not self.connection.is_closed:
                 # if hasattr(self, "connection") and self.connection and not self.connection.is_closed:
                 self.connection.close()
         except Exception as e:
-            logger.error(f"[RabbitMQ] Error closing connection: {e}")
+            logger.error(f"Error closing connection: {e}")
 
     def __enter__(self):
         """Support context manager entry (with-statement)."""
-        # logger.debug("RMQ - Calling enter")
+
         # self._connect()
         return self
 

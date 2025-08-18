@@ -66,7 +66,7 @@ class PortScanner:
 
             # 1) choose which RMQ queue to seed
             queue_name = PRIORITY_PORTS_QUEUE if USE_PRIORITY_PORTS else ALL_PORTS_QUEUE
-            logger.info(f"[PortScanner] Seeding ports into '{queue_name}'…")
+            logger.info(f"Seeding ports into '{queue_name}'…")
 
             # 2) enqueue the ports to RMQ
             self.new_targets(queue_name)
@@ -79,7 +79,7 @@ class PortScanner:
 
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
-            logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
+            logger.critical(f"Fatal error: {e}", exc_info=True)
             self.infraManager.stop()
             sys.exit(1)
 
@@ -106,7 +106,7 @@ class PortScanner:
 
         except Exception as e:
             # Wait for the db queue to drain and stop the db listener
-            logger.critical(f"[PortScanner] Fatal error: {e}", exc_info=True)
+            logger.critical(f"Fatal error: {e}", exc_info=True)
             self.infraManager.stop()
             sys.exit(1)
 
@@ -116,7 +116,7 @@ class PortScanner:
             logger.info("Port scan done.")
 
             # Wait for the db queue to drain (blocks until every port task_done() completed)
-            logger.info(f"[PortScanner] Waiting for db_ports queue to empty.. Currently there are {db_ports.qsize()} items in db_ports queue.")
+            logger.info(f"Waiting for db_ports queue to empty.. Currently there are {db_ports.qsize()} items in db_ports queue.")
             self.infraManager.stop()
             
 
@@ -133,7 +133,7 @@ class PortScanner:
                 # IF: row exists and NOT yet updated with port data
                 if latest_summary and latest_summary[0][1] is None:
                     summary_id = latest_summary[0][0]
-                    logger.info(f"[PortScanner] Updating summary #{summary_id} with port scan data.")
+                    logger.info(f"Updating summary #{summary_id} with port scan data.")
                     
                     # update the existing summary
                     update_qm = self.infraManager.queryHandler.update_summary(
@@ -143,7 +143,7 @@ class PortScanner:
                         scanned_ports=scanned_ports
                     )
                     if not db_conn.execute_query_model(update_qm):
-                        logger.critical(f"[PortScanner] Failed to update existing summary #{summary_id}.")
+                        logger.critical(f"Failed to update existing summary #{summary_id}.")
 
                 # IF: no row, or row already has port_scan_done_ts (EDGE CASE)
                 else:
@@ -185,14 +185,14 @@ class PortScanner:
 
                 # if timeout or failure happens
                 if probe in ("timeout", "failed"):
-                    logger.warning(f"[PortScanner] Probe returned with {probe} scan result for {ip_addr}:{port}; routing to fail queue.")
+                    logger.warning(f"Probe returned with {probe} scan result for {ip_addr}:{port}; routing to fail queue.")
                     message = {"ip": ip_addr, "port": port, "reason": probe}
                     rmq_fail_conn.enqueue_to_queue(message=message)
                     return
 
                 # if intense scan ran and timed out, try to scan without version detection (lighter mode)
                 if probe == "intense_scan_timeout":
-                    logger.debug(f"[PortScanner] Probe returned with {probe} scan result for {ip_addr}:{port}; routing to fail queue and retrying without version detection.")
+                    logger.debug(f"Probe returned with {probe} scan result for {ip_addr}:{port}; routing to fail queue and retrying without version detection.")
                     message = {"ip": ip_addr, "port": port, "reason": probe}
                     rmq_fail_conn.enqueue_to_queue(message=message)
                     probe = ProbesPortScan(ip_addr, str(port)).scan(scan_light_mode=True)
@@ -213,7 +213,7 @@ class PortScanner:
                 
                 # if state is unknown, route to fail queue and skip insert to the database
                 if scan_results["port_state"] == "unknown":
-                    logger.info(f"[PortScanner] Unknown scan result for {ip_addr}:{port}; routing to fail queue. ")
+                    logger.info(f"Unknown scan result for {ip_addr}:{port}; routing to fail queue. ")
                     message = {"ip": ip_addr, "port": port, "reason": "unknown_state"}
                     rmq_fail_conn.enqueue_to_queue(message=message)
                     return
@@ -221,12 +221,12 @@ class PortScanner:
                 # 3) Enqueue results to database (open, filtered, and closed)
                 try:
                     db_ports.put(scan_results)
-                    logger.debug(f"[PortScanner|pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr}.")
+                    logger.debug(f"[pid={os.getpid()}] Inserted to db_ports queue the ip: {ip_addr}.")
                 except Exception as e:
-                    logger.error(f"[PortScanner] Failed to enqueue host result to db_ports: {e}")
+                    logger.error(f"Failed to enqueue host result to db_ports: {e}")
 
             except Exception as e:
-                logger.exception(f"[PortScanner] Exception during scan of {ip_addr}:{port}: {e}\n scan_results: {probe}\n\n")
+                logger.exception(f"Exception during scan of {ip_addr}:{port}: {e}\n scan_results: {probe}\n\n")
                 message = {"ip": ip_addr, "port": port, "reason": f"error: {e}"}
                 rmq_fail_conn.enqueue_to_queue(message=message)
 
@@ -267,12 +267,12 @@ class PortScanner:
                         rmq_batch_conn.ack(tag) # Success, so we ACK
                         
                     except Exception as e:
-                        logger.error(f"[PortScanner] Error processing task with ip {ip_addr} and port {port}: {e} ")
+                        logger.error(f"Error processing task with ip {ip_addr} and port {port}: {e} ")
                         try:
                             rmq_batch_conn.enqueue_to_queue(queue_name=FAIL_QUEUE, message={"ip": ip_addr, "port": port, "err": str(e)})
                             rmq_batch_conn.ack(tag)
                         except Exception as e:
-                            logger.error(f"[PortScanner] Also failed to send to FAIL_QUEUE: {e}")
+                            logger.error(f"..Also failed to send to FAIL_QUEUE: {e}")
                             rmq_batch_conn.nack(tag, requeue=True)
 
                     # pause between tasks
@@ -281,7 +281,7 @@ class PortScanner:
                 # once we drain the queue, remove it
                 rmq_batch_conn.remove_queue()
         finally:
-            logger.debug(f"Batch worker for queue {batch_queue} has drained and exited the queue.")
+            logger.info(f"Batch worker for queue {batch_queue} has drained and exited the queue.")
 
 
     def start_consuming(self, port_queue_name: str) -> None:
@@ -303,7 +303,7 @@ class PortScanner:
 
             # Start port scan and check how many ports to scan
             total_ports = shared_RMQ_connection.tasks_in_queue()
-            logger.info(f"[PortScanner] Starting batched port-scan on '{port_queue_name}' with {total_ports} ports to scan.")
+            logger.info(f"Starting batched port-scan on '{port_queue_name}' with {total_ports} ports to scan.")
             print(f"Scan started for total of {total_ports} Ports.")
 
             while True:
@@ -324,14 +324,14 @@ class PortScanner:
                         except Exception: pass
                         if worker.exitcode not in (0, None):
                             # crashed or terminated; queue should have been deleted in _drain_and_exit
-                            logger.warning(f"[PortScanner] Worker {worker.pid} exited with code {worker.exitcode}")
+                            logger.warning(f"Worker {worker.pid}, exited with code {worker.exitcode}")
                 self.active_workers = alive
 
                 remaining = shared_RMQ_connection.tasks_in_queue()
 
                 # Stop as nothing is left anywhere
                 if remaining == 0 and not self.ready_batches and not self.active_workers:
-                    logger.debug("[PortScanner] All batches completed.")
+                    logger.debug("All batches completed.")
                     break
 
                 # Assign ready batches to free worker slots
@@ -343,7 +343,7 @@ class PortScanner:
                         p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
                         p.start()
                         self.active_workers.append((p, batch_queue))
-                        logger.info(f"[PortScanner] Worker started on {batch_queue} "
+                        logger.info(f"Worker started on {batch_queue} "
                                     f"(Workers running={len(self.active_workers)}/{max_running_allowed}, "
                                     f"ready batches={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}, "
                                     f"main queue remaining={remaining})")
@@ -354,12 +354,12 @@ class PortScanner:
                     batch_queue = PortBatchHandler().create_port_batch(ip_queue=ALIVE_ADDR_QUEUE, port_queue=port_queue_name)
                     
                     if not batch_queue:
-                        logger.debug("[PortScanner] Waiting for a free slot to spawn next batch...")
+                        logger.debug("Waiting for a free slot to spawn next batch...")
                         # transient issue, so don't tight-loop
                         time.sleep(0.5)
                         break
                     self.ready_batches.append(batch_queue)
-                    logger.debug(f"[PortScanner] Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
+                    logger.debug(f"Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
 
                 # Small backoff to avoid busy loop
                 if self.ready_batches or len(self.active_workers) < max_running_allowed:
@@ -395,31 +395,31 @@ class PortScanner:
                 # Randomize the ports
                 all_ports_iter = reservoir_of_reservoirs(all_ports)
                 if not all_ports_iter:
-                    logger.critical(f"[PortScanner] Port list for '{queue_name}' is empty.")
+                    logger.critical(f"Port list for '{queue_name}' is empty.")
                     return
 
                 # Enqueue ports to RMQ
                 with RabbitMQ(queue_name) as rmq_conn:
                     for port in all_ports_iter:
                         rmq_conn.enqueue_to_queue(queue_name=queue_name, message={"port": port})
-                logger.info(f"[PortScanner] Seeded {queue_name} with randomized ports.")
+                logger.info(f"Seeded {queue_name} with randomized ports.")
 
             elif queue_name == PRIORITY_PORTS_QUEUE:
 
                 # Randomize the ports
                 priority_ports_iter = reservoir_of_reservoirs(priority_ports)
                 if not priority_ports_iter:
-                    logger.critical(f"[PortScanner] Port list for '{queue_name}' is empty.")
+                    logger.critical(f"Port list for '{queue_name}' is empty.")
                     return
 
                 # Enqueue ports to RMQ
                 with RabbitMQ(queue_name) as rmq_conn: 
                     for port in priority_ports_iter:
                         rmq_conn.enqueue_to_queue(queue_name=queue_name, message={"port": port})
-                logger.info(f"[PortScanner] Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
+                logger.info(f"Seeded {PRIORITY_PORTS_QUEUE} with randomized ports.")
 
             else:
                 raise ValueError(f"Bad queue: {queue_name}")
 
         except Exception as e:
-            logger.error(f"[PortScanner] Error in new_targets: {e}")
+            logger.error(f"Error in new_targets: {e}")

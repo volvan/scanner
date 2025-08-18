@@ -65,7 +65,7 @@ class PortBatchHandler:
                 rmq_conn.enqueue_to_queue(message={"ip": ip})
 
         self.ips_cache = all_ips
-        logger.debug(f"[PortBatchHandler] Cached {len(all_ips)} alive IPs.")
+        logger.debug(f"Cached {len(all_ips)} alive IPs.")
 
 
     def create_port_batch(self, ip_queue: str, port_queue: str) -> str | None:
@@ -94,7 +94,7 @@ class PortBatchHandler:
 
             # Validate payload
             if not isinstance(body, dict) or "port" not in body or body["port"] is None:
-                logger.error(f"[PortBatchHandler] Invalid or missing 'port' in payload: {body!r}")
+                logger.error(f"Invalid or missing 'port' in payload: {body!r}")
                 rmq_conn.enqueue_to_queue(queue_name=scan_config.FAIL_QUEUE, message={"raw": body, "reason": "bad_payload"})
                 rmq_conn.ack(tag)  # don't hot-loop a bad message
                 return None
@@ -106,7 +106,7 @@ class PortBatchHandler:
             
             self.used_ports.add(port)
             rmq_conn.ack(tag)# success path, we accepted this port
-            logger.debug(f"[PortBatchHandler] used_ports size={len(self.used_ports)}")
+            logger.debug(f"used_ports size={len(self.used_ports)}")
 
             # TODO:[P_High][] -  this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
             # TODO:[P_Low][] - should this not be in similar logic as the batch creation in ip scan? i know the message is not the same but else it should follow in simar terms, no?
@@ -115,7 +115,7 @@ class PortBatchHandler:
             self._load_all_ips_once(queue_name=ip_queue)
 
             if not self.ips_cache:
-                logger.warning("[PortBatchHandler] No alive IPs to batch against.")
+                logger.warning("No alive IPs to batch against.")
                 return None
 
             prefix = scan_config.PRIORITY_PORTS_QUEUE if port_queue == scan_config.PRIORITY_PORTS_QUEUE else "port" # TODO:[P_High][Emilia] -  Look at this
@@ -124,5 +124,5 @@ class PortBatchHandler:
             encrypted_ips = reservoir_of_reservoirs(self.ips_cache)
             for ip in encrypted_ips:
                 rmq_conn.enqueue_to_queue(queue_name=batch_name, message={"ip": ip, "port": port})
-            logger.debug(f"[PortBatchHandler] Created batch '{batch_name}' with {len(self.ips_cache)} tasks.")
+            logger.debug(f"Created batch '{batch_name}' with {len(self.ips_cache)} tasks.")
             return batch_name

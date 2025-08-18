@@ -45,7 +45,7 @@ def fetch_rix_blocks() -> str:
 
         # Reuse existing file if it exists
         if os.path.exists(filepath):
-            logger.debug(f"[block_handler] Reusing existing RIX file: {filepath}")
+            logger.debug(f"Reusing existing RIX file: {filepath}")
             return filepath
 
         # Fetch RIX data
@@ -60,14 +60,14 @@ def fetch_rix_blocks() -> str:
             for cidr in cidr_list:
                 f.write(cidr + '\n')
 
-        logger.debug(f"[block_handler] Saved new RIX data to {filepath}")
+        logger.info(f"Saved new RIX data to {filepath}")
         return filepath
 
     except requests.RequestException as e:
-        logger.error(f"[block_handler] Error fetching rix.is blocks: {e}")
+        logger.error(f"Error fetching rix.is blocks: {e}")
         return None
     except Exception as e:
-        logger.error(f"[block_handler] Unexpected error in fetch_rix_blocks: {e}")
+        logger.error(f"Unexpected error in fetch_rix_blocks: {e}")
         return None
 
 
@@ -85,7 +85,7 @@ def read_block(filename: str) -> list:
         with open(file_path, "r") as file:
             return [line.strip() for line in file if line.strip()]
     except Exception as e:
-        logger.error(f"[block_handler] Failed to read block file '{filename}': {e}")
+        logger.error(f"Failed to read block file '{filename}': {e}")
         return []
 
 
@@ -137,7 +137,7 @@ def get_ip_addresses_from_block(ip_address: str = None, filename: str = None):
         else:
             yield from _ips_from_cidr(ip_address)
     except Exception as e:
-        logger.error(f"[block_handler] Failed to extract IPs: {e}")
+        logger.error(f"Failed to extract IPs: {e}")
         return []
 
 
@@ -165,7 +165,7 @@ def extract_subnet_from_block(cidr_block: str = None, filename: str = None) -> d
         except ValueError:
             results[cidr] = ("unknown", None)
         except Exception as e:
-            logger.error(f"[block_handler] Unexpected subnet extraction error: {e}")
+            logger.error(f"Unexpected subnet extraction error: {e}")
             results[cidr] = ("unknown", None)
     return results
 
@@ -244,12 +244,12 @@ def whois_block(filename: str) -> dict:
                 "state_prov": network.get("state"),
             }
 
-            logger.debug(f"[block_handler] WHOIS lookup complete for {cidr}")
+            logger.info(f"WHOIS lookup complete for {cidr}")
             time.sleep(WHO_IS_SCAN_DELAY)
 
 
         except Exception as e:
-            logger.error(f"[block_handler] WHOIS failed for {cidr}: {e}")
+            logger.error(f"WHOIS failed for {cidr}: {e}")
             results[cidr] = {
                 "ip_addr": None,
                 "cidr": cidr,

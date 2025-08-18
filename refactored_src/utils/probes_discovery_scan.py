@@ -41,16 +41,16 @@ class ProbesDiscoveryScan:
                 universal_newlines=True,
                 timeout=30
             )
-            logger.debug(f"[ProbesDiscoveryScan] Ran: {' '.join(command)} \n {output}")
+            logger.debug(f"Ran: {' '.join(command)} \n {output}")
             return output
         except subprocess.CalledProcessError:
-            logger.debug(f"[ProbesDiscoveryScan] No response: {' '.join(command)}")
+            logger.debug(f"No response: {' '.join(command)}")
             return ""
         except subprocess.TimeoutExpired:
-            logger.debug(f"[ProbesDiscoveryScan] Timeout: {' '.join(command)}")
+            logger.debug(f"Timeout: {' '.join(command)}")
             return ""
         except Exception as e:
-            logger.error(f"[ProbesDiscoveryScan] Unexpected error running the command: {command}. Error: {e}")
+            logger.error(f"Unexpected error running the command: {command}. Error: {e}")
             return ""
 
     def _extract_results(self, cmd_output: str) -> str:
@@ -106,7 +106,7 @@ class ProbesDiscoveryScan:
             return(host_state, duration)
 
         except Exception as e:
-            logger.error(f"[ProbesDiscoveryScan] icmp_ping failed: {e}")
+            logger.error(f"icmp_ping failed: {e}")
             return None # If output is None or exception
 
 
@@ -142,7 +142,7 @@ class ProbesDiscoveryScan:
             return(host_state, duration)
 
         except Exception as e:
-            logger.error(f"[ProbesDiscoveryScan] tcp_syn_ping failed: {e}")
+            logger.error(f"tcp_syn_ping failed: {e}")
             return None # If output is None or exception
 
     def tcp_ack_ping_ttl(self) -> tuple[str, float] | None:
@@ -172,5 +172,5 @@ class ProbesDiscoveryScan:
             return(host_state, duration)
 
         except Exception as e:
-            logger.error(f"[ProbesDiscoveryScan] tcp_ack_ping_ttl failed: {e}")
+            logger.error(f"tcp_ack_ping_ttl failed: {e}")
             return None # If output is None or exception
