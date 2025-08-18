@@ -161,7 +161,7 @@ class DiscoveryScanner:
             logger.debug(f"[pid={os.getpid()}] Probing IP: {ip_addr}")
             
             # 1. Ping the IP
-            ping_res = self.ping_host(ip_addr) # Returns dict as method, protocol, state and duration. OR None
+            ping_res = ProbesDiscoveryScan(ip_addr).ping_host_all_methods() # Returns dict as method, protocol, state and duration. OR None
             logger.debug(f"Scan result: {ping_res}")
             if not ping_res:
                 logger.error(f"Failed to ping host {ip_addr}")
@@ -258,7 +258,7 @@ class DiscoveryScanner:
         finally:
             logger.debug(f"Worker for queue {queue_name} has drained and exited the queue.")
 
-    def start_consuming(self) -> None:
+    def start_consuming(self) -> None: # TODO:[P_Low][] - Naming conventions need to be thought of, hard to follow consumers/producers
         """Start consuming tasks from the main queue, choosing direct or batch mode.
         
         Creates batches and ONE WORKER drains from each queue.
@@ -414,71 +414,6 @@ class DiscoveryScanner:
             logger.error(f"Error in new_targets: {e}")
             return None
 
-    def ping_host(self, ip_addr: str) -> dict: # TODO:[P_Low][] -  move function to ProbesDiscoveryScan
-        """Probe a host using ICMP, TCP-SYN, and TCP-ACK in sequence.
-
-        Args:
-            ip_addr (str): IP address to probe.
-
-        Returns:
-            dict:
-                - 'probe_method' (str or None)
-                - 'probe_protocol' (str or None)
-                - 'host_state' ("alive" or "dead")
-                - 'probe_duration' (float or None)
-        """
-
-        # Create the probe handler for the IP to probe
-        handler = ProbesDiscoveryScan(ip_addr)
-        last_non_alive = None  # store last non-alive valid result to return accurate results
-
-        for method, proto, fn in [
-            ("icmp_ping", "ICMP", handler.icmp_ping),
-            ("tcp_syn_ping", "TCP-SYN", handler.tcp_syn_ping),
-            ("tcp_ack_ping_ttl", "TCP-ACK", handler.tcp_ack_ping_ttl),
-        ]:
-            try:
-                probe_results = fn() # Is None only if host state is not in ("alive", "dead", "filtered", "unknown"):
-            except subprocess.TimeoutExpired:
-                logger.warning(f"Method: {method} scan for {ip_addr} timed out; continuing") # TODO: [][P_High] - host state should be 'timeout' if that's the case.. 
-                probe_results = None # host state = timeout
-            except Exception as e:
-                logger.warning(f"Method: {method} to {ip_addr} crashed: {e}.")
-                probe_results = None
-            
-            # If probing returns nothing, continue with the next probe type
-            if not probe_results or len(probe_results) !=2:
-                continue
-            
-            # If host is alive, return it as such
-            elif probe_results[0] == "alive":
-                host_state = probe_results[0]
-                duration = probe_results[1]
-                return {"probe_method": method, "probe_protocol": proto, "host_state": host_state, "probe_duration": duration,}
-            
-            # Otherwise, remember the last non-alive state
-            elif probe_results[0] in ("dead", "filtered", "unknown"):
-                last_non_alive = {
-                    "probe_method": method,
-                    "probe_protocol": proto,
-                    "host_state": probe_results[0],
-                    "probe_duration": probe_results[1],
-                }
-
-            time.sleep(SCAN_DELAY)
-        
-        # If host is not alive, return the last stored non-alive result if available (filtered or unknown)
-        if last_non_alive:
-            return last_non_alive
-
-        # Lastly, if the probe did not work properly, return None values
-        logger.warning(f"All probes for {ip_addr} failed with exception or timeout.")
-        return {
-            "probe_method": None,
-            "probe_protocol": None,
-            "host_state": "unknown",
-            "probe_duration": None,
-        }
             
     def create_batch(self, amount:int = BATCH_QUEUE_SIZE_MAX) -> str | None:
         """Create a batch queue from tasks pulled from the main queue.

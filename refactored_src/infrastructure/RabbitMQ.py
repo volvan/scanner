@@ -165,9 +165,7 @@ class RabbitMQ:
             logger.warning(f"[RabbitMQ] Broker closed connection: {e}")
         except Exception as e:
             logger.error(f"[RabbitMQ] Unexpected error while consuming: {e}")
-        # finally:
-        #     self.close() vs self.exit()
-        # TODO:[P_Med][] -  This was self.close() BUT is that needed?
+
 
     def reconnect(self) -> None:
         """Reconnect to RabbitMQ by closing and re-establishing the connection."""
@@ -276,7 +274,6 @@ class RabbitMQ:
         """
         queue_name = queue_name or self.queue_name
 
-        # TODO:[P_Med][] -  what is happening here though? in all this function....
         try:
             remaining = self.tasks_in_queue(queue_name)
             consumers = self.consumers_in_queue(queue_name)
