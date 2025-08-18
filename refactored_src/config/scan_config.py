@@ -10,6 +10,14 @@ SCAN_TYPE:str         = "ip"                                         # (DEF: ip_
 SCAN_MODE_LIGHT:bool  = True                                         # (DEF: False)  - If False, runs intense scan that adds -sV to port probes (for better version detection)
 
 
+# ----- MONITORING and LOGS ------------------------------------------------------
+DEBUG_MODE:bool       = True                                         # Debug mode will prompt user in start of run
+SERVICE_TAG           = SCAN_TYPE + "_scan"                          # The logger file / tag, such as "ip_scan" or "port_scan"
+LOG_TO_FILE:bool      = True                                         # If True, logs debug levels in log file, else warnings
+LOG_TO_TERMINAL:bool  = False                                        # If True, logs debug levels to terminal, else warnings
+# -------------------------------------------------------------------------------
+
+
 # ----- PATHS ------------------------------------------------------------------
 BASE_DIR              = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR              = os.path.dirname(os.path.dirname(BASE_DIR))
@@ -17,15 +25,12 @@ TARGETS_FILE_PATH     = os.path.join(BASE_DIR, "..", "targets")      # Stored un
 
 TARGETS_FILE:str      = os.path.join(TARGETS_FILE_PATH, "blocks.txt")# File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
 PORTS_FILE:str        = os.path.join(TARGETS_FILE_PATH, "ports.txt") # The file containing the ports to scan
+
 CONFIG_PATH           = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
 LOG_DIR               = os.path.join(ROOT_DIR, "logs")               # Where to store the logs
+LOG_FILE_PATH         = os.path.join(LOG_DIR, f"{SERVICE_TAG}.log")  # Name of the log file
 # --------------------------------------------------------------------------------
 
-# ----- MONITORING and LOGS ------------------------------------------------------
-DEBUG_MODE:bool       = True                                         # Debug mode will prompt user in start of run
-LOG_TO_FILE:bool      = True                                         # If True, logs debug levels in log file, else warnings
-LOG_TO_TERMINAL:bool  = False                                        # If True, logs debug levels to terminal, else warnings
-# -------------------------------------------------------------------------------
 
 # ----- RESOURCE LIMITS ---------------------------------------------------------
 MEM_LIMIT = 1_000 * 1024**2                                          # Memory (in bytes)
