@@ -43,13 +43,16 @@ class ProbesDiscoveryScan:
 
         last_non_alive = None  # store last non-alive valid result to return accurate results
 
-        for method, proto, fn in [
+        probes = [
             ("icmp_ping", "ICMP", self.icmp_ping),
             ("tcp_syn_ping", "TCP-SYN", self.tcp_syn_ping),
             # ("tcp_ack_ping_ttl", "TCP-ACK", self.tcp_ack_ping_ttl),
-        ]:
+        ]
+        
+        for i, (method, proto, fn) in enumerate(probes):
+            has_next = i < len(probes) - 1 # Keeps track if we will scan again with another probe
             try:
-                probe_results = fn() # Is None only if host state is not in ("alive", "dead", "filtered", "unknown"):
+                probe_results = fn() 
             except subprocess.TimeoutExpired:
                 logger.warning(f"Method: {method} scan for {self.target_ip} timed out; continuing") # TODO: [][P_High] - host state should be 'timeout' if that's the case.. 
                 probe_results = None # host state = timeout
@@ -57,26 +60,33 @@ class ProbesDiscoveryScan:
                 logger.warning(f"Method: {method} to {self.target_ip} crashed: {e}.")
                 probe_results = None
             
-            # If probing returns nothing, continue with the next probe type
+            # If probing fails #TODO:[P_High][] - error 
             if not probe_results or len(probe_results) !=2:
+                if has_next:
+                    time.sleep(SCAN_DELAY)
                 continue
+
+            state, duration = probe_results # probe_results returns (Host_state)(Duration)    - "alive", "dead", "filtered", "unknown"
             
             # If host is alive, return it as such
-            elif probe_results[0] == "alive":
-                host_state = probe_results[0]
-                duration = probe_results[1]
-                return {"probe_method": method, "probe_protocol": proto, "host_state": host_state, "probe_duration": duration,}
+            if state == "alive":
+                return {
+                    "probe_method": method,
+                    "probe_protocol": proto,
+                    "host_state": state,
+                    "probe_duration": duration,
+                }
             
             # Otherwise, remember the last non-alive state
-            elif probe_results[0] in ("dead", "filtered", "unknown"):
+            if state in ("dead", "filtered", "unknown"):
                 last_non_alive = {
                     "probe_method": method,
                     "probe_protocol": proto,
-                    "host_state": probe_results[0],
-                    "probe_duration": probe_results[1],
+                    "host_state": state,
+                    "probe_duration": duration,
                 }
-
-            time.sleep(SCAN_DELAY)
+                if has_next:
+                    time.sleep(SCAN_DELAY)
         
         # If host is not alive, return the last stored non-alive result if available (filtered or unknown)
         if last_non_alive:
