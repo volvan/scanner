@@ -7,7 +7,7 @@ import time
 from datetime import date
 
 # Utility Handlers
-from utils.timestamp import get_current_timestamp, parse_timestamp
+from utils.timestamp import get_current_timestamp
 
 # Configuration
 from config.logging_config import log_exception, logger
@@ -38,8 +38,7 @@ def fetch_rix_blocks() -> str:
         os.makedirs(targets_dir, exist_ok=True)
 
         # Use timestamped filename (targets/rix/YYYY-MM-DD.txt)
-        timestamp = parse_timestamp(get_current_timestamp())
-        datetime_str = timestamp.strftime('%Y-%m-%d')
+        datetime_str = get_current_timestamp().strftime('%Y-%m-%d')
         filename = f"{datetime_str}.txt"
         filepath = os.path.join(targets_dir, filename)
 
@@ -52,6 +51,7 @@ def fetch_rix_blocks() -> str:
         response = requests.get(RIX_URL, headers=HEADERS, timeout=10)
         response.raise_for_status()
         raw_lines = response.text.splitlines()
+        
         ipv4_pattern = re.compile(r'^\s*(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?\s*$')
         cidr_list = [line.strip() for line in raw_lines if ipv4_pattern.match(line.strip())]
 

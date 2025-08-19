@@ -36,19 +36,6 @@ def format_timestamp(dt: datetime, tz: timezone = timezone.utc) -> str:
     return dt.isoformat()
 
 
-def parse_timestamp(timestamp_str: str) -> datetime:
-    """Parse an ISO 8601 formatted timestamp string into a datetime object.
-
-    Args:
-        timestamp_str (str): ISO 8601 formatted timestamp.
-
-    Returns:
-        datetime: Parsed datetime object.
-
-    """
-    return datetime.fromisoformat(timestamp_str)
-
-
 def duration_timestamp(start_ts: datetime, end_ts: datetime) -> float:
     """Calculate the duration in seconds between two datetime timestamps.
 
