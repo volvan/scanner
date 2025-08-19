@@ -151,7 +151,7 @@ class QueryHandler:
         )
 
         queryModel = QueryModel(query=sql_query, params=params)
-        logger.debug(f"Update Summary - Query model: {queryModel}")
+        logger.debug(f"Update host results - Query model: {queryModel}")
 
         return queryModel
 
