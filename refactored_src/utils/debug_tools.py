@@ -8,11 +8,24 @@ from config.logging_config import logger
 
 def _confirm(prompt: str) -> bool:
     """laterdo: Docstr."""
-    # helper
     sys.stderr.write(f"{prompt} (y/N): ")
     sys.stderr.flush()
     reply = sys.stdin.readline().strip().lower()
     return reply == "y"
+
+
+def _enter_or_quit(prompt: str = "Maintenance done. Press Enter to continue (or 'q' to quit): "):
+    """Wait for Enter to continue, while 'q' quits the program."""
+
+    sys.stderr.write(prompt)
+    sys.stderr.flush()
+    reply = sys.stdin.readline()
+
+    if reply and reply.strip().lower() == "q":
+        logger.info("Quitting.")
+        sys.stderr.write("Quitting.\n")
+        sys.stderr.flush()
+        sys.exit(0)
 
 
 def prompt_delete_all_queues() -> None:
@@ -20,17 +33,14 @@ def prompt_delete_all_queues() -> None:
     if not _confirm("Delete ALL RMQ queues?"):
         sys.stderr.write("Aborted.\n")
         return
-
     try:
         queue_names = RabbitMQ.list_queues()
     except Exception as e:
         logger.error("Failed to list queues: %s", e)
         return
-
     if not queue_names:
         sys.stderr.write("No queues to delete.\n")
         return
-
     for q in queue_names:
         try:
             with RabbitMQ(q) as rmq_conn:
@@ -38,7 +48,6 @@ def prompt_delete_all_queues() -> None:
                 logger.debug("Deleted queue: %s", q)
         except Exception as e:
             logger.warning("Failed deleting queue %s: %s", q, e)
-
 
 def prompt_clear_logs():
     """laterdo: Docstr."""
@@ -54,17 +63,14 @@ def prompt_clear_logs():
 
 
 # ---------- Orchestrator ----------
-
 def run_debug_maintenance():
     """laterdo: Docstr."""
+
     # TODO:[P_Low][Emilia] -   have exclude option to skip the 3 main queues for port scan
 
     sys.stderr.write("\n=== Debug Maintenance ===\n")
     prompt_clear_logs()
     prompt_delete_all_queues()
 
-    sys.stderr.write("Maintence done. Enter to continue...\t")
-    print('')
-    logger.debug("Maintence done.\n")
-    sys.stderr.flush()
-    sys.stdin.readline()
+    logger.info("Maintenance done.")
+    _enter_or_quit()
