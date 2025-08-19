@@ -5,6 +5,8 @@ import sys
 import pika      # type: ignore
 import requests  # type: ignore
 
+from urllib.parse import urljoin
+
 # Type annotation
 from pika.spec import Basic, BasicProperties
 
@@ -189,14 +191,23 @@ class RabbitMQ:
             list[str]: List of queue names.
         """
         try:
-            url = f"http://{credentials_config.RMQ_HOST}:15672/api/queues"
-            response = requests.get(url, auth=(credentials_config.RMQ_USER, credentials_config.RMQ_PASS))
+            base = credentials_config.RMQ_MGMT_BASE or f"http://{credentials_config.RMQ_HOST}:15672"
+            
+            # Ensure single trailing slash so urljoin works
+            base = base.rstrip('/') + '/'
+            url = urljoin(base, "api/queues")
+            response = requests.get(url, auth=(credentials_config.RMQ_USER, credentials_config.RMQ_PASS), timeout=5)
             response.raise_for_status()
             queues = response.json()
-            return [q["name"] for q in queues if q["name"].startswith(prefix)]
+            names = [q["name"] for q in queues if q.get("name", "").startswith(prefix)]
+            return names
+        except requests.HTTPError as e:
+            logger.error("Management API HTTP error: %s (status %s)", e, getattr(e.response, "status_code", "?"))
+        except requests.RequestException as e:
+            logger.error("Management API request failed: %s", e)
         except Exception as e:
-            logger.error(f"Error fetching queue list: {e}")
-            return []
+            logger.error("Error parsing Management API response: %s", e)
+        return []
 
     
     def get_next_message(self, queue_name: str = None, auto_ack: bool = True, parse_json: bool = False):
