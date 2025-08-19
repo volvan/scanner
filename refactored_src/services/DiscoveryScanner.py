@@ -5,6 +5,7 @@ import json
 import multiprocessing
 import subprocess
 import sys
+import random
 import os
 import time
 
@@ -79,7 +80,7 @@ class DiscoveryScanner:
 
             # 1) Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
             filename = self.new_targets()
-            if not filename: 
+            if not filename:
                 return None
 
             # 2) Record the scan-start timestamp
@@ -198,7 +199,7 @@ class DiscoveryScanner:
             logger.error(f"Failed to enqueue host result to db_hosts: {e}")
 
         # Add a small delay between tasks to control scan rate
-        time.sleep(SCAN_DELAY)
+        time.sleep(SCAN_DELAY) # TODO:[P_Med][]     - Is this not double delaying? as we delay in probe method and here and _drain_and..
 
     def _drain_and_exit(self, queue_name: str) -> None:
         """Drain all tasks from a queue, process them, and exit.
@@ -253,12 +254,27 @@ class DiscoveryScanner:
                             rmq_conn.nack(tag, requeue=True)
 
                     # pause between tasks
-                    time.sleep(SCAN_DELAY)
+                    time.sleep(SCAN_DELAY) # TODO:[P_Med][]     - Is this not double delaying? as we delay in probe method and here and process_task..
 
                 # once we drain the queue, remove it
                 rmq_conn.remove_queue()
         finally:
             logger.debug(f"Worker for queue {queue_name} has drained and exited the queue.")
+
+    def _next_batch_size(self, remaining: int) -> int:
+        """Create a random size that batches will be created as.
+        
+        Caps to the remaining items to create a batch from.
+        Calculates from 50%-90% of the MAX_batch size.
+        """
+
+        hi = min(BATCH_QUEUE_SIZE_MAX, remaining)
+        lo = max(1, int(0.5 * BATCH_QUEUE_SIZE_MAX))
+        if hi <= lo: # if remaining is smaller
+            return hi
+        mode = min(hi, max(lo, int(0.90 * BATCH_QUEUE_SIZE_MAX)))
+        return int(random.triangular(lo, hi, mode))
+
 
     def start_consuming(self) -> None: # TODO:[P_Low][] - Naming conventions need to be thought of, hard to follow consumers/producers
         """Start consuming tasks from the main queue, choosing direct or batch mode.
@@ -275,11 +291,11 @@ class DiscoveryScanner:
             logger.info(f"Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
             print(f"\n Scan started for total of {total_tasks} IPs.")
 
-            if total_tasks < THRESHOLD:
-                # TODO:[P_Low][] -  This is almost never used.. and should be re-factored (does not work as intended) or purged.
-                logger.info("Direct processing mode (small scan).")
-                WorkerHandlerLogic(queue_name=ALL_ADDR_QUEUE, process_callback=self.process_task).start()
-                return
+            # if total_tasks < THRESHOLD:
+            #     # TODO:[P_Low][] -  This is almost never used.. and should be re-factored (does not work as intended) or purged.
+            #     logger.info("Direct processing mode (small scan).")
+            #     WorkerHandlerLogic(queue_name=ALL_ADDR_QUEUE, process_callback=self.process_task).start()
+            #     return
 
             logger.info("Batch processing mode (large scan).")
 
@@ -329,10 +345,8 @@ class DiscoveryScanner:
 
                 # pre create batches exactly up to BATCH_CREATED_QUEUES_MAX concurrently
                 while len(self.ready_batches) < BATCH_CREATED_QUEUES_MAX and remaining > 0:
-                    if BATCH_QUEUE_SIZE_MAX > remaining:
-                        batch_queue = self.create_batch(amount=remaining) 
-                    else:
-                        batch_queue = self.create_batch() 
+                    amount = self._next_batch_size(remaining) # get how large this batch will be
+                    batch_queue = self.create_batch(amount=amount)
                         
                     if not batch_queue:
                         # transient issue, so don't tight-loop
@@ -341,7 +355,7 @@ class DiscoveryScanner:
                     
                     self.ready_batches.append(batch_queue)
                     remaining = shared_RMQ_connection.tasks_in_queue()
-                    logger.debug(f"Prepared {batch_queue}; ready={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
+                    logger.debug(f"Prepared {batch_queue} with size:{amount}). Ready batches/created queues MAX={len(self.ready_batches)}/{BATCH_CREATED_QUEUES_MAX}")
 
                 # Small backoff to avoid busy loop
                 if self.ready_batches or len(self.active_workers) < max_running_allowed:
