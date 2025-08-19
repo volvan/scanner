@@ -6,7 +6,7 @@ from utils.debug_tools import run_debug_maintenance
 from services.ServiceManager import ServiceManager
 from utils.config_validator import ConfigValidator
 
-from config.logging_config import logger, configure_logging, WorkerPIDFilter, CONFIG_PATH
+from config.logging_config import logger, configure_logging, WorkerPIDFilter
 from config.scan_config import DEBUG_MODE, SCAN_TYPE
 
 
@@ -35,16 +35,18 @@ def main():
     """
 
     # Configure logging
-    configure_logging(CONFIG_PATH)
+    configure_logging()
     logger.addFilter(WorkerPIDFilter())
 
     # Register terminal restoration in debug mode
     if DEBUG_MODE:
         atexit.register(restore_terminal_echo)
-        logger.info("Running in debug mode.")
+        logger.info("Application will run in debug mode.")
+    else: 
+        logger.info("Application will NOT run in debug mode.")
 
-        # Used as a debug mode helper, to clean up queues and the log file
-        run_debug_maintenance()
+    # Used as a debug mode helper, to clean up queues and the log file
+    run_debug_maintenance()
 
     # Direct the scan to the correct method based on the SCAN_TYPE value from scan_config
     serviceManager = ServiceManager()
