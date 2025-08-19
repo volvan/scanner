@@ -2,9 +2,8 @@ import sys
 import os
 import json
 import logging
-import logging.config
 from logging.handlers import RotatingFileHandler
-from config.scan_config import CONFIG_PATH, LOG_DIR, LOG_TO_TERMINAL, LOG_TO_FILE, SERVICE_TAG, LOG_FILE_PATH
+from config.scan_config import LOG_DIR, LOG_TO_TERMINAL, LOG_TO_FILE, SERVICE_TAG, LOG_FILE_PATH, DEBUG_MODE
 
 
 class WorkerPIDFilter(logging.Filter):
@@ -21,66 +20,54 @@ class WorkerPIDFilter(logging.Filter):
         return True
 
 
-def configure_logging(json_path: str):
-    """laterdo: Docstr."""
-    with open(json_path) as f:
-        logging.config.dictConfig(json.load(f))
-
-    # Log to file
-    if LOG_TO_FILE:
-        os.makedirs(LOG_DIR, exist_ok=True)
-
-        file_handler = RotatingFileHandler(
-            LOG_FILE_PATH,
-            maxBytes=5 * 1024 * 1024,
-            backupCount=3
-        )
-        file_formatter = logging.Formatter(
-
-            # 2025-08-18 17:13:00,673 - ip_scan - INFO - [main] - Initializing 'ip' scan.
-            # f"%(asctime)s - {SERVICE_TAG} - %(levelname)s - [%(funcName)s] - %(message)s"
-
-            # 2025-08-18 17:13:00,673 - INFO - [main] - Initializing 'ip' scan.
-            # f"%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s"
-            
-            # [INFO|1873357][start_application|main|L71] (2025-08-18 18:29:42): Initializing 'ip' scan.
-            f"[%(levelname)s|%(worker_pid)s][%(module)s|%(funcName)s|L%(lineno)d] (%(asctime)s): %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-        
-
-        file_handler.setFormatter(file_formatter)
-        file_handler.setLevel(logging.DEBUG if LOG_TO_FILE else logging.WARNING)
-        logger.addHandler(file_handler)
-
-    
-    # Log to terminal 
-    console_handler = logging.StreamHandler()
-    console_formatter = logging.Formatter(
-        f"[%(levelname)s] %(asctime)s - {SERVICE_TAG} - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
-    )
-    console_handler.setFormatter(console_formatter)
-    console_handler.setLevel(logging.DEBUG if LOG_TO_TERMINAL else logging.WARNING)
-    logger.addHandler(console_handler)
+# # --- Load configuration ---
+# with open(CONFIG_PATH, "r") as f:
+#     config = json.load(f)
 
 
-
-
-# --- Load configuration ---
-with open(CONFIG_PATH, "r") as f:
-    config = json.load(f)
-
-# --- Logger setup ---
 logger = logging.getLogger("GlobalHandler")
 
-# --- Console Handler ---
-console_handler = logging.StreamHandler()
-console_formatter = logging.Formatter(
-    f"[%(levelname)s] %(asctime)s - {SERVICE_TAG} - %(name)s - %(funcName)s:%(lineno)d - %(message)s"
-)
-console_handler.setFormatter(console_formatter)
-console_handler.setLevel(logging.DEBUG if LOG_TO_TERMINAL else logging.WARNING)
-logger.addHandler(console_handler)
+
+def configure_logging():
+    """Always writes to file INFO+. Only includes DEBUG when DEBUG_MODE=True.
+    
+    If LOG_TO_TERMINAL: Only logs WARNING+.
+        else: nothing to terminal 
+    """
+
+    logger.setLevel(logging.DEBUG)
+    pid_filter = WorkerPIDFilter()
+
+    # File handler
+    if LOG_TO_FILE or True:  # 'or True' enforces "always log to file"
+        os.makedirs(LOG_DIR, exist_ok=True)
+        file_formatter = logging.Formatter(
+            "[%(levelname)s|%(worker_pid)s][%(module)s|%(funcName)s|L%(lineno)d] (%(asctime)s): %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        file_handler = RotatingFileHandler(
+            LOG_FILE_PATH, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+        )
+        file_handler.setFormatter(file_formatter)
+        file_handler.setLevel(logging.DEBUG if DEBUG_MODE else logging.INFO)
+        file_handler.addFilter(pid_filter)
+        logger.addHandler(file_handler)
+
+    # Console handler 
+    if LOG_TO_TERMINAL:
+        console_handler = logging.StreamHandler()
+        console_formatter = logging.Formatter(
+            "[%(levelname)s] %(asctime)s - %(service_tag)s - %(name)s - %(funcName)s:%(lineno)d - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        console_handler.setFormatter(console_formatter)
+        console_handler.setLevel(logging.WARNING) # TODO:[P_Low][]  - Now always logs warnings+ only
+        console_handler.addFilter(pid_filter)
+        logger.addHandler(console_handler)
+
+
+    
+
 
 
 # --- Global Exception Hook ---
