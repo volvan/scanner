@@ -6,6 +6,7 @@ import os
 # --------- GLOBAL SETTINGS AND CONFIGURATIONS TO FINE TUNE THE SCANNER --------
 # ------------------------------------------------------------------------------
 
+SCAN_NATION:str       = "IS"                                         # The Nation-code that is being scanned, important to use uppercase
 SCAN_TYPE:str         = "ip"                                         # (DEF: ip_port)  - Run discovery scan or port scan (values: ip, port and ip_port)
 SCAN_MODE_LIGHT:bool  = True                                         # (DEF: False)  - If False, runs intense scan that adds -sV to port probes (for better version detection)
 
@@ -18,29 +19,35 @@ LOG_TO_TERMINAL:bool  = True                                         # If True, 
 SERVICE_TAG:str       = SCAN_TYPE + "_scan"                          # The logger file / tag, such as "ip_scan" or "port_scan"
 # -------------------------------------------------------------------------------
 
+# ----- PATHS -------------------------------------------------------------------
+BASE_DIR              = os.path.dirname(os.path.abspath(__file__))   # scanner/src/
+ROOT_DIR              = os.path.dirname(os.path.dirname(BASE_DIR))   # scanner/
 
-# ----- PATHS ------------------------------------------------------------------
-BASE_DIR              = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR              = os.path.dirname(os.path.dirname(BASE_DIR))
-TARGETS_FILE_PATH     = os.path.join(BASE_DIR, "..", "targets")      # Stored under src/targets/ and stores 'blocks.txt', 'ports.txt'
+# IPs and ports to scan
+TARGETS_DIR           = os.path.join(BASE_DIR, "..", "targets")      # Stored under src/targets/ and stores 'blocks.txt', 'ports.txt'
+TARGETS_FILE:str      = os.path.join(TARGETS_DIR, "blocks.txt")      # File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
+PORTS_FILE:str        = os.path.join(TARGETS_DIR, "ports.txt")       # The file containing the ports to scan
 
-TARGETS_FILE:str      = os.path.join(TARGETS_FILE_PATH, "blocks.txt")# File containing IP/CIDR blocks to scan (used when FETCH_RIX is False)
-PORTS_FILE:str        = os.path.join(TARGETS_FILE_PATH, "ports.txt") # The file containing the ports to scan
-
-CONFIG_PATH           = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
+# Monitoring and logs
 LOG_DIR               = os.path.join(ROOT_DIR, "logs")               # Where to store the logs
-LOG_FILE_PATH         = os.path.join(LOG_DIR, f"{SERVICE_TAG}.log")  # Name of the log file
+CONFIG_FILE           = os.path.join(os.path.dirname(__file__), "../config/logging_config.json") # Logs json config path
+LOG_FILE              = os.path.join(LOG_DIR, f"{SERVICE_TAG}.log")  # Name of the log file
+
+# Report generator 
+REP_DIR               = os.path.join(ROOT_DIR, "report_generator")   #
+REP_TEMPLATES_DIR     = os.path.join(REP_DIR, "templates")           #
+REPORTS_DIR           = os.path.join(REP_DIR, "reports", SCAN_NATION)#
+
 # --------------------------------------------------------------------------------
 
 
-# ----- RESOURCE LIMITS ---------------------------------------------------------
+# ----- RESOURCE LIMITS ----------------------------------------------------------
 MEM_LIMIT             = 1_000 * 1024**2                              # Memory (in bytes)
 CPU_LIMIT             = 70                                           # CPU (percent)
-# -------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
   
 
-# ----- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN -------------------
-SCAN_NATION:str       = "IS"                                         # The Nation-code that is being scanned
+# ----- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN --------------------
 FAIL_QUEUE:str        = f"{SCAN_NATION}.fail_queue"                  # The RabbitMQ queue name that contains ip or (ip,port) pairs that encountered an error or failed while the scan was processing
 
 TOTAL_MAX_WORKERS     = 205                                          # (DEF: 250)   - Number of workers/processes to spawn 
@@ -52,11 +59,11 @@ BATCH_QUEUES_ACTIVE_MAX = 210                                        # (DEF: 210
 BATCH_CREATED_QUEUES_MAX = 300                                       # (DEF: 300)   - Extra prebuilt batches waiting for workers to work on them (buffer)
 
 BATCH_QUEUE_TIMEOUT_SEC = 300                                        # Max time allowed per batch queue                # TODO: IF this is what i think it is, its the max time a process can live when its working on a batch.. if so it should be implemented in port scan also right? or that all processes (in batch or not) should have a timeout? the name of this const is atleast not descriptive.. it seems to me at first glance that port x on all ips is = batch - meaning that a process can scan all those targets only in this timeframe
-# ------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 
 
-# ------------------------------------------------------------------------------
-# --------------------------- DISCOVERY SCAN PARAMS ----------------------------
+# -------------------------------------------------------------------------------
+# --------------------------- DISCOVERY SCAN PARAMS -----------------------------
 FETCH_RIX:bool        = True                                         # (DEF: True)  - If True, fetch IPs from RIX.is
 
 ALL_ADDR_QUEUE:str    = f"{SCAN_NATION}.all_addr"                    # The RabbitMQ queue name that contains of all ips to scan
@@ -101,5 +108,9 @@ DB_TASK_TIMEOUT       = 15_000                                        # (ms) The
 DB_BATCH_TIMEOUT      = float(0.7)                                    # Flush at least this often from the db_* queues to the database or until DB_BATCH_SIZE is reached
 # ------------------------------------------------------------------------------
 
+
+# ----- REPORT GENERATOR  -------------------------------------------------------
+SCAN_RUNNING               = False                                    # If the scan is currently running, queries change TODO:[P_M][]
+# -------------------------------------------------------------------------------
 
 
