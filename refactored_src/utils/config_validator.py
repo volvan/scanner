@@ -1,10 +1,11 @@
 import os
 
 from infrastructure.RabbitMQ import RabbitMQ
-from config.scan_config import PORTS_FILE,TARGETS_FILE, FETCH_RIX, ALL_ADDR_QUEUE, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE
 from utils.block_handler import fetch_rix_blocks
 from utils.ports_handler import read_ports_file
 
+from config.scan_config import PORTS_FILE,TARGETS_FILE, FETCH_RIX, ALL_ADDR_QUEUE, ALIVE_ADDR_QUEUE, DEAD_ADDR_QUEUE, FAIL_QUEUE
+from config.credentials_config import DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT, RMQ_HOST, RMQ_PORT, RMQ_USER, RMQ_PASS, RMQ_MGMT_BASE, FPE_KEY, FPE_ALPHABET, FPE_LENGTH
 
 class ConfigValidator:
     """ Validates that all required values are set before launching a scan."""
@@ -14,17 +15,39 @@ class ConfigValidator:
     def validate_on_startup():
         """Runs on application startup and runs all checks."""
 
-        ConfigValidator._check_required_values()
+        ConfigValidator._check_config_values()
+        ConfigValidator._check_config_values()
         ConfigValidator._check_required_files()
         ConfigValidator._check_rmq_queues()
 
 
     @staticmethod
-    def _check_required_values():
+    def _check_credentials():
+        """Verifies that credentials are set from credentials_config."""
+
+        # Validate PSQL (database) credentials
+        creds = [DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT,]
+        if not all(creds):
+            raise ValueError("Database credentials not set.")
+        
+        # Validate RabbitMQ (queue) credentials
+        creds = [RMQ_HOST, RMQ_PORT, RMQ_USER, RMQ_PASS, RMQ_MGMT_BASE,]
+        if not all(creds):
+            raise ValueError("RabbitMQ credentials not set.")
+
+        # Validate FPE cipher keys values
+        creds = [FPE_KEY, FPE_ALPHABET, FPE_LENGTH,]
+        if not all(creds):
+            raise ValueError("Encryption credentials not set.")
+
+
+    @staticmethod
+    def _check_config_values():
         """Verifies that required config values are set."""
 
         if not ALL_ADDR_QUEUE:
             raise ValueError("[ConfigValidator] ALL_ADDR_QUEUE must be set in config.")
+
 
     @staticmethod
     def _check_required_files():

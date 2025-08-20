@@ -31,7 +31,7 @@ class DBWorker:
     _pool_pid = None
 
     def __init__(self) -> None:
-        """Acquire a database connection from the pool."""
+        """Acquire a database connection from the pool, using psycopg2."""
         self._returned = False
 
         # ensure pool exists (handles its own locking)
@@ -51,18 +51,7 @@ class DBWorker:
             ValueError: If database credentials are not set.
             Exception: If connection pool initialization fails.
         """
-
-        # Validate credentials
-        creds = [
-            credentials_config.DB_NAME,
-            credentials_config.DB_USER,
-            credentials_config.DB_PASS,
-            credentials_config.DB_HOST,
-            credentials_config.DB_PORT,
-        ]
-        if not all(creds):
-            raise ValueError("Database credentials not set.")
-
+        
         # worker_pid = str(os.getpid())
         
         with cls._pool_lock:
@@ -87,6 +76,7 @@ class DBWorker:
                     port=credentials_config.DB_PORT,
                     application_name="Volva_dbworker",
                 )
+                # cls.autocommit = False # TODO:[P_High][] - from old codebase
                 cls._pool_pid = os.getpid()
                 logger.info("Connection pool created.")
             except Exception as e:
