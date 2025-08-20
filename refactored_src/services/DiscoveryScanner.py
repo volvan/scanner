@@ -97,7 +97,7 @@ class DiscoveryScanner:
         
         finally:
             # 4) Pipeline is now done, need to wait for every batch process to exit
-            logger.info("Host Discovery scan pipeline has concluded, now workers continue scanning.")
+            logger.info("Host Discovery scan pipeline has concluded, now workers will stop..")
             for p in self.active_workers:
                 p.join()
     
@@ -125,7 +125,7 @@ class DiscoveryScanner:
         finally:
             # 4) Host discover scan is now done, now we wait for processes
             logger.debug(f"Current running processes for db_hosts: {db_hosts.qsize()} and active processes are: {len(self.active_workers)}")
-            logger.info("Discovery Scan done.")
+            logger.info("Summary table updated and the scan is now done.")
 
             # Wait for the db queue to drain (blocks until every task_done() completed)
             logger.info(f"Waiting for db_hosts queue to empty.. Currently there are {db_hosts.qsize()} items in db_hosts queue.")
