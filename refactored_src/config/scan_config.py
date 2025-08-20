@@ -15,7 +15,7 @@ DEBUG_MODE:bool       = True                                         # Debug mod
 LOG_TO_FILE:bool      = True                                         # # TODO:[P_Low][] - Not in use now, always true
 LOG_TO_TERMINAL:bool  = True                                         # If True, logs WARNING+ levels to terminal, else nothing
 
-SERVICE_TAG           = SCAN_TYPE + "_scan"                          # The logger file / tag, such as "ip_scan" or "port_scan"
+SERVICE_TAG:str       = SCAN_TYPE + "_scan"                          # The logger file / tag, such as "ip_scan" or "port_scan"
 # -------------------------------------------------------------------------------
 
 
@@ -34,10 +34,10 @@ LOG_FILE_PATH         = os.path.join(LOG_DIR, f"{SERVICE_TAG}.log")  # Name of t
 
 
 # ----- RESOURCE LIMITS ---------------------------------------------------------
-MEM_LIMIT = 1_000 * 1024**2                                          # Memory (in bytes)
-CPU_LIMIT = 70                                                       # CPU (percent)
+MEM_LIMIT             = 1_000 * 1024**2                              # Memory (in bytes)
+CPU_LIMIT             = 70                                           # CPU (percent)
 # -------------------------------------------------------------------------------
-
+  
 
 # ----- SCAN PARAMS USED IN BOTH HOST DISCOVERY AND PORT SCAN -------------------
 SCAN_NATION:str       = "IS"                                         # The Nation-code that is being scanned
@@ -59,9 +59,9 @@ BATCH_QUEUE_TIMEOUT_SEC = 300                                        # Max time 
 # --------------------------- DISCOVERY SCAN PARAMS ----------------------------
 FETCH_RIX:bool        = True                                         # (DEF: True)  - If True, fetch IPs from RIX.is
 
-ALL_ADDR_QUEUE = f"{SCAN_NATION}.all_addr"                           # The RabbitMQ queue name that contains of all ips to scan
-ALIVE_ADDR_QUEUE = f"{SCAN_NATION}.alive_addr"                       # The RabbitMQ queue name that contains all IPs discovered as 'alive' 
-DEAD_ADDR_QUEUE = f"{SCAN_NATION}.dead_addr"                         # The RabbitMQ queue name that contains all IPs discovered as 'dead'
+ALL_ADDR_QUEUE:str    = f"{SCAN_NATION}.all_addr"                    # The RabbitMQ queue name that contains of all ips to scan
+ALIVE_ADDR_QUEUE:str  = f"{SCAN_NATION}.alive_addr"                  # The RabbitMQ queue name that contains all IPs discovered as 'alive' 
+DEAD_ADDR_QUEUE:str   = f"{SCAN_NATION}.dead_addr"                   # The RabbitMQ queue name that contains all IPs discovered as 'dead'
 
 THRESHOLD:int         = 20                                           # Direct vs batch mode threshold                   # TODO:[P_Low][] - Not in use
 WHO_IS_SCAN_DELAY:int = 2                                            # (DEF: 2)    - Delay between whois lookups        # TODO: verify correct use
@@ -73,10 +73,10 @@ BATCH_QUEUE_SIZE_MAX  = 80                                           # (DEF: 200
 # --------------------------- PORT SCAN PARAMS ---------------------------------
 USE_PRIORITY_PORTS:bool = False                                       # Set this to True if ports file consists of priority ports
 
-ALL_PORTS_QUEUE = f"{SCAN_NATION}.all_ports"                          # The RabbitMQ queue name that contains all ports to scan 
-PRIORITY_PORTS_QUEUE  = f"{SCAN_NATION}.priority_ports"               # The RabbitMQ queue name that contains all ports to scan when USE_PRIORITY_PORTS is True
+ALL_PORTS_QUEUE:str   = f"{SCAN_NATION}.all_ports"                    # The RabbitMQ queue name that contains all ports to scan 
+PRIORITY_PORTS_QUEUE:str  = f"{SCAN_NATION}.priority_ports"           # The RabbitMQ queue name that contains all ports to scan when USE_PRIORITY_PORTS is True
 
-PROBE_JITTER_MAX      = float(0.1)                                    # jitter to add on top of SCAN_DELAY (in seconds) # TODO:[emilia] verify
+PROBE_JITTER_MAX:float = 0.1                                          # jitter to add on top of SCAN_DELAY (in seconds) # TODO:[emilia] verify
 
 NMAP_RETRY_DELAY      = 200                                           # (DEF: 200ms)  - Minimum delay between two probes to the same port
 NMAP_RETRY_ATTEMPTS   = 1                                             # How many extra probes may be sent if there's no reply (excluding the initial probe)
