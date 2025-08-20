@@ -23,6 +23,7 @@ class QueryHandler:
         """laterdo: Docstr."""
         pass
 
+    # TODO:[P_Low][] - Rename to insert_new_summary()
     def insert_summary(self, *, discovery_start_ts, discovery_done_ts, scanned_cidrs: list[str], scanned_ports: list[str] = None, port_start_ts=None, port_done_ts=None) -> QueryModel:
         """Build an INSERT QueryModel for the summary table.
 
@@ -67,6 +68,7 @@ class QueryHandler:
 
         return queryModel
 
+    # TODO:[P_Low][] - Rename to select_latest_summary()
     def fetch_latest_summary_id(self, country: str) -> QueryModel:
         """Builds a SELECT QueryModel.
 
@@ -85,7 +87,7 @@ class QueryHandler:
         )
         return QueryModel(query=sql_query, params=(country,), fetch=True)
 
-
+    # TODO:[P_Low][] - Rename to update_ports_latest_summary() or update_form_port_scan? bc only called after portscan is done
     def update_summary(self,*, summary_id: int, port_start_ts, port_done_ts, scanned_ports: list[str] = None,) -> QueryModel:
         """Builds an UPDATE QueryModel.
 
@@ -107,6 +109,96 @@ class QueryHandler:
 
         return queryModel
 
+    # TODO:[P_Low][] - Rename to update_metrics_latest_summary() ?
+    def update_summary_running_scan_sql():
+        pass # TODO:[P_Low][] - used from update_summary_running_scan_sql old codebase
+
+    # TODO:[P_Low][] - Rename to insert_new_host()
+    def new_host(self, whois_data: dict, ips: Iterable[str]) -> QueryModel: #  # TODO:[P_Low][] - Rename to insert_
+        """Prepare a batch UPSERT of WHOIS data for one or more IPs.
+
+        Seed the Hosts table with WHOIS data for one or more IP addresses.
+
+        Args:
+            whois_data (dict): WHOIS metadata keyed by CIDR (or IP range).
+            ips (Iterable[str]): List or iterable of IP addresses.
+
+        Notes:
+            Existing entries are updated if they already exist (upsert behavior).
+        """
+        # TODO:[P_Med][] -  Review and verify logic
+
+        # Building whois data
+        rows: list[tuple] = []
+        last_scanned_ts = get_current_timestamp() 
+        cidr_map = {
+            ipaddress.ip_network(cidr): data
+            for cidr, data in whois_data.items()
+        }
+
+        for ip in ips:
+            try:
+                ip_obj = ipaddress.ip_address(ip)
+                matched = next((entry for cidr, entry in cidr_map.items() if ip_obj in cidr), None)
+                if not matched:
+                    logger.warning(f"No WHOIS entry for {ip}")
+                    continue
+
+                rows.append((
+                    encrypt_ip(ip),
+                    matched.get('cidr'),
+                    matched.get('asn'),
+                    matched.get('asn_description'),
+                    matched.get('org'),
+                    matched.get('net_name'),
+                    matched.get('net_handle'),
+                    matched.get('net_type'),
+                    matched.get('parent'),
+                    matched.get('reg_date'),
+                    SCAN_NATION,
+                    matched.get('state_prov'),
+                    last_scanned_ts,
+                ))
+            except Exception as e:
+                logger.error(f"Error prepping WHOIS row for {ip}: {e}")
+
+        if not rows:
+            return None  # nothing to insert
+
+        # Build the VALUES placeholder for N rows × 13 columns
+        num_cols = 13
+        single_grp = "(" + ", ".join(["%s"] * num_cols) + ")"
+        all_groups = ", ".join([single_grp] * len(rows))
+
+        sql_query = (
+            "INSERT INTO Hosts ("
+            " ip_addr, cidr, asn, asn_description, org,"
+            " net_name, net_handle, net_type, parent,"
+            " reg_date, country, state_prov, last_scanned_ts"
+            f") VALUES {all_groups} "
+            " ON CONFLICT (ip_addr) DO UPDATE SET"
+            "   cidr             = EXCLUDED.cidr,"
+            "   asn              = EXCLUDED.asn,"
+            "   asn_description  = EXCLUDED.asn_description,"
+            "   org              = EXCLUDED.org,"
+            "   net_name         = EXCLUDED.net_name,"
+            "   net_handle       = EXCLUDED.net_handle,"
+            "   net_type         = EXCLUDED.net_type,"
+            "   parent           = EXCLUDED.parent,"
+            "   reg_date         = EXCLUDED.reg_date,"
+            "   country          = EXCLUDED.country,"
+            "   state_prov       = EXCLUDED.state_prov,"
+            "   last_scanned_ts  = EXCLUDED.last_scanned_ts;"
+        )
+
+        # Flatten [(…),(…)] into (… , … , …)
+        params = tuple(itertools.chain.from_iterable(rows))
+
+        queryModel = QueryModel(query=sql_query, params=params, fetch=False)
+
+        return queryModel
+
+    # TODO:[P_Low][] - Rename to update_host()
     def insert_host_result(self, task: dict) -> QueryModel:
         """Update a host scan result in the Hosts table.
 
@@ -155,6 +247,7 @@ class QueryHandler:
 
         return queryModel
 
+    # TODO:[P_Low][] - Rename to insert_port()
     def insert_port_result(self, task: dict) -> QueryModel:
         """Build an UPSERT QueryModel for a port scan result in the Ports database table.
 
@@ -239,88 +332,4 @@ class QueryHandler:
         queryModel = QueryModel(query=sql_query, params=params, fetch=False)
         logger.debug(f"Insert Port Results - Query model: {queryModel}")
         
-        return queryModel
-
-    def new_host(self, whois_data: dict, ips: Iterable[str]) -> QueryModel:
-        """Prepare a batch UPSERT of WHOIS data for one or more IPs.
-
-        Seed the Hosts table with WHOIS data for one or more IP addresses.
-
-        Args:
-            whois_data (dict): WHOIS metadata keyed by CIDR (or IP range).
-            ips (Iterable[str]): List or iterable of IP addresses.
-
-        Notes:
-            Existing entries are updated if they already exist (upsert behavior).
-        """
-        # TODO:[P_Med][] -  Review and verify logic
-
-        # Building whois data
-        rows: list[tuple] = []
-        last_scanned_ts = get_current_timestamp() 
-        cidr_map = {
-            ipaddress.ip_network(cidr): data
-            for cidr, data in whois_data.items()
-        }
-
-        for ip in ips:
-            try:
-                ip_obj = ipaddress.ip_address(ip)
-                matched = next((entry for cidr, entry in cidr_map.items() if ip_obj in cidr), None)
-                if not matched:
-                    logger.warning(f"No WHOIS entry for {ip}")
-                    continue
-
-                rows.append((
-                    encrypt_ip(ip),
-                    matched.get('cidr'),
-                    matched.get('asn'),
-                    matched.get('asn_description'),
-                    matched.get('org'),
-                    matched.get('net_name'),
-                    matched.get('net_handle'),
-                    matched.get('net_type'),
-                    matched.get('parent'),
-                    matched.get('reg_date'),
-                    SCAN_NATION,
-                    matched.get('state_prov'),
-                    last_scanned_ts,
-                ))
-            except Exception as e:
-                logger.error(f"Error prepping WHOIS row for {ip}: {e}")
-
-        if not rows:
-            return None  # nothing to insert
-
-        # Build the VALUES placeholder for N rows × 13 columns
-        num_cols = 13
-        single_grp = "(" + ", ".join(["%s"] * num_cols) + ")"
-        all_groups = ", ".join([single_grp] * len(rows))
-
-        sql_query = (
-            "INSERT INTO Hosts ("
-            " ip_addr, cidr, asn, asn_description, org,"
-            " net_name, net_handle, net_type, parent,"
-            " reg_date, country, state_prov, last_scanned_ts"
-            f") VALUES {all_groups} "
-            " ON CONFLICT (ip_addr) DO UPDATE SET"
-            "   cidr             = EXCLUDED.cidr,"
-            "   asn              = EXCLUDED.asn,"
-            "   asn_description  = EXCLUDED.asn_description,"
-            "   org              = EXCLUDED.org,"
-            "   net_name         = EXCLUDED.net_name,"
-            "   net_handle       = EXCLUDED.net_handle,"
-            "   net_type         = EXCLUDED.net_type,"
-            "   parent           = EXCLUDED.parent,"
-            "   reg_date         = EXCLUDED.reg_date,"
-            "   country          = EXCLUDED.country,"
-            "   state_prov       = EXCLUDED.state_prov,"
-            "   last_scanned_ts  = EXCLUDED.last_scanned_ts;"
-        )
-
-        # Flatten [(…),(…)] into (… , … , …)
-        params = tuple(itertools.chain.from_iterable(rows))
-
-        queryModel = QueryModel(query=sql_query, params=params, fetch=False)
-
         return queryModel
