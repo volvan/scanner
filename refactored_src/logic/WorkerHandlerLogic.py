@@ -11,15 +11,8 @@ from infrastructure.RabbitMQ import RabbitMQ
 # ----- Logger import -----#
 from config.logging_config import logger
 
-# TODO:[P_Med][] - This is very oudated code and should never be used.
-
-# - If direct IP scanning mode: [WorkerHandlerLogic] - there the logic for workers is
-# - If batch IP scanning mode: [DiscoveryScanner.start_consuming (while True loop)] - there the logic is..
-
-# - If direct Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
-# - If batch Port scanning mode: [PortScanner.start_consuming (while True loop)] - there the logic is..
-
-
+# TODO:[P_Med][] - This is very outdated code and should never be used.
+#######################################################################
 class WorkerHandlerLogic:
     """Spawns and manages multiple worker processes for IP scanning queues."""
 

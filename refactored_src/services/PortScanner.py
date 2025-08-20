@@ -3,33 +3,26 @@ import multiprocessing
 import time
 from multiprocessing import Process
 import sys
-import json
 import os
 import random
 import psutil
 
-# ----- Type annotation imports -----#
 from infrastructure.InfrastructureManager import InfrastructureManager
-# from logic.LogicManager import LogicManager
-
-# ----- Service imports -----#
 from infrastructure.DBHandler import db_ports
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
-
 from utils.batch_handler import PortBatchHandler
 from utils.resource_status import resource_ok
 from utils.probes_port_scan import ProbesPortScan
-
-from config.logging_config import logger, log_exception
 from utils.ports_handler import read_ports_file
 from utils.timestamp import get_current_timestamp
 from utils.reservoir_randomize import reservoir_of_reservoirs
 
+from config.logging_config import logger, log_exception
+
 from config.scan_config import (  # noqa: F401
     PRIORITY_PORTS_QUEUE,
-    PORTS_FILE,
     USE_PRIORITY_PORTS,
     ALL_PORTS_QUEUE,
     ALIVE_ADDR_QUEUE,

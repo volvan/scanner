@@ -1,23 +1,18 @@
 # Standard library
 import os
 import threading
-from psycopg2.pool import PoolError
 
-# Utility Handlers
+from psycopg2.pool import PoolError, ThreadedConnectionPool
+from psycopg2.extensions import connection
+
+# Services
+from models.QueryModel import QueryModel
 
 # Configuration
 from config import credentials_config
 from config.scan_config import DB_MAX_CONN, DB_MIN_CONN, DB_TASK_TIMEOUT
 from config.logging_config import logger
 
-# Services
-from psycopg2.pool import ThreadedConnectionPool
-
-# Models
-from models.QueryModel import QueryModel
-
-# Type annotations
-from psycopg2.extensions import connection
 
 
 class DBWorker:
@@ -29,6 +24,7 @@ class DBWorker:
     _pool: ThreadedConnectionPool = None
     _pool_lock = threading.Lock()
     _pool_pid = None
+
 
     def __init__(self) -> None:
         """Acquire a database connection from the pool, using psycopg2."""
@@ -88,8 +84,10 @@ class DBWorker:
         """Support context manager entry (with-statement)."""
         return self
 
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Deconstructer that takes care of closing the connection before deconstructing."""
+
         # If we have already returned or closed this connection, skip.
         if getattr(self, '_returned', False):
             return
@@ -98,7 +96,6 @@ class DBWorker:
         if self._returned:
             return
         self._returned = True
-
 
         if DBWorker._pool is None:
             logger.warning("close() called but pool not initialized.")
@@ -117,9 +114,10 @@ class DBWorker:
             except Exception as e2:
                 logger.error(f"Failed to close connection outright: {e2}")
 
+
     @classmethod
     def close_all(cls) -> None:
-        """Close all pooled connections (e.g., at application shutdown)."""
+        """Close all pooled connections (at application shutdown)."""
         if cls._pool:
             cls._pool.closeall()
             cls._pool = None
@@ -138,6 +136,7 @@ class DBWorker:
             List[Tuple]: If 'fetch=True', returns rows from query results.
             int: If 'fetch=False', returns affected rowcount.
         """
+
         try:
             with self._conn.cursor() as cur:
                 # cur.execute("SET LOCAL statement_timeout = %s", (DB_TASK_TIMEOUT,)) # timeout for this transaction only
@@ -158,6 +157,7 @@ class DBWorker:
                 logger.error(f"Rollback failed: {rollback_err}")
             logger.error(f"Executing SQL failed: {e}")
             raise
+
 
     def execute_query_model(self, model: QueryModel) -> (list[tuple] | int):
         """laterdo: Docstr.

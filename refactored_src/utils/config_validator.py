@@ -33,12 +33,13 @@ class ConfigValidator:
         # Validate RabbitMQ (queue) credentials
         creds = [RMQ_HOST, RMQ_PORT, RMQ_USER, RMQ_PASS, RMQ_MGMT_BASE,]
         if not all(creds):
-            raise ValueError("RabbitMQ credentials not set.")
+            raise ValueError("RabbitMQ credentials not set. Use export RMQ_USER and export RMQ_PASS.")
 
         # Validate FPE cipher keys values
         creds = [FPE_KEY, FPE_ALPHABET, FPE_LENGTH,]
         if not all(creds):
-            raise ValueError("Encryption credentials not set.")
+            raise ValueError("FPE credentials not found in environment variables.")
+
 
 
     @staticmethod

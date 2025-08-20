@@ -1,5 +1,4 @@
 # Standard library
-import os
 import sys
 
 # Configuration

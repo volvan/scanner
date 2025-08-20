@@ -1,38 +1,28 @@
 # Standard library
 import gc
 import itertools
-import json
 import multiprocessing
-import subprocess
 import sys
 import random
 import os
 import time
 
-from infrastructure.InfrastructureManager import InfrastructureManager
 from multiprocessing import Process
 
-from pika.spec import Basic, BasicProperties
+from infrastructure.InfrastructureManager import InfrastructureManager
+from infrastructure.RabbitMQ import RabbitMQ
+from infrastructure.DBWorker import DBWorker
+from infrastructure.DBHandler import db_hosts
+
+from models.QueryModel import QueryModel
 
 # Utility Handlers
 from utils.reservoir_randomize import reservoir_of_reservoirs
-
 from utils.timestamp import get_current_timestamp
 from utils.block_handler import read_block, whois_block, fetch_rix_blocks, get_ip_addresses_from_block
 from utils.resource_status import resource_ok
 from utils.probes_discovery_scan import ProbesDiscoveryScan
 
-# ----- Model imports -----#
-from models.QueryModel import QueryModel
-
-# ----- Service imports -----#
-from infrastructure.RabbitMQ import RabbitMQ
-from infrastructure.DBWorker import DBWorker
-from infrastructure.DBHandler import db_hosts
-from logic.WorkerHandlerLogic import WorkerHandlerLogic
-
-# Type annotations
-from pika.adapters.blocking_connection import BlockingChannel
 
 # ----- Logger import -----#
 from config.logging_config import logger, log_exception
@@ -44,7 +34,6 @@ from config.scan_config import (  # noqa: F401, E402
     ALIVE_ADDR_QUEUE,
     ALL_ADDR_QUEUE,
     TARGETS_FILE,
-    DEAD_ADDR_QUEUE,
     BATCH_QUEUE_SIZE_MAX,
     FAIL_QUEUE,
     TOTAL_MAX_WORKERS,

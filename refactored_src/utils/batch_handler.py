@@ -1,9 +1,4 @@
-# Standard library
-import json
 import sys
-
-# Type annotation
-from pika.spec import Basic, BasicProperties
 
 # Utility Handlers
 from utils.reservoir_randomize import reservoir_of_reservoirs

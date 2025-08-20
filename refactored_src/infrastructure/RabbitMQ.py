@@ -7,9 +7,6 @@ import requests  # type: ignore
 
 from urllib.parse import urljoin
 
-# Type annotation
-from pika.spec import Basic, BasicProperties
-
 # Configuration
 from config import credentials_config
 from config.logging_config import log_exception, logger
@@ -29,14 +26,11 @@ class RabbitMQ:
 
         Args:
             queue_name (str): Name of the queue to manage.
-
-        Raises:
-            ValueError: If RabbitMQ credentials are not set.
         """
+
         self.queue_name = queue_name
-        if not credentials_config.RMQ_USER or not credentials_config.RMQ_PASS:
-            raise ValueError("RabbitMQ credentials not set. Use export RMQ_USER and export RMQ_PASS.")
         self._connect()
+
 
     def _connect(self, queue_name: str = None) -> None:
         """Establish the RabbitMQ connection and declare the queue.
@@ -44,19 +38,25 @@ class RabbitMQ:
         Raises:
             Exception: If connection establishment fails.
         """
+
         queue_name = queue_name or self.queue_name
+
         try:
-            credentials = pika.PlainCredentials(credentials_config.RMQ_USER, credentials_config.RMQ_PASS)
-            heartbeat = int(os.getenv("RMQ_HEARTBEAT", "300"))
             # give each process/queue a human-readable name
             connection_name = f"scan_app[{queue_name}]@{os.getpid()}"
+            
+
+            credentials = pika.PlainCredentials(
+                username=credentials_config.RMQ_USER, 
+                password=credentials_config.RMQ_PASS
+            )
 
             parameters = pika.ConnectionParameters(
                 host=credentials_config.RMQ_HOST,
-                port=int(credentials_config.RMQ_PORT),
+                port=credentials_config.RMQ_PORT,
                 virtual_host='/',
                 credentials=credentials,
-                heartbeat=heartbeat,
+                heartbeat=330, # TODO:[P_Med][] - was this heartbeat = int(os.getenv("RMQ_HEARTBEAT", "300")) - maybe tune it?
                 blocked_connection_timeout=300,
                 client_properties={
                     'connection_name': connection_name
@@ -64,8 +64,9 @@ class RabbitMQ:
             )
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
-            # TODO:[P_High][Emilia] -  should really always try to declare queue??
-            self.declare_queue(self.queue_name)
+
+            self.declare_queue(self.queue_name) # TODO:[P_High][Emilia] -  should really always try to declare queue??
+            
         except Exception as e:
             logger.critical(f"Connection error: {e}")
             raise

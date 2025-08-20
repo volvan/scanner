@@ -1,10 +1,9 @@
 from __future__ import annotations
 import sys
-import logging
 
 from infrastructure.RabbitMQ import RabbitMQ
-from config.logging_config import LOG_FILE_PATH
-from config.logging_config import logger
+from config.logging_config import LOG_FILE_PATH, logger
+
 
 def _confirm(prompt: str) -> bool:
     """laterdo: Docstr."""
