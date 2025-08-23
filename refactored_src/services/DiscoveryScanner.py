@@ -43,6 +43,8 @@ from config.scan_config import (  # noqa: F401, E402
     BATCH_WORKERS_PER_QUEUE_MAX,
     BATCH_QUEUES_ACTIVE_MAX,
     BATCH_CREATED_QUEUES_MAX,
+    BATCH_MIN_FACTOR,
+    BATCH_MODE_FACTOR,
     FETCH_RIX
 )
 
@@ -257,10 +259,11 @@ class DiscoveryScanner:
         """
 
         hi = min(BATCH_QUEUE_SIZE_MAX, remaining)
-        lo = max(1, int(0.5 * BATCH_QUEUE_SIZE_MAX))
+        lo = max(1, int(BATCH_MIN_FACTOR * BATCH_QUEUE_SIZE_MAX))
         if hi <= lo: # if remaining is smaller
             return hi
-        mode = min(hi, max(lo, int(0.90 * BATCH_QUEUE_SIZE_MAX)))
+        # mode = min(hi, max(lo, int(0.90 * BATCH_QUEUE_SIZE_MAX)))
+        mode = max(lo, min(hi, int(BATCH_MODE_FACTOR * BATCH_QUEUE_SIZE_MAX)))
         return int(random.triangular(lo, hi, mode))
 
 

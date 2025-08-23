@@ -7,7 +7,7 @@ import os
 # ------------------------------------------------------------------------------
 
 SCAN_NATION:str       = "IS"                                         # The Nation-code that is being scanned, important to use uppercase
-SCAN_TYPE:str         = "ip"                                         # (DEF: ip_port)  - Run discovery scan or port scan (values: ip, port and ip_port)
+SCAN_TYPE:str         = "port"                                         # (DEF: ip_port)  - Run discovery scan or port scan (values: ip, port and ip_port)
 SCAN_MODE_LIGHT:bool  = True                                         # (DEF: False)  - If False, runs intense scan that adds -sV to port probes (for better version detection)
 
 
@@ -64,15 +64,18 @@ BATCH_QUEUE_TIMEOUT_SEC = 300                                        # Max time 
 
 # -------------------------------------------------------------------------------
 # --------------------------- DISCOVERY SCAN PARAMS -----------------------------
-FETCH_RIX:bool        = True                                         # (DEF: True)  - If True, fetch IPs from RIX.is
+FETCH_RIX:bool        = False                                         # (DEF: True)  - If True, fetch IPs from RIX.is
 
 ALL_ADDR_QUEUE:str    = f"{SCAN_NATION}.all_addr"                    # The RabbitMQ queue name that contains of all ips to scan
 ALIVE_ADDR_QUEUE:str  = f"{SCAN_NATION}.alive_addr"                  # The RabbitMQ queue name that contains all IPs discovered as 'alive' 
 DEAD_ADDR_QUEUE:str   = f"{SCAN_NATION}.dead_addr"                   # The RabbitMQ queue name that contains all IPs discovered as 'dead'
 
 THRESHOLD:int         = 20                                           # Direct vs batch mode threshold                   # TODO:[P_Low][] - Not in use
-WHO_IS_SCAN_DELAY:int = 2                                            # (DEF: 2)    - Delay between whois lookups        # TODO: verify correct use
-BATCH_QUEUE_SIZE_MAX  = 80                                           # (DEF: 200)  - Tasks (IPs) per batch will be 50% to 90% of the MAX              # TODO:[P_Med][] - DEF 80 now bc only one worker is on each batch
+WHO_IS_SCAN_DELAY:int = 2                                            # (DEF: 2)     - Delay between whois lookups       # TODO: verify correct use
+
+BATCH_QUEUE_SIZE_MAX  = 80                                           # (DEF: 200)   - Max tasks (IPs) per batch         # TODO:[P_Med][] - DEF 80 now bc only one worker is on each batch
+BATCH_MIN_FACTOR      = 0.50                                         # (DEF: 0.50)  - Max tasks in queue ranges from 50%..
+BATCH_MODE_FACTOR     = 0.90                                         # (DEF: 0.90)  -                             .. to 90% of the MAX 
 
 # ------------------------------------------------------------------------------
 
@@ -83,7 +86,7 @@ USE_PRIORITY_PORTS:bool = False                                       # Set this
 ALL_PORTS_QUEUE:str   = f"{SCAN_NATION}.all_ports"                    # The RabbitMQ queue name that contains all ports to scan 
 PRIORITY_PORTS_QUEUE:str  = f"{SCAN_NATION}.priority_ports"           # The RabbitMQ queue name that contains all ports to scan when USE_PRIORITY_PORTS is True
 
-PROBE_JITTER_MAX:float = 0.1                                          # jitter to add on top of SCAN_DELAY (in seconds) # TODO:[emilia] verify
+PROBE_JITTER_MAX:float = float(0.1)                                          # jitter to add on top of SCAN_DELAY (in seconds) # TODO:[emilia] verify
 
 NMAP_RETRY_DELAY      = 200                                           # (DEF: 200ms)  - Minimum delay between two probes to the same port
 NMAP_RETRY_ATTEMPTS   = 1                                             # How many extra probes may be sent if there's no reply (excluding the initial probe)
