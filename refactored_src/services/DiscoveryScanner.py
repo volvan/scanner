@@ -136,7 +136,7 @@ class DiscoveryScanner:
         except Exception as e:
             logger.error(f"Failed to write discovery summary: {e}")
 
-    def process_task(self, ip_addr: str) -> None:
+    def process_task(self, ip_addr: str, rmq_fail_conn:RabbitMQ) -> None:
         """Process a RabbitMQ task.
 
         Args:
@@ -146,39 +146,37 @@ class DiscoveryScanner:
             ValueError: If the message payload does not contain an "ip" key.
         """
 
-        with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
-            # Log the IP address being processed
-            logger.debug(f"[pid={os.getpid()}] Probing IP: {ip_addr}")
-            
-            # 1. Ping the IP
-            ping_res = ProbesDiscoveryScan(ip_addr).ping_host_all_methods() # Returns dict as method, protocol, state and duration. OR None
-            logger.debug(f"Scan result: {ping_res}")
-            if not ping_res:
-                logger.error(f"Failed to ping host {ip_addr}")
-                ping_res = {"probe_method": None, "probe_protocol": None, "host_state": "unknown", "probe_duration": None}
-            
-            # Extract scan result details
-            scan_results = {
-                "ip": ip_addr,
-                "probe_method": ping_res["probe_method"],
-                "probe_protocol": ping_res["probe_protocol"],
-                "host_state": ping_res["host_state"],
-                "probe_duration": ping_res["probe_duration"]
-            }
-            
-            host_state = scan_results["host_state"] #  unknown, filtered, alive, dead 
-            
-            # Route to Alive RMQ queue
-            if host_state == "alive":
-                rmq_fail_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message={"ip": ip_addr, "state": host_state})
-            # Route to Dead RMQ queue
-            elif host_state in ("dead", "filtered"):
-                # TODO:[P_None][]   - Commented out for now, dont need dead-addr queue as of now
-                # rmq_fail_conn.enqueue_to_queue(queue_name=DEAD_ADDR_QUEUE, message={"ip": ip_addr, "state": host_state})
-                pass
-            # Route to Fail RMQ queue
-            else:
-                rmq_fail_conn.enqueue_to_queue(message={"ip": ip_addr, "state": host_state})
+        # Log the IP address being processed
+        logger.debug(f"[pid={os.getpid()}] Probing IP: {ip_addr}")
+        
+        # 1. Ping the IP
+        ping_res = ProbesDiscoveryScan(ip_addr).ping_host_all_methods() # Returns dict as method, protocol, state and duration. OR None
+        logger.debug(f"Scan result: {ping_res}")
+        if not ping_res:
+            logger.error(f"Failed to ping host {ip_addr}")
+            ping_res = {"probe_method": None, "probe_protocol": None, "host_state": "unknown", "probe_duration": None}
+        
+        # Extract scan result details
+        scan_results = {
+            "ip": ip_addr,
+            "probe_method": ping_res["probe_method"],
+            "probe_protocol": ping_res["probe_protocol"],
+            "host_state": ping_res["host_state"],
+            "probe_duration": ping_res["probe_duration"]
+        }
+        
+        host_state = scan_results["host_state"] #  unknown, filtered, alive, dead 
+        
+        # Route to Alive RMQ queue
+        if host_state == "alive":
+            rmq_fail_conn.enqueue_to_queue(queue_name=ALIVE_ADDR_QUEUE, message={"ip": ip_addr, "state": host_state})
+        # Route to Dead RMQ queue
+        elif host_state in ("dead", "filtered"):
+            # TODO:[P_None][]   - Commented out for now, dont need dead-addr queue as of now
+            pass
+        # Route to Fail RMQ queue
+        else:
+            rmq_fail_conn.enqueue_to_queue(message={"ip": ip_addr, "state": host_state})
 
         # Commit results to database
         try:
@@ -204,49 +202,50 @@ class DiscoveryScanner:
         
         try:
             with RabbitMQ(queue_name) as rmq_conn:
-                idle_streak = 0
-                while True:
-                    task = rmq_conn.get_next_message(auto_ack=False, parse_json=True)
-                    if not task:
-                        # queue might be temporarily empty while other workers still ack..
-                        # ..backoff a little and try again
-                        idle_streak += 1
-                        if idle_streak > 20:   # approx 2s if sleep(0.1)
-                            break # empty queue
-                        time.sleep(0.1)
-                        continue
+                with RabbitMQ(FAIL_QUEUE) as rmq_fail:
                     idle_streak = 0
+                    while True:
+                        task = rmq_conn.get_next_message(auto_ack=False, parse_json=True)
+                        if not task:
+                            # queue might be temporarily empty while other workers still ack..
+                            # ..backoff a little and try again
+                            idle_streak += 1
+                            if idle_streak > 20:   # approx 2s if sleep(0.1)
+                                break # empty queue
+                            time.sleep(0.1)
+                            continue
+                        idle_streak = 0
 
-                    method_frame, props, body = task
-                    tag = method_frame.delivery_tag
+                        method_frame, props, body = task
+                        tag = method_frame.delivery_tag
 
-                    # Validate payload
-                    if not isinstance(body, dict) or "ip" not in body or body["ip"] is None:
-                        rmq_conn.enqueue_to_queue(queue_name=FAIL_QUEUE, message={"raw": body, "reason": "bad_payload"})
-                        rmq_conn.ack(tag)
-                        continue
-
-                    ip_addr = body["ip"]
-
-                    try:
-                        self.process_task(ip_addr=ip_addr)
-                        rmq_conn.ack(tag) # Success, so we ACK
-
-                    except Exception as e:
-                        # any unexpected error wrapping the worker
-                        logger.error(f"Error processing ip {ip_addr}: {e} ")
-                        try:
-                            rmq_conn.enqueue_to_queue(queue_name=FAIL_QUEUE, message={"ip": ip_addr, "err": str(e)})
+                        # Validate payload
+                        if not isinstance(body, dict) or "ip" not in body or body["ip"] is None:
+                            rmq_fail.enqueue_to_queue(message={"raw": body, "reason": "bad_payload"})
                             rmq_conn.ack(tag)
+                            continue
+
+                        ip_addr = body["ip"]
+
+                        try:
+                            self.process_task(ip_addr=ip_addr, rmq_fail_conn=rmq_fail)
+                            rmq_conn.ack(tag) # Success, so we ACK
+
                         except Exception as e:
-                            logger.error(f"Also failed to send to FAIL_QUEUE: {e}")
-                            rmq_conn.nack(tag, requeue=True)
+                            # any unexpected error wrapping the worker
+                            logger.error(f"Error processing ip {ip_addr}: {e} ")
+                            try:
+                                rmq_fail.enqueue_to_queue(message={"ip": ip_addr, "err": str(e)})
+                                rmq_conn.ack(tag)
+                            except Exception as e:
+                                logger.error(f"Also failed to send to FAIL_QUEUE: {e}")
+                                rmq_conn.nack(tag, requeue=True)
 
-                    # pause between tasks
-                    time.sleep(SCAN_DELAY) # TODO:[P_Med][]     - Is this not double delaying? as we delay in probe method and here and process_task..
+                        # pause between tasks
+                        time.sleep(SCAN_DELAY) # TODO:[P_Med][]     - Is this not double delaying? as we delay in probe method and here and process_task..
 
-                # once we drain the queue, remove it
-                rmq_conn.remove_queue()
+                    # once we drain the queue, remove it
+                    rmq_conn.remove_queue()
         finally:
             logger.debug(f"Worker for queue {queue_name} has drained and exited the queue.")
 
