@@ -3,7 +3,7 @@ import os
 import json
 import logging
 from logging.handlers import RotatingFileHandler
-from config.scan_config import LOG_DIR, LOG_TO_TERMINAL, LOG_TO_FILE, SERVICE_TAG, LOG_FILE_PATH, DEBUG_MODE
+from config.scan_config import LOG_DIR, LOG_TO_TERMINAL, LOG_TO_FILE, SERVICE_TAG, LOG_FILE, DEBUG_MODE
 
 
 class WorkerPIDFilter(logging.Filter):
@@ -21,7 +21,7 @@ class WorkerPIDFilter(logging.Filter):
 
 
 # # --- Load configuration ---
-# with open(CONFIG_PATH, "r") as f:
+# with open(CONFIG_FILE, "r") as f:
 #     config = json.load(f)
 
 
@@ -46,7 +46,7 @@ def configure_logging():
             datefmt="%Y-%m-%d %H:%M:%S",
         )
         file_handler = RotatingFileHandler(
-            LOG_FILE_PATH, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+            LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
         )
         file_handler.setFormatter(file_formatter)
         file_handler.setLevel(logging.DEBUG if DEBUG_MODE else logging.INFO)
