@@ -2,7 +2,7 @@ from __future__ import annotations
 import sys
 
 from infrastructure.RabbitMQ import RabbitMQ
-from config.logging_config import LOG_FILE_PATH, logger
+from config.logging_config import LOG_FILE, logger
 
 
 def _confirm(prompt: str) -> bool:
@@ -50,15 +50,15 @@ def prompt_delete_all_queues() -> None:
 
 def prompt_clear_logs():
     """laterdo: Docstr."""
-    if not _confirm(f"Clear log file {LOG_FILE_PATH}?"):
+    if not _confirm(f"Clear log file {LOG_FILE}?"):
         sys.stderr.write("Aborted.\n")
         return
     try:
-        open(LOG_FILE_PATH, "w").close()
-        logger.debug("Cleared log file: %s", LOG_FILE_PATH)
+        open(LOG_FILE, "w").close()
+        logger.debug("Cleared log file: %s", LOG_FILE)
         sys.stderr.write("Log file cleared.\n")
     except Exception as e:
-        logger.error("Failed to clear log file %s: %s", LOG_FILE_PATH, e)
+        logger.error("Failed to clear log file %s: %s", LOG_FILE, e)
 
 
 # ---------- Orchestrator ----------
