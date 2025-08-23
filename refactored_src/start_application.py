@@ -72,6 +72,8 @@ def main():
     try:
         logger.info(f"Initializing '{SCAN_TYPE}' scan.")
         scan_methods[SCAN_TYPE]()
+    except KeyboardInterrupt:
+        sys.exit(130) # Ctrl-C exit
     except Exception as e:
         logger.error(f"An unexpected exception of type {type(e).__name__}: {e}")
         sys.exit(1)

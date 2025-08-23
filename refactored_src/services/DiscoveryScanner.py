@@ -65,62 +65,47 @@ class DiscoveryScanner:
     def launch_discovery_scan_pipeline(self):
         """Main runner."""
         
-        try:
-            # Start a listener on it's own thread that inserts into the DB
-            self.infraManager.start_hosts()
+        # 1) Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
+        filename = self.new_targets()
+        if not filename:
+            return None
 
-            # 1) Launch new_targets pipeline that preps the scan (enqueues all ips and does the whois lookup)
-            filename = self.new_targets()
-            if not filename:
-                return None
+        # 2) Record the scan-start timestamp
+        discovery_start_ts = get_current_timestamp()
 
-            # 2) Record the scan-start timestamp
-            discovery_start_ts = get_current_timestamp()
+        # 3) run the scan (blocks until complete)
+        try: self.start_consuming()
+        except Exception:
+            logger.exception("Discovery scan aborted/crashed inside pipeline.")
+            raise
 
-            # 3) run the scan (blocks until complete)
-            self.start_consuming()
-
-        except Exception as e:
-            # Wait for the db queue to drain and stop the db listener
-            logger.critical(f"Fatal error: {e}", exc_info=True)
-            self.infraManager.stop()
-            sys.exit(1)
-        
+        # 4) Pipeline is now done, need to wait for every batch process to exit
         finally:
-            # 4) Pipeline is now done, need to wait for every batch process to exit
-            logger.info("Host Discovery scan pipeline has concluded, now workers will stop..")
-            for p in self.active_workers:
-                p.join()
-    
-        # Now start the cleanup after the scan has concluded
+            logger.info("Stopping discovery workers...")
+            self._shutdown_workers(timeout=5.0)
+            
+        # - Now start the cleanup after the scan has concluded
         logger.info("Host Discovery scan has concluded, cleanup starting.")
 
+
+
+        # 1) Record the scan-done timestamp
+        discovery_done_ts = get_current_timestamp()
+
+        # 2) record all blocks that were scanned
+        cidr_blocks:list = read_block(filename)
+        if not cidr_blocks:
+            logger.error("COULD NOT READ blocks.")
+
+        # 3) persist summary via QueryModel
         try:
-            # 1) Record the scan-done timestamp
-            discovery_done_ts = get_current_timestamp()
+            self._update_summary(discovery_start_ts, discovery_done_ts, cidr_blocks)
+            logger.info("Summary table updated and the discovery scan is complete.")
+        except Exception:
+            logger.exception("Failed to write discovery summary.")
+            raise
 
-            # 2) record all blocks that were scanned
-            blocks = read_block(filename)
-            if not blocks: 
-                logger.error("COULD NOT READ blocks.")
 
-            # 3) persist summary via QueryModel
-            self._update_summary(discovery_start_ts, discovery_done_ts, blocks)
-
-        except Exception as e:
-            # Wait for the db queue to drain and stop the db listener
-            logger.critical(f"Fatal error: {e}", exc_info=True)
-            self.infraManager.stop()
-            sys.exit(1)
-
-        finally:
-            # 4) Host discover scan is now done, now we wait for processes
-            logger.debug(f"Current running processes for db_hosts: {db_hosts.qsize()} and active processes are: {len(self.active_workers)}")
-            logger.info("Summary table updated and the scan is now done.")
-
-            # Wait for the db queue to drain (blocks until every task_done() completed)
-            logger.info(f"Waiting for db_hosts queue to empty.. Currently there are {db_hosts.qsize()} items in db_hosts queue.")
-            self.infraManager.stop()
 
     def _update_summary(self, discovery_start_ts, discovery_done_ts, scanned_blocks):
         try:
