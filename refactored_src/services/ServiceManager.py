@@ -37,7 +37,7 @@ class ServiceManager:
             logger.warning("Discovery scan interrupted by user.", exc_info=True)
             raise
         except Exception:
-            logger.critical(f"Fatal error in discovery pipeline", exc_info=True)
+            logger.critical(f"Fatal error in discovery scan pipeline", exc_info=True)
             raise
         
         finally:
@@ -59,15 +59,31 @@ class ServiceManager:
         start_ts = get_current_timestamp()
         logger.info(f"Just started 'port_scan_pipeline()'. At: {start_ts}")
 
-        # Launch the scan
-        self.portScanner.launch_port_scan_pipeline()
+        try:
+            # Start a listener on it's own thread that inserts into the DB
+            self.infraManager.start_ports()
 
-        # Record the application done time and duration
-        done_ts = get_current_timestamp()
-        duration = duration_timestamp(start_ts, done_ts)
+            # Launch the scan
+            self.portScanner.launch_port_scan_pipeline()
 
-        logger.info(f"'port_scan_pipeline()' done at: {done_ts}, with the duration as: {duration}.")
-        print(f"'Port scan' done at: {done_ts}. The duration is: {duration}.")
+        except KeyboardInterrupt:
+            logger.warning("Port scan interrupted by user.", exc_info=True)
+            raise
+        except Exception:
+            logger.critical(f"Fatal error in port scan pipeline", exc_info=True)
+            raise
+
+        finally:
+            # Stop the DB handler
+            self.infraManager.stop()
+
+
+            # Record the application done time and duration
+            done_ts = get_current_timestamp()
+            duration = duration_timestamp(start_ts, done_ts)
+
+            logger.info(f"'port_scan_pipeline()' done at: {done_ts}, with the duration as: {duration}.")
+            print(f"'Port scan' done at: {done_ts}. The duration is: {duration}.")
 
 
     def start_ip_port_scan(self):
