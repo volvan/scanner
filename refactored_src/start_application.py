@@ -27,7 +27,6 @@ def restore_terminal_echo():
         pass
 
 
-
 def main():
     """Main entry point for the scanner.
     

@@ -15,7 +15,6 @@ from infrastructure.DBHandler import db_ports
 from infrastructure.DBWorker import DBWorker
 from infrastructure.RabbitMQ import RabbitMQ
 
-from utils.batch_handler import PortBatchHandler
 from utils.resource_status import resource_ok
 from utils.probes_port_scan import ProbesPortScan
 from utils.ports_handler import read_ports_file
