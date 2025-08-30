@@ -11,7 +11,7 @@ from utils.timestamp import get_current_timestamp
 
 # Configuration
 from config.logging_config import log_exception, logger
-from config.scan_config import TARGETS_FILE_PATH, WHO_IS_SCAN_DELAY
+from config.scan_config import TARGETS_DIR, WHO_IS_SCAN_DELAY
 
 # Services
 import requests  # type: ignore
@@ -72,7 +72,7 @@ def fetch_rix_blocks() -> str:
 
 
 def read_block(filename: str) -> list:
-    """Read CIDR blocks from a file under TARGETS_FILE_PATH.
+    """Read CIDR blocks from a file.
 
     Args:
         filename (str): Name of the file containing CIDR blocks.
@@ -80,9 +80,9 @@ def read_block(filename: str) -> list:
     Returns:
         list: List of CIDR block strings.
     """
-    file_path = os.path.join(TARGETS_FILE_PATH, filename)
+    # file_path = os.path.join(TARGETS_DIR, filename)
     try:
-        with open(file_path, "r") as file:
+        with open(filename, "r") as file:
             return [line.strip() for line in file if line.strip()]
     except Exception as e:
         logger.error(f"Failed to read block file '{filename}': {e}")
@@ -141,33 +141,6 @@ def get_ip_addresses_from_block(ip_address: str = None, filename: str = None):
         return []
 
 
-def extract_subnet_from_block(cidr_block: str = None, filename: str = None) -> dict:
-    """Extract network address and prefix length from CIDR blocks.
-
-    Args:
-        cidr_block (str, optional): A single CIDR block.
-        filename (str, optional): File containing multiple CIDR blocks.
-
-    Returns:
-        dict: Mapping of CIDR block -> (network address, prefix length).
-    """
-    cidr_list = []
-    if filename:
-        cidr_list = read_block(filename)
-    elif cidr_block:
-        cidr_list = [cidr_block]
-
-    results = {}
-    for cidr in cidr_list:
-        try:
-            network = ipaddress.ip_network(cidr, strict=False)
-            results[cidr] = (str(network.network_address), network.prefixlen)
-        except ValueError:
-            results[cidr] = ("unknown", None)
-        except Exception as e:
-            logger.error(f"Unexpected subnet extraction error: {e}")
-            results[cidr] = ("unknown", None)
-    return results
 
 
 def whois_block(filename: str) -> dict:
