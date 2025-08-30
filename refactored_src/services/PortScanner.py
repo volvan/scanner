@@ -27,6 +27,7 @@ from config.logging_config import logger, log_exception
 from config.scan_config import (  # noqa: F401
     PRIORITY_PORTS_QUEUE,
     USE_PRIORITY_PORTS,
+    PORTS_QUEUE,
     ALL_PORTS_QUEUE,
     ALIVE_ADDR_QUEUE,
     FAIL_QUEUE,
@@ -53,6 +54,10 @@ class PortScanner:
         self.active_workers: list[tuple[Process, str]] = [] # [(proc, batch_queue)]
         self.ready_batches: list[str] = [] # created batch queues waiting to be drained
         self.stop_event = multiprocessing.Event() # workers abort on fatal error
+
+        # NOTE: Moved here from PortBatchHandler
+        self.used_ports = set() # # TODO:[P_High][] - Verify this logic is not double scanning ports
+        self.ips_cache: list[str] | None = None
 
     def launch_port_scan_pipeline(self):
         """Main runner."""
@@ -359,8 +364,8 @@ class PortScanner:
                         
                 # pre create batches exactly up to BATCH_CREATED_QUEUES_MAX concurrently
                 while len(self.ready_batches) < BATCH_CREATED_QUEUES_MAX and remaining > 0:
-                    # batch_queue = self.create_batch() 
-                    batch_queue = PortBatchHandler().create_port_batch(ip_queue=ALIVE_ADDR_QUEUE, port_queue=port_queue_name)
+                    batch_queue = self.create_batch(port_queue=port_queue_name)
+                    # batch_queue = PortBatchHandler().create_port_batch(ip_queue=ALIVE_ADDR_QUEUE, port_queue=port_queue_name)
                     
                     if not batch_queue:
                         logger.debug("Waiting for a free slot to spawn next batch...")
@@ -448,3 +453,84 @@ class PortScanner:
 
         except Exception as e:
             logger.error(f"Error in new_targets: {e}")
+
+
+
+    def create_batch(self, port_queue: str) -> str | None:
+        """Create a port scan batch by pairing one port with all alive IPs.
+
+        Args:
+            port_queue (str): Queue with ports to scan.
+
+        Returns:
+            Optional[str]: Name of the created batch queue, or None if no batch created.
+
+        Notes:
+            The port is pulled from the port queue and associated with all cached IPs.
+            Ports already batched previously are skipped. # TODO:[P_High][] -  confirmed?
+        """
+
+        # TODO:[P_High][]   - This needs to re-done. We are wasting alot of resources on this.
+        
+        with RabbitMQ(port_queue) as rmq_port_conn:
+            # Get next port from all ports queue
+            task = rmq_port_conn.get_next_message(auto_ack=False, parse_json=True)
+            if not task:
+                return None
+            
+            method_frame, props, body = task
+            tag = method_frame.delivery_tag
+
+            # Validate payload
+            if not isinstance(body, dict) or "port" not in body or body["port"] is None:
+                logger.error(f"Invalid or missing 'port' in payload: {body!r}")
+                rmq_port_conn.enqueue_to_queue(queue_name=FAIL_QUEUE, message={"raw": body, "reason": "bad_payload"})
+                rmq_port_conn.ack(tag)  # don't hot-loop a bad message
+                return None
+
+            port = body["port"]
+            if port in self.used_ports:
+                rmq_port_conn.ack(tag) # we've consumed it so we skip requeuing to avoid loops
+                return None
+            
+            self.used_ports.add(port)
+            rmq_port_conn.ack(tag)# success path, we accepted this port
+            logger.debug(f"used_ports size={len(self.used_ports)}")
+
+            # TODO:[P_High][] -  this is thousounds of ips right? should not get in bathes maybe? what happens if process fails or closes? will it be requeued or gone?
+            # TODO:[P_Low][] - should this not be in similar logic as the batch creation in ip scan? i know the message is not the same but else it should follow in simar terms, no?
+            # self._load_all_ips_once(queue_name=ALIVE_ADDR_QUEUE)
+            if self.ips_cache is not None:
+                return self.ips_cache
+
+            with RabbitMQ(ALIVE_ADDR_QUEUE) as rmq_ip_conn:
+                all_ips: list[str] = [] # TODO:[P_High][] -  Should it really be a list?
+                while True:
+                    task = rmq_ip_conn.get_next_message(auto_ack=True, parse_json=True) # TODO:[P_Med_ack][] -  auto_ack=True danger
+                    if not task:
+                        break
+                    method_frame, props, body = task
+                    # Validate payload
+                    ip_addr = body["ip"]
+                    if ip_addr:
+                        all_ips.append(ip_addr)
+                # Enqueue all ips again in the same queue.
+                for ip in all_ips: # TODO:[P_High][] -  Is this the most optimal and best solution? To auto-ack all ips from the main queue and after getting all, then append to the list (all_ips) and THEN requeue them? if anything happens here f.x we will be losing alot of ips right?
+                    rmq_ip_conn.enqueue_to_queue(message={"ip": ip})
+            self.ips_cache = all_ips
+            logger.info(f"Cached {len(all_ips)} alive IPs.")
+
+            if not self.ips_cache:
+                logger.warning("No alive IPs to batch against.")
+                return None
+
+            prefix = PRIORITY_PORTS_QUEUE if USE_PRIORITY_PORTS else PORTS_QUEUE # TODO:[P_High][Emilia] -  Look at this
+            batch_name = f"{prefix}_{port}"
+
+            encrypted_ips = reservoir_of_reservoirs(self.ips_cache)
+            for ip in encrypted_ips:
+                # This "create_queue" is a patch TODO:[P_Low][]
+                rmq_port_conn.create_queue(queue_name=batch_name)
+                rmq_port_conn.enqueue_to_queue(queue_name=batch_name, message={"ip": ip, "port": port})
+            logger.debug(f"Created batch '{batch_name}' with {len(self.ips_cache)} tasks.")
+            return batch_name

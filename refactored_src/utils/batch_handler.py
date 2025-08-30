@@ -12,7 +12,8 @@ from infrastructure.RabbitMQ import RabbitMQ
 
 sys.excepthook = log_exception
 
-# TODO:[P_High][Emilia]   - This needs to re-done. We are wasting alot of resources on this.
+# TODO:[P_Med][] - This is very outdated code and should never be used.
+#######################################################################
 
 
 class PortBatchHandler:

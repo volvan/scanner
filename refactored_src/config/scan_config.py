@@ -84,7 +84,8 @@ BATCH_MODE_FACTOR     = 0.90                                         # (DEF: 0.9
 USE_PRIORITY_PORTS:bool = False                                       # Set this to True if ports file consists of priority ports
 
 ALL_PORTS_QUEUE:str   = f"{SCAN_NATION}.all_ports"                    # The RabbitMQ queue name that contains all ports to scan 
-PRIORITY_PORTS_QUEUE:str  = f"{SCAN_NATION}.priority_ports"           # The RabbitMQ queue name that contains all ports to scan when USE_PRIORITY_PORTS is True
+PRIORITY_PORTS_QUEUE:str  = f"{SCAN_NATION}.priority_port"            # The RabbitMQ queue name that contains priority ports to scan when USE_PRIORITY_PORTS is True
+PORTS_QUEUE:str       = f"{SCAN_NATION}.port"                         # The RabbitMQ queue name that contains ports to scan when USE_PRIORITY_PORTS is False
 
 PROBE_JITTER_MAX:float = float(0.1)                                          # jitter to add on top of SCAN_DELAY (in seconds) # TODO:[emilia] verify
 
