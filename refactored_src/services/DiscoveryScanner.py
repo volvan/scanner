@@ -1,13 +1,16 @@
 # Standard library
+import multiprocessing
+from multiprocessing import Process
+from multiprocessing.synchronize import Event
+
 import gc
 import itertools
-import multiprocessing
 import sys
 import random
 import os
 import time
+from contextlib import suppress
 
-from multiprocessing import Process
 
 from infrastructure.InfrastructureManager import InfrastructureManager
 from infrastructure.RabbitMQ import RabbitMQ
@@ -61,6 +64,7 @@ class DiscoveryScanner:
         self.active_workers: list[tuple[Process, str]] = [] # [(proc, batch_queue)]
         self.ready_batches: list[str] = [] # created batch queues waiting to be drained
         self.batch_id_generator = itertools.count(1)
+        self.stop_event = multiprocessing.Event() # workers abort on fatal error
 
     def launch_discovery_scan_pipeline(self):
         """Main runner."""
@@ -74,7 +78,8 @@ class DiscoveryScanner:
         discovery_start_ts = get_current_timestamp()
 
         # 3) run the scan (blocks until complete)
-        try: self.start_consuming()
+        try: 
+            self.start_consuming()
         except Exception:
             logger.exception("Discovery scan aborted/crashed inside pipeline.")
             raise
@@ -82,12 +87,12 @@ class DiscoveryScanner:
         # 4) Pipeline is now done, need to wait for every batch process to exit
         finally:
             logger.info("Stopping discovery workers...")
+            self.stop_event.set()
             self._shutdown_workers(timeout=5.0)
             
-        # - Now start the cleanup after the scan has concluded
+
+        # Now start the cleanup after the scan has concluded
         logger.info("Host Discovery scan has concluded, cleanup starting.")
-
-
 
         # 1) Record the scan-done timestamp
         discovery_done_ts = get_current_timestamp()
@@ -108,20 +113,18 @@ class DiscoveryScanner:
 
 
     def _update_summary(self, discovery_start_ts, discovery_done_ts, scanned_blocks):
-        try:
-            with DBWorker() as dbWorker:
-                queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
-                    discovery_start_ts=discovery_start_ts,
-                    discovery_done_ts=discovery_done_ts,
-                    scanned_cidrs=scanned_blocks
-                )
-                success = dbWorker.execute_query_model(queryModel)
-                if not success:
-                    logger.critical('Something went wrong while inserting the summary.')
-                else:
-                    logger.info("Summary table updated for scan.")
-        except Exception as e:
-            logger.error(f"Failed to write discovery summary: {e}")
+        with DBWorker() as dbWorker:
+            queryModel: QueryModel = self.infraManager.queryHandler.insert_summary(
+                discovery_start_ts=discovery_start_ts,
+                discovery_done_ts=discovery_done_ts,
+                scanned_cidrs=scanned_blocks
+            )
+            success = dbWorker.execute_query_model(queryModel)
+            if not success:
+                logger.critical('Something went wrong while inserting the summary.')
+            else:
+                logger.info("Summary table updated for scan.")
+
 
     def process_task(self, ip_addr: str, rmq_fail_conn:RabbitMQ) -> None:
         """Process a RabbitMQ task.
@@ -172,10 +175,8 @@ class DiscoveryScanner:
         except Exception as e:
             logger.error(f"Failed to enqueue host result to db_hosts: {e}")
 
-        # Add a small delay between tasks to control scan rate
-        time.sleep(SCAN_DELAY) # TODO:[P_Med][]     - Is this not double delaying? as we delay in probe method and here and _drain_and..
 
-    def _drain_and_exit(self, queue_name: str) -> None:
+    def _drain_and_exit(self, queue_name: str, stop_event: Event) -> None:
         """Drain all tasks from a queue, process them, and exit.
 
         Args:
@@ -189,9 +190,10 @@ class DiscoveryScanner:
         
         try:
             with RabbitMQ(queue_name) as rmq_conn:
-                with RabbitMQ(FAIL_QUEUE) as rmq_fail:
+                with RabbitMQ(FAIL_QUEUE) as rmq_fail_conn:
                     idle_streak = 0
-                    while True:
+                    # while True:
+                    while not stop_event.is_set():
                         task = rmq_conn.get_next_message(auto_ack=False, parse_json=True)
                         if not task:
                             # queue might be temporarily empty while other workers still ack..
@@ -208,21 +210,21 @@ class DiscoveryScanner:
 
                         # Validate payload
                         if not isinstance(body, dict) or "ip" not in body or body["ip"] is None:
-                            rmq_fail.enqueue_to_queue(message={"raw": body, "reason": "bad_payload"})
+                            rmq_fail_conn.enqueue_to_queue(message={"raw": body, "reason": "bad_payload"})
                             rmq_conn.ack(tag)
                             continue
 
                         ip_addr = body["ip"]
 
                         try:
-                            self.process_task(ip_addr=ip_addr, rmq_fail_conn=rmq_fail)
+                            self.process_task(ip_addr=ip_addr, rmq_fail_conn=rmq_fail_conn)
                             rmq_conn.ack(tag) # Success, so we ACK
 
                         except Exception as e:
                             # any unexpected error wrapping the worker
                             logger.error(f"Error processing ip {ip_addr}: {e} ")
                             try:
-                                rmq_fail.enqueue_to_queue(message={"ip": ip_addr, "err": str(e)})
+                                rmq_fail_conn.enqueue_to_queue(message={"ip": ip_addr, "err": str(e)})
                                 rmq_conn.ack(tag)
                             except Exception as e:
                                 logger.error(f"Also failed to send to FAIL_QUEUE: {e}")
@@ -232,6 +234,8 @@ class DiscoveryScanner:
                         time.sleep(SCAN_DELAY) # TODO:[P_Med][]     - Is this not double delaying? as we delay in probe method and here and process_task..
 
                     # once we drain the queue, remove it
+                    # if rmq_conn.tasks_in_queue() == 0:
+                    #     rmq_conn.remove_queue()
                     rmq_conn.remove_queue()
         finally:
             logger.debug(f"Worker for queue {queue_name} has drained and exited the queue.")
@@ -258,10 +262,10 @@ class DiscoveryScanner:
         Creates batches and ONE WORKER drains from each queue.
         """
 
+        # Open a shared RMQ connection to check tasks in queue and other small things
+        shared_RMQ_connection = RabbitMQ(ALL_ADDR_QUEUE)
+        
         try:
-            # Open a shared RMQ connection to check tasks in queue and other small things
-            shared_RMQ_connection = RabbitMQ(ALL_ADDR_QUEUE)
-
             # Start discovery and check how many targets to scan
             total_tasks = shared_RMQ_connection.tasks_in_queue()
             logger.info(f"Starting host discovery with {total_tasks} tasks waiting in '{ALL_ADDR_QUEUE}'.")
@@ -284,16 +288,33 @@ class DiscoveryScanner:
                 
                 # Wait for worker to finish
                 alive: list[tuple[multiprocessing.Process, str]] = []
+                assigned = set()  # queues that currently have a live worker
 
                 for worker, batch_q in self.active_workers:
                     if worker.is_alive():
                         alive.append((worker, batch_q))
-                    else:
-                        try: worker.join(timeout=0)   # reap exit status, avoid zombies
-                        except Exception: pass
-                        if worker.exitcode not in (0, None):
-                            # crashed or terminated; queue should have been deleted in _drain_and_exit
-                            logger.warning(f"Worker {worker.pid} on {batch_q} exited with code {worker.exitcode}")
+                        assigned.add(batch_q)
+                        continue
+                
+                    # reap exit status, avoid zombies
+                    try: worker.join(timeout=0)
+                    except Exception: pass
+
+                    # crashed or terminated (queue should have been deleted in _drain_and_exit)
+                    if worker.exitcode not in (0, None):
+                        logger.warning(f"Worker {worker.pid} on {batch_q} exited with code {worker.exitcode}")
+
+                        # If queue still has messages, reschedule it
+                        try:
+                            with RabbitMQ(batch_q) as rmq:
+                                if rmq.tasks_in_queue() > 0:
+                                    # put back to ready list if not already scheduled
+                                    if batch_q not in self.ready_batches and batch_q not in assigned:
+                                        self.ready_batches.append(batch_q)
+                        except Exception:
+                            # Queue might have been removed already; ignore
+                            pass
+
                 self.active_workers = alive
 
                 remaining = shared_RMQ_connection.tasks_in_queue()
@@ -305,13 +326,17 @@ class DiscoveryScanner:
 
                 # Assign ready batches to free worker slots
                 max_running_allowed = min(TOTAL_MAX_WORKERS, BATCH_QUEUES_ACTIVE_MAX)
+                assigned = {q for _p, q in self.active_workers}
+
                 while self.ready_batches and len(self.active_workers) < max_running_allowed:
                     batch_queue = self.ready_batches.pop(0)  # take first (FIFO)
+                    if batch_queue in assigned:
+                        continue  # already has a worker
                     
                     # Create x amount of workers to work on each batch # TODO:[P_High][] - does not support more than 1 worker 
                     # for _ in range(BATCH_WORKERS_PER_QUEUE_MAX): # TODO[P_High][]   - Should be used, now its only one
                     for _ in range(1):
-                        p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,))
+                        p = multiprocessing.Process(target=self._drain_and_exit, args=(batch_queue,self.stop_event))
                         p.start()
                         self.active_workers.append((p, batch_queue))
                         logger.info(f"Worker started on {batch_queue} "
@@ -339,12 +364,29 @@ class DiscoveryScanner:
                 else:
                     # fully saturated on running; give them time to progress
                     time.sleep(0.5)
-
         finally:
             shared_RMQ_connection.close()
-            for p in self.active_workers:
-                if p.is_alive():
-                    p.join(timeout=1)
+
+
+    def _shutdown_workers(self, timeout: float = 5.0) -> None:
+        """Gracefully stop workers, then force-kill stragglers."""
+        # graceful join
+        for proc, _q in self.active_workers:
+            with suppress(Exception):
+                if proc.is_alive():
+                    proc.join(timeout=timeout)
+
+        # second try, force kill + queue cleanup
+        for proc, _q in list(self.active_workers):
+            with suppress(Exception):
+                if proc.is_alive():
+                    logger.debug("Terminating stuck worker pid=%s", proc.pid)
+                    proc.terminate()
+                    proc.join(timeout=timeout)
+
+        self.active_workers.clear()
+
+        
 
     def new_targets(self) -> str:
         """Prepare the targeted IP addresses, randomize them, and enqueue to add_addr queue in bulks/batches.
